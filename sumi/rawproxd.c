@@ -12,9 +12,15 @@
  *
  * rawproxd is written in C instead of C++ so it can be compatible with
  * uclibc on the Linksys WRT54G/WRT54GS mipsel routers, which lack libstdc++.
+ *
+ * This file uses tabs - please don't collapse them to spaces when editing.
  */
-#include <errno.h>
+
 #include <stdio.h>
+#include <stdlib.h>
+#include <errno.h>
+
+#include "hash/md5a.h"
 
 #ifdef _WIN32
 #include <winsock2.h>
@@ -25,18 +31,30 @@
 #define closesocket    close
 #endif
 
-#define PORT	7010
-#define MTU	1500
-#define BACKLOG    1
+#define PORT	       7010
+#define MTU	       1500
+#define BACKLOG           1
+#define CHALLENGE_LEN    32
 
-int main()
+#ifndef MSG_WAITALL
+/* Dan Weber has let me compile rawproxd.c on his box, which works. Doesn't
+ * work on my FreeBSD system. 
+ */
+#error Your cross-compilation toolchain doesn't seem to be setup correctly (missing MSG_WAITALL). Make sure you are using mipsel-linux-gcc. The /usr/ports/devel/mipsel-linux-gcc port on FreeBSD doesn't seem to work correctly, please try the Debian package instead.
+#endif
+
+int handle_client(int rs, int client, struct sockaddr_in client_addr, 
+                  int addr_len, char* pw);
+
+int main(int argc, char** argv)
 {
-	char buf[MTU];
 	int server, client, rs;
 	struct sockaddr_in server_addr;
 	struct sockaddr_in client_addr;
 	socklen_t addr_len;
 	int on = 1;
+	char* pw;
+
 
 #ifdef _WIN32
 	WSADATA wsaData;
@@ -60,6 +78,17 @@ int main()
 		exit(-2);
 	}
 
+	/* If password on command line, use it. */
+	if (argc >= 2) {
+		pw = argv[1];
+	} else {
+		pw = "";
+		printf("WARNING: Not using a password. Anyone can connect.\n");
+		printf("For better security, run %s <passoword\n", argv[0]);
+	}
+
+
+	srand(time(0));
  
 	server = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 	if (server < 0)
@@ -99,13 +128,92 @@ int main()
 		exit(-6);
 	}
 
-	printf("Waiting for connection...\n");
-	client = accept(server, (struct sockaddr*)&client_addr, &addr_len);
+	while(1)
+	{
+		printf("Waiting for connection...\n");
+		client = accept(server, (struct sockaddr*)&client_addr, 
+		                &addr_len);
+		if (handle_client(rs, client, client_addr, addr_len, pw) < 0)
+			break;
+		closesocket(client);
+	}
+
+	printf("Shutting down...\n");
+	closesocket(client);
+	closesocket(rs);
+	closesocket(server);
+}
+
+int handle_client(int rs, int client, struct sockaddr_in client_addr, 
+                  int addr_len, char* pw)
+{
+	md5_state_t state;
+	FILE* urandom;
+	char buf[MTU];
+	char challenge[CHALLENGE_LEN];
+	char response[16];
+	md5_byte_t digest[16];
+	int i;
+
 	if (client < 0)
 	{
 		perror("accept failed");
 		exit(-7);
 	}
+
+	printf("Connected\n");
+
+	/* Challenge-response password-based login. */
+	urandom = fopen("/dev/urandom", "rb");      /* WRT54GS has this. */
+	if (!urandom)
+	{
+		/* Not available (on Windows, for example), so use rand(). */
+		printf("WARNING: Using bad random number generator.\n");
+		for (i = 0; i < CHALLENGE_LEN; i++)
+		{
+			challenge[i] = rand();	
+			printf("%02x ", challenge[i]);
+		}
+		printf("\n");
+	} else {
+		if (fread(challenge, 1, CHALLENGE_LEN, urandom) != 
+		    CHALLENGE_LEN) 
+		{
+			perror("couldn't read enough bytes from /dev/urandom");
+			exit(-9);
+		}
+	}
+
+	if (send(client, challenge, CHALLENGE_LEN, MSG_WAITALL) 
+	    != CHALLENGE_LEN)
+	{
+		perror("couldn't send challenge to client");
+		return;
+	}
+
+	/* 16-byte (=128-bit) MD5 hash is the response. */
+	if (recv(client, response, 16, MSG_WAITALL) != 16)
+	{
+		perror("couldn't read challenge response");
+		return;
+	}
+
+	md5_init(&state);
+	md5_append(&state, (const md5_byte_t*)challenge, CHALLENGE_LEN);
+	md5_append(&state, (const md5_byte_t*)pw, strlen(pw));
+	md5_finish(&state, digest);
+	/*for (i = 0; i < 16; i++)
+		printf("%02x", digest[i]);
+	printf("\n");*/
+
+	/* Check password. If no password, let anything in. */
+	if (pw[0] && memcmp(digest, response, 16) != 0)
+	{
+		printf("Denied %s\n", inet_ntoa(client_addr.sin_addr));
+		return;
+	}	
+	printf("Accepted %s\n", inet_ntoa(client_addr.sin_addr));
+	send(client, "\xff", 1, MSG_WAITALL);
 
 	while(1)
 	{
@@ -120,8 +228,8 @@ int main()
 		magic = ntohs(magic);
 		if (magic != 0x5250)
 		{
-			printf("invalid magic: %.4x (not 0x5250)\n", magic);
-			exit(-3);
+			printf("invalid magic within stream: %.4x (not 0x5250)\n", magic);
+			return;
 		}
 
 		recv(client, &len, 2, MSG_WAITALL);
@@ -163,10 +271,7 @@ int main()
 		               (struct sockaddr*)&dest_addr, addr_len);
 		if (wrote == -1)
 		{
-			/* If fails with invalid argument, check if ip_len
-			 * is in host order (on FreeBSD), or network endian
-			 * order, depending on the operating system. */
-			/* XXX: Fails with invalid argument with either endian?*/
+			/* Note: if invalid argument, make sure right endian. */
 			perror("sendto raw failed");
 			break;
                 } else if (wrote != MTU) {
@@ -175,9 +280,7 @@ int main()
 		}
 	}
 
-	closesocket(rs);
 	closesocket(client);
-	closesocket(server);
 
 	return 0;
 }

@@ -735,7 +735,18 @@ def setup_raw(argv):
     if (os.environ.has_key("RAWSOCKFD")):   # Launched from 'launch'
         raw_socket = socket.fromfd(int(os.environ["RAWSOCKFD"]), socket.AF_INET, socket.IPPROTO_UDP)
     elif cfg.has_key("raw_proxy"):          # Remote raw proxy server
-        raw_proxy_list = cfg["raw_proxy"].split(":")
+        raw_proxy_addr_pw = cfg["raw_proxy"].split(" ")
+
+        if len(raw_proxy_addr_pw) == 1:
+            raw_proxy_ipport = raw_proxy_addr_pw[0]
+            pw = ""
+        elif len(raw_proxy_addr_pw) == 2:
+            (raw_proxy_ipport, pw) = raw_proxy_addr_pw
+        else:
+            print "Invalid raw proxy format: " + cfg["raw_proxy"]
+            sys.exit(-4)
+
+        raw_proxy_list = raw_proxy_ipport.split(":")
         if len(raw_proxy_list) == 1:
             raw_proxy_ip = raw_proxy_list[0]
             raw_proxy_port = 7010
@@ -743,7 +754,7 @@ def setup_raw(argv):
             (raw_proxy_ip, raw_proxy_port) = raw_proxy_list
             raw_proxy_port = int(raw_proxy_port)
         else:
-           print "Invalid raw proxy format: " + cfg["raw_proxy"]
+           print "Invalid raw proxy format2: " + cfg["raw_proxy"]
            sys.exit(-4)
         print "Using raw proxy server at",raw_proxy_ip,"on port",raw_proxy_port
         try:
@@ -752,6 +763,22 @@ def setup_raw(argv):
         except socket.error, e:
             print "Raw proxy connection error:", e[0], e[1]
             sys.exit(-5)
+
+        # Authenticate
+        challenge = raw_proxy.recv(32)
+        if len(challenge) != 32:
+           print "Couldn't read challenge from raw proxy server: ", len(challenge)
+           ss.exit(-6)
+
+        ctx = md5.md5()
+        ctx.update(challenge)
+        ctx.update(pw)
+	print "Logging into raw proxy...";
+        raw_proxy.send(ctx.digest())
+        if len(raw_proxy.recv(1)) != 1:
+            print "Raw proxy refused our password!"
+            print "Make sure your password is correctly set in sumiserv.cfg. For example, 'raw_proxy': '192.168.1.1:7010 xyzzy'."
+            sys.exit(-7) 
         set_hdrincl = 0
         # sendto_raw() will use raw_proxy to send now 
     else:    # have to be root, create socket

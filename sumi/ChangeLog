@@ -1,3 +1,6 @@
+2004-09-03 Jeff Connelly <jeffconnelly@users.sourceforge.net> - 0.8.5
+	* rawproxd allows a password to connect, making it more secure
+
 2004-09-02 Jeff Connelly <jeffconnelly@users.sourceforge.net>
 	* rawproxd.c working, raw proxy support added to sumiserv
 	  (works on a Linksys WRT54GS router!)
@@ -5,6 +8,7 @@
 	* .lost suffix changed to .sumi
 	* Resuming seems to finally work correctly now
 	* Fixed 100% CPU + excess flood bug involving lost packets
+	  (found by microbrew - thanks)
 	* Fixed overestimated client timeout, saves bandwidth
 	* sumigetw explicitedly aborts transfers when closing instead of
 	  waiting for them to time out on the server
@@ -45,10 +49,9 @@
 	  SUMI can now run without Python installed
 	* new sumigetw error message if already transferring from a sender,
 	  cannot do simultaneous transfers from same user yet
-
-2004-08-19 Scott Johnston <Lazybum98723>
-	* found bug where failed senders/finished weren't removed,
-	  fixed by JC, won't add to list if already transferring
+	* fixed bug where failed senders/finished weren't removed
+	  as found by Scott Johnston <Lazybum98723>
+	* won't add to list if already transferring
 
 2004-08-11 Keith Oakley
 	* designed SUMI icon

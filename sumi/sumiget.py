@@ -277,20 +277,22 @@ class Client:
                     #print "STORED BYTES: ", self.senders[nick]["bytes"]
                     #print "AND THE SIZE: ", self.senders[nick]["size"]
 
-                    # XXX NO CHECK!
-                    if 0 and self.senders[nick]["bytes"] == \
-                       self.senders[nick]["size"]:
-                       print "File complete, not resumed"
-                       # Send a fake write to fill in the values, and a real fin
-                       self.callback(nick, "write", \
-                                     self.senders[nick]["bytes"], \
-                                     self.senders[nick]["bytes"], \
-                                     self.senders[nick]["size"], \
-                                     ["(resumed)"])
-                       self.callback(nick, "fin", 0, \
-                                     self.senders[nick]["size"], 0, "")
-                       self.senders.pop(nick)
-                       return
+                    # Used to be a check here for resuming a finished file, but
+                    # now there is no special case -- the resuming code handles
+                    # it without any problems.
+                    #if 0 and self.senders[nick]["bytes"] == \
+                    #   self.senders[nick]["size"]:
+                    #   print "File complete, not resumed"
+                    #   # Send a fake write to fill in the values, and a real fin
+                    #   self.callback(nick, "write", \
+                    #                 self.senders[nick]["bytes"], \
+                    #                 self.senders[nick]["bytes"], \
+                    #                 self.senders[nick]["size"], \
+                    #                 ["(resumed)"])
+                    #   self.callback(nick, "fin", 0, \
+                    #                 self.senders[nick]["size"], 0, "")
+                    #   self.senders.pop(nick)
+                    #   return
 
                     # Files don't store statistics like these
                     self.senders[nick]["all_lost"] = []  # blah
@@ -437,8 +439,9 @@ class Client:
             #if (len(self.senders[x]["lost"]) == 0 and 
             #    self.senders[x].has_key("gotlast")):
             #    return self.finish_xfer(x) # there's nothing left, we're done!
-            # New way: EOF if total bytes recv >= size
-            if self.senders[x]["bytes"] >= self.senders[x]["size"]:
+            # New way: EOF if total bytes recv >= size and nothing missing
+            if self.senders[x]["bytes"] >= self.senders[x]["size"] and \
+               len(self.senders[x]["lost"]) == 0:
                  return self.finish_xfer(x)
 
             try:
