@@ -1,3 +1,7 @@
+2004-09-06 Jeff Connelly <jeffconnelly@users.sourceforge.net>
+	* server-specified prefix now sent encapsulated in auth packet
+	* last release until I have more time to continue working on SUMI
+
 2004-09-04 Jeff Connelly <jeffconnelly@users.sourceforge.net>
 	* password and local address now required for running rawproxd
 	* maximum retries default set to 3 (changed from 5)
