@@ -1,5 +1,6 @@
 TO DO  20040217JC
 
+* Pause/Cancel transfers in sumiget
 * Two-way transport communication
 * sumiserv.py transport integration
 * Resuming. When quitting, or crashes, or when each packet received, SAVE the

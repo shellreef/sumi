@@ -108,10 +108,13 @@ class MainNotebook(wxNotebook):
         if (new == self.GetPageCount() - 1):  # Last page = Exit
             self.app.OnCloseFrame()   # save win size
             self.app.OnExit()
+            raise SystemExit
 
         if old == 1:    # Client configuration tab, if change, validate
             if not self.Validate():
-                event.Veto()
+                #event.Veto()  # causes all sorts of problems
+                pass
+
         event.Skip()   #  requires especially on Win32
 
 global real_stdout, log
@@ -621,7 +624,7 @@ class TransferPanel(wxPanel, wxColumnSorterMixin):
             self.popupID6 = wxNewId()
             EVT_MENU(self, self.popupID0, self.OnOpen)
             EVT_MENU(self, self.popupID1, self.OnPopupOne)
-            EVT_MENU(self, self.popupID2, self.OnPopupTwo)
+            EVT_MENU(self, self.popupID2, self.OnPopupAbort)
             EVT_MENU(self, self.popupID3, self.OnPopupThree)
             EVT_MENU(self, self.popupID4, self.OnPopupFour)
             EVT_MENU(self, self.popupID5, self.OnPopupFive)
@@ -632,7 +635,7 @@ class TransferPanel(wxPanel, wxColumnSorterMixin):
         # add some items
         menu.Append(self.popupID0, "Open")
         menu.Append(self.popupID1, "FindItem tests")
-        menu.Append(self.popupID2, "Iterate Selected")
+        menu.Append(self.popupID2, "Abort Selected")
         menu.Append(self.popupID3, "ClearAll and repopulate")
         menu.Append(self.popupID4, "DeleteAllItems")
         menu.Append(self.popupID5, "GetItem")
@@ -653,11 +656,18 @@ class TransferPanel(wxPanel, wxColumnSorterMixin):
         print "FindItem:", self.list.FindItem(-1, "Roxette")
         print "FindItemData:", self.list.FindItemData(-1, 11)
 
-    def OnPopupTwo(self, event):
+    def OnPopupAbort(self, event):
         print "Selected items:\n"
         index = self.list.GetFirstSelected()
         while index != -1:
             print "      %s: %s\n" % (self.list.GetItemText(index), self.getColumnText(index, 1))
+            # TODO: Separate nick into its own column, seriously
+            snick = self.getColumnText(index, 1).split(" ")
+            if len(snick) >= 1:
+                snick = snick[0]
+            else:
+                continue
+            self.app.client.abort(snick)
             index = self.list.GetNextSelected(index)
 
     def OnPopupThree(self, event):
@@ -852,7 +862,10 @@ class SUMIApp(wx.wxApp):
         # multiple transfers with same users is not yet supported. Could the
         # prefix be used to identify the columns instead? As of now, multiple
         # entries with same nick will always refer to the first with that nick.
-        if (cmd == "t_wait"):   # waiting for transport
+        if (cmd == "aborting"):   # aborting in progress
+            self.SetInfo(nick, COL_STATUS, "Aborting...")
+            # TODO: Stop request thread? It still sends acks...
+        elif (cmd == "t_wait"):   # waiting for transport
             self.SetInfo(nick, COL_STATUS, "Transport loading")
         elif (cmd == "1xferonly"):  # transfer already in progress
             self.SetInfo(nick, COL_STATUS, "Another transfer in progress")

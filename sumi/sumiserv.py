@@ -544,7 +544,7 @@ def transfer_control(nick, msg):
     """Handle an in-transfer message"""
     global resend_queue
     print "(authd)%s: %s" % (nick, msg)
-    if (msg[0] == "k"):
+    if (msg[0] == "k"):     # TFTP-style transfer, no longer supported here
         pass 
     elif (msg[0] == "n"):          # n<win>,<resend-1>,<resend-2> (neg acks)
         resends = msg[1:].split(",")
@@ -581,6 +581,9 @@ def transfer_control(nick, msg):
                 continue
             print "Queueing resend of %d" % (resend)
             resend_queue.put(resend)
+    elif msg[0] == '!':        # abort transfer
+        print "Aborting transfer to ", nick
+        clients.pop(nick)
 
 def datapkt(nick, seqno):
     """Send data packet number "seqno" to nick, for its associated file. 

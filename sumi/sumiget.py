@@ -194,30 +194,30 @@ class Client:
                 # open with rb+. Good candidate for a function!
                 try:
                     self.senders[nick]["fh"] = open(self.config["dl_dir"] + \
-                         self.senders[nick]["fn"], "rb+")  
+                         os.path.sep + self.senders[nick]["fn"], "rb+")  
                 except IOError:
-                    open(self.config["dl_dir"] + \
+                    open(self.config["dl_dir"] + os.path.sep +\
                         self.senders[nick]["fn"], "wb+").close()
                     self.senders[nick]["fh"] = open(self.config["dl_dir"] + \
-                        self.senders[nick]["fn"], "rb+")
+                        os.path.sep + self.senders[nick]["fn"], "rb+")
                 print "open"
 
                 # Open a new resuming file (create if needed)
                 try:
                     self.senders[nick]["fs"] = open(self.config["dl_dir"] + \
-                        self.senders[nick]["fn"] + ".lost", "rb+")   
+                        os.path.sep+self.senders[nick]["fn"]+ ".lost", "rb+")   
                     is_resuming = 1  # unless proven otherwise
                 except IOError:
-                    open(self.config["dl_dir"] + \
+                    open(self.config["dl_dir"] + os.path.sep + \
                         self.senders[nick]["fn"] + ".lost", "wb+").close()
                     self.senders[nick]["fs"] = open(self.config["dl_dir"] + \
-                        self.senders[nick]["fn"] + ".lost", "rb+")
+                        os.path.sep+self.senders[nick]["fn"] + ".lost", "rb+")
                     is_resuming = 0   # empty resume file
 
                 # Check if the data file exists, and if so, resume off it
                 lostdata = None
 
-                if (os.access(self.config["dl_dir"] + \
+                if (os.access(self.config["dl_dir"] + os.path.sep + \
                     self.senders[nick]["fn"], os.R_OK)):
                    # The data file is readable, read lost data 
                     lostdata = self.senders[nick]["fs"].read().split(",")
@@ -326,11 +326,6 @@ class Client:
             #self.callback(nick, "write", offset, offset + len(data), len(data), \
                 #self.senders[nick]["size"], addr)
  
-            self.senders[nick]["bytes"] += len(data)   # correct
-
-            self.callback(nick, "write", offset, self.senders[nick]["bytes"],
-                self.senders[nick]["size"], addr)
-
             # Mark down each packet in our receive window
             try:
                 self.senders[nick]["rwin"][seqno] += 1
@@ -340,6 +335,12 @@ class Client:
             if (self.senders[nick]["rwin"][seqno] >= 2):
                 print "(DUPLICATE PACKET %d, IGNORED)" % seqno
                 return
+
+            self.senders[nick]["bytes"] += len(data)   # correct
+
+            self.callback(nick, "write", offset, self.senders[nick]["bytes"],
+                self.senders[nick]["size"], addr)
+
  
             #Check previous packets, see if they were lost (unless first packet)
             if (seqno > 1):
@@ -464,7 +465,8 @@ class Client:
             print "About to decrypt"+str(len(data))+"bytes" 
             data = aes_crypto.decrypt(data)
 
-            out = open(self.config["dl_dir"] + self.senders[nick]["fn"], "wb")
+            out = open(self.config["dl_dir"] + os.path.sep + \
+                  self.senders[nick]["fn"], "wb")
             out.write(data)
             self.senders[nick]["fh"] = out
 
@@ -731,6 +733,10 @@ class Client:
         # care of splitting it up for us if necessary
         ##self.sendmsg(server_nick, msg)
         return self.senders[server_nick]["sendmsg"](server_nick, msg)
+
+    def abort(self, server_nick):
+        self.sendmsg(server_nick, "!")
+        self.callback(server_nick, "aborting")
        
     def request(self, transport, server_nick, file):
         """Request a file from a server."""
