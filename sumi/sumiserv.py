@@ -790,6 +790,7 @@ def send_packet_UDP_WINPCAP(src, dst, payload):
     
     # pcap_open_live()
     # pcap_send_packet()
+    pass
 
 # Send packet from given source.
 def send_packet_UDP_SOCKET(src, dst, payload):
