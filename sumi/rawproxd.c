@@ -9,6 +9,9 @@
  * anonymously serve with sumiserv but can't spoof for one reason
  * or another. rawproxd can be run on the NAT box, and all clients
  * behind it will be able to connect and send anonymously.
+ *
+ * rawproxd is written in C instead of C++ so it can be compatible with
+ * uclibc on the Linksys WRT54G/WRT54GS mipsel routers, which lack libstdc++.
  */
 #include <errno.h>
 #include <stdio.h>
@@ -22,7 +25,7 @@
 #define closesocket    close
 #endif
 
-#define PORT	7011
+#define PORT	7010
 #define MTU	1500
 #define BACKLOG    1
 
@@ -33,7 +36,7 @@ int main()
 	struct sockaddr_in server_addr;
 	struct sockaddr_in client_addr;
 	socklen_t addr_len;
-	int on = -1;
+	int on = 1;
 
 #ifdef _WIN32
 	WSADATA wsaData;
@@ -58,30 +61,30 @@ int main()
 	}
 
  
-	server = socket(AF_INET, SOCK_STREAM, 0);
+	server = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 	if (server < 0)
 	{
 		perror("TCP socket creation failed");
 		exit(-3);
 	}
 
+	if (setsockopt(server, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on)) == -1)
+	{
+		perror("setsockopt SO_REUSEADDR failed");
+		exit(-4);
+	}
+
 	memset(&(server_addr), 0, sizeof(struct sockaddr));
 	server_addr.sin_family = AF_INET;
 	server_addr.sin_port = htons(PORT);
 	server_addr.sin_addr.s_addr = INADDR_ANY;
+
 	if (bind(server, (struct sockaddr*)&server_addr, 
 	    sizeof(struct sockaddr)) != 0) 
 	{
 		perror("bind failed");
 		exit(-5);
 	}
-
-        /*
-	if (setsockopt(server, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on) == -1))
-	{
-		perror("setsockopt failed");
-		exit(-4);
-	} */
 
 	/* Include the IP header, do this after bind(). */
 	if (setsockopt(rs, IPPROTO_IP, IP_HDRINCL, &on, sizeof(on)) != 0)
@@ -129,9 +132,13 @@ int main()
 
 		/* Get destination address from packet. */	
 		/* Already in network order, so don't convert endian. */	
-		memcpy(&dest_addr.sin_addr.s_addr, &buf[17], 4);
+		memcpy(&dest_addr.sin_addr.s_addr, (char*)buf + 13, 4);
 
 		printf("dest addr = %s\n", inet_ntoa(dest_addr.sin_addr));
+
+		int i;
+		for (i = 0; i < 20; i++)
+			printf("%2x ", (char)buf[i]);
 
 		printf("Sending to raw socket...\n");
 		/* Strange how IP_HDRINCL raw sockets require sendto(), 
