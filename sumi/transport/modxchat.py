@@ -26,7 +26,7 @@ def userinfo(nick):
 def sendmsg_1(nick, msg):
     sendcmd("/msg %s %s" % (nick, msg))
 
-def sendcmd(cmd)
+def sendcmd(cmd):
     global g_mem, g_xchat
 
     xchat = open(XCHAT_FILE, "wb")
