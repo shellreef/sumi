@@ -12,6 +12,8 @@
 import string
 import thread
 import irclib
+# So many IRC libraries for Python...
+# Get this one: http://python-irclib.sourceforge.net/
 from irclib import nm_to_n
 import base64
 import random
@@ -53,9 +55,30 @@ raw_socket = 0
 # https://sourceforge.net/tracker/?func=detail&atid=105470&aid=860134&group_id=5
 470
 # https://sf.net/tracker/?group_id=5470&atid=105470&func=detailed&aid=860134
+# PATCH: http://mail.python.org/pipermail/patches/2004-March/014218.html
+# audit trail: https://sourceforge.net/tracker/?func=detail&atid=305470&aid=908631&group_id=5470
+# After recompiling, copy the _socket.pyd to your C:\python23\DLLs directory
+# The old _socket.pyd should be 49KB, the new one 53KB
+
 # This is for Win32
 if (not hasattr(socket, "IP_HDRINCL")):
-    print "Your Python is not using Winsock 2.0. Please upgrade."
+    print "Your Python is missing IP_HDRINCL in its socket library."
+    print "Most likely, you are on Windows and need to use a patched _socket.pyd that links with ws2_32.lib instead of wsock32.lib. Please open sumiserv.py in a text editor and read the comments for more information."   
+    # 2.3.2 - no Winsock2
+    # 2.3.4 - no Winsock2
+    # 2.4a2 - has an IP_HDRINCL, but actually links to wsock32.lib...
+    #  (see pcbuild\_socket.vcproj)
+    # 
+    sys.exit(-1)
+
+if sys.platform == 'win32':
+    # Test if using patched _socket.pyd with Winsock2
+    import _socket
+    if hasattr(_socket, "AI_ALL"):
+        print "You are on Windows and your Python socket library has AI_ALL. "
+        print "Most likely, you need to use the patched _socket.pyd that uses Winsock2 instead of Winsock1. Please see sumiserv.py for more information. If you did that and this error still occurs, please contact the author."
+        sys.exit(-2)
+
 
 # set_src_allow("4.0.0.0/24") -> allow 4.0.0.0 - 4.255.255.255
 def set_src_allow(allow_cidr):
@@ -693,7 +716,10 @@ def setup_raw(argv):
             print "Running with uid: ", os.getuid()
 
     # Bind raw socket to interface
-    raw_socket.setsockopt(socket.IPPROTO_IP, socket.IP_HDRINCL, 1)
+    err = raw_socket.setsockopt(socket.IPPROTO_IP, socket.IP_HDRINCL, 1)
+    if err:
+        print "setsockopt: ",err
+        sys.exit(-1)
 
     #print "Binding to address:", cfg["bind_address"]
     # XXX: why IPPROTO_UDP? and why even bind? Seems to work without it.
@@ -798,6 +824,8 @@ def send_packet_UDP_SOCKET(src, dst, payload):
        This uses the standard socket() functions, and is recommended."""
     global raw_socket
 
+    #src = ("10.0.0.27", 11111)
+    #print "Sending UDP",src,dst,payload
     totlen = IPHDRSZ + UDPHDRSZ + len(payload)
 
     packet = build_iphdr(totlen, src[0], dst[0], 17)
@@ -821,6 +849,7 @@ def send_packet_UDP_SOCKET(src, dst, payload):
     #raw_socket.connect(dst)
     #raw_socket.send(packet)
     #print packet
+    # Win32: socket.error (10049, "Can't assign requested address")
     raw_socket.sendto(packet, dst)
 
 # Random IP for spoofing
@@ -1001,7 +1030,10 @@ def main(argv):
     global server, irc_server, irc_port, cfg, join_lock
 
     import signal
-    signal.signal(signal.SIGUSR2, sigusr2)
+    if hasattr(signal, "SIGUSR2"):
+        signal.signal(signal.SIGUSR2, sigusr2)
+    else:
+        print "No SIGUSR2, not setting up handler"
 
     setup_raw(argv)
     setup_config()
