@@ -1,5 +1,7 @@
 TO DO  20040217JC
 
+* SOCKS proxy, to allow any TCP/UDP service to be used with SUMI
+  (like tor - http://freehaven.net/tor/ - but without the onion routing)
 * Pause/Cancel transfers in sumiget
 * Two-way transport communication
 * sumiserv.py transport integration
