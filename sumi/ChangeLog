@@ -1,6 +1,11 @@
 Change Log for SUMI
 
 [CVS]
+
+20040819 Scott Johnston found bug where failed senders/finished weren't removed
+                        and fixed by JC
+20040819 Jeff Connelly  new sumigetw error message if already transferring
+                        from a sender,can't do simultaneous same user xfers yet
 20040811 Keith Oakley   designed the SUMI icon used for sumigetw
 20040805 Jeff Connelly  new transport: aim, for Windows AOL Instant Messenger
 

@@ -15,6 +15,10 @@ import thread
 import os
 import socket
 
+# Modules used by transports; import them
+import win32api
+import mmap
+
 import images
 
 # TCP host and port to receive incoming requests on
@@ -802,7 +806,10 @@ class SUMIApp(wx.wxApp):
         self.SetInfo(nick, COL_PEER, nick)
         self.SetInfo(nick, COL_STATUS, "Requesting")
         #self.SizeCols()
+        # Will return -1 if fails immediately, 0 if success. But we also
+        # get callback messages, so set the error status there.
         self.client.request(transport, nick, filename)
+
         # End of thread
 
     def SizeCols(self):
@@ -833,6 +840,9 @@ class SUMIApp(wx.wxApp):
         # entries with same nick will always refer to the first with that nick.
         if (cmd == "t_wait"):   # waiting for transport
             self.SetInfo(nick, COL_STATUS, "Transport loading")
+        elif (cmd == "1xferonly"):  # transfer already in progress
+            self.SetInfo(nick, COL_STATUS, "Another transfer in progress")
+            self.SetColor(nick, wxRED)  # Maybe queue it instead?
         elif (cmd == "t_fail"): # transport failed to load
             msg = args[0][1].args[0]
             self.SetInfo(nick, COL_STATUS, "Bad transport: %s" % msg)
@@ -905,8 +915,8 @@ class SUMIApp(wx.wxApp):
             self.SetInfo(nick, COL_STATUS, "Complete")
             self.SetInfo(nick, COL_RATE, "%d" % speed)
             self.SetColor(nick, wxColour(32, 128, 32))   # a suitable green
-            self.info.SetLabel("Complete %d B @ %d kB/s: %s" % \
-                (size, speed, all_lost))
+            #self.info.SetLabel("Complete %d B @ %d kB/s: %s" % \
+            #    (size, speed, all_lost))
 
     def OnExit(self, evt=0):
         # If closed by "X" button on Win32, self.frame will already be

@@ -32,6 +32,8 @@ print "Using config file: ", config_file
 # Setup run-time path for loading transports
 sys.path.append(os.path.realpath(os.path.dirname(sys.argv[0])))
 sys.path.append(os.path.realpath(os.path.dirname(sys.argv[0])) + "/../")
+print "USING PATH = ", sys.path
+
 #import transport.modmirc
 
 global transports
@@ -319,10 +321,13 @@ class Client:
                         #  b) save user the time, finished. c) overwrite choice
                         print "File complete, not resumed"
 
+                        self.senders.pop(nick)
+
                         # Right now, it finishes the transfer.
                         self.callback(nick, "fin", 0, \
                             self.senders[nick]["size"], \
                             0, "")
+
 
                         # TODO: give choice
                         #self.cb("overwrite?", self.senders[nick]["fn"]
@@ -446,9 +451,12 @@ class Client:
 
     def thread_timer(self):
         """Every RWINSZ seconds, send a nak of missing pkts up to that point."""
-        while 1:
-            time.sleep(self.rwinsz)
-            self.on_timer()
+        try:
+            while 1:
+                time.sleep(self.rwinsz)
+                self.on_timer()
+        except:
+            print "thread_timer exception: ", sys.exc_info(), sys.exc_info()[1].args, " line=", sys.exc_info()[2].tb_lineno, "file=", sys.exc_info()[1].filename
 
     def on_timer(self):
         """Acknowledge to all senders and update bytes/second."""
@@ -547,7 +555,9 @@ class Client:
         #print str(self.senders[nick]["size"]) + " at " + str(
         #     self.senders[nick]["size"] / duration / 1024) + " KB/s"
         self.senders.pop(nick)    # delete the server key
-        sys.exit(0) # here now for one file xfer per program
+
+        # Don't raise SystemExit
+        #sys.exit(0) # here now for one file xfer per program
 
     def thread_recv_packets(self):
         """Receive anonymous packets."""
@@ -712,8 +722,12 @@ class Client:
         #input_lock.acquire()   # wait for transport connection
 
         if (self.senders.has_key(server_nick)):
-            print "Already have a transfer from ",server_nick
-            return
+            # TODO: Index senders based on unique key..instead of server_nick
+            # Then we could have multiple transfers from same user, same time!
+            print "Already have an in-progress transfer from",server_nick
+            self.callback(server_nick, "1xferonly")
+            #print "Senders: ", self.senders
+            return -1
 
         self.senders[server_nick] = {} 
 
@@ -760,12 +774,16 @@ class Client:
 
         for x in range(maxwait, 0, -1):
             # If received fn in this time, then exists, so stop countdown
-            if (self.senders[server_nick].has_key("fn")):
-                return      # don't break - otherwise will timeout
+            if not self.senders.has_key(server_nick):
+                return -1    # some other error
+            if self.senders[server_nick].has_key("fn"):
+                return 0     # don't break - otherwise will timeout
             self.callback(server_nick, "req_count", x)
             time.sleep(1)
 
         self.callback(server_nick, "timeout")
+        self.senders.pop(server_nick)
+        return -1
 
     # The sole request. In a separate thread so it can wait for IRC.
     # NOTE, sumigetw doesn't use this, it makes its own thread & calls request
@@ -785,9 +803,13 @@ class Client:
         # no such transport module.
         print sys.path
         try:
+            sys.path.insert(0, os.path.dirname(sys.argv[0]))
             t = __import__("transport.mod" + transport, None, None,
                            ["transport_init", "sendmsg"])
         except ImportError:
+            # Anytime a transfer fails, or isn't in progress, should pop it
+            # So more transfers can come from the same users.
+            self.senders.pop(nick)
             self.callback(nick, "t_fail", sys.exc_info())
             return
 
