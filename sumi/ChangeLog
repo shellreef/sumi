@@ -2,9 +2,13 @@ Change Log for SUMI
 
 [CVS]
 
+0.8 (20040820) - 
 20040820 Jeff Connelly  fixed obnoxious "Couldn't retrieve information about
                         list control item" bug caused by left over code from 
                         wxListCtrl sample code
+20040819 Jeff Connelly  McMillian sumigetw.spec added, alternative to py2ee
+20040819 Jeff Connelly  win32api, mmap modules now included with exe
+                        SUMI can now run without Python installed
 20040819 Scott Johnston found bug where failed senders/finished weren't removed,
                         fixed by JC, won't add to list if already transferring
 20040819 Jeff Connelly  new sumigetw error message if already transferring

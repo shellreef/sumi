@@ -1,14 +1,14 @@
 #!/bin/sh
-RLS="0.7-20040727"
+RLS="0.8"
 
 rm *.pyc
-cd ..
+cd /home/jeff/p2p/
 echo -n "archiving " 
-tar -cf sumi/sumi-${RLS}.tar sumi/* --exclude sumi/build --exclude sumi/dist --exclude sumi/incoming --exclude sumi/share --exclude sumi/otp --exclude sumi/c++-obsolete/sender --exclude sumi/c++-obsolete/sumiserv --exclude sumi/hash/mddriver --exclude sumi/hash/test --exclude sumi/rawproxd --exclude sumi/\*.pyc
+tar -cf sumi-${RLS}.tar --exclude sumi/build --exclude sumi/dist --exclude sumi/incoming --exclude sumi/share --exclude sumi/otp --exclude sumi/c++-obsolete/sender --exclude sumi/c++-obsolete/sumiserv --exclude sumi/hash/mddriver --exclude sumi/hash/test --exclude sumi/rawproxd --exclude sumi/\*.pyc --exclude sumi/buildsumigetw --exclude sumi/distsumigetw --exclude sumi/\*.exe sumi/*
 
 echo -n "compressing "
-bzip2 sumi/sumi-${RLS}.tar
+bzip2 sumi-${RLS}.tar
 echo 
-ls -lh sumi/sumi-${RLS}.tar.bz2
+ls -lh sumi-${RLS}.tar.bz2
 cd sumi
 
