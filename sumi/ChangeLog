@@ -2,6 +2,9 @@ Change Log for SUMI
 
 [CVS]
 
+0.8.1 (20040824)
+20040824 Jeff Connelly  ported sumiserv.py to Win32
+
 0.8 (20040820) - 
 20040820 Jeff Connelly  fixed obnoxious "Couldn't retrieve information about
                         list control item" bug caused by left over code from 

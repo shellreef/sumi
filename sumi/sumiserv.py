@@ -898,7 +898,8 @@ def on_msg(c, e):
 def on_nickinuse(c, e):
     global cfg
     old_nick = e.arguments()[0]
-    new_nick = old_nick + "_"
+    #new_nick = old_nick + "_"
+    new_nick = old_nick[:-1] + chr(ord(old_nick[:1]) + 1)
     print "%s nick in use, using %s" % (old_nick, new_nick)
     cfg["irc_nick"] = new_nick
     c.nick(new_nick)
