@@ -112,16 +112,35 @@ int main()
 		struct sockaddr_in dest_addr;
 		char* msg;
 		int wrote, read;
+		unsigned short magic;
+		unsigned short len;
 
-		printf("Reading %d bytes...\n", MTU);
-		read = recv(client, buf, MTU, MSG_WAITALL);
+		/* Simple header--"RP" magic and packet length. */
+		recv(client, &magic, 2, MSG_WAITALL);
+		magic = ntohs(magic);
+		if (magic != 0x5250)
+		{
+			printf("invalid magic: %.4x (not 0x5250)\n", magic);
+			exit(-3);
+		}
+
+		recv(client, &len, 2, MSG_WAITALL);
+		len = ntohs(len);
+		printf("Length: %d\n", len);
+		if (len > MTU)
+		{
+			printf("packet too big: %d > %d\n", len, MTU);
+			exit(-4);
+		}
+		printf("Reading %d bytes...\n", len);
+		read = recv(client, buf, len, MSG_WAITALL);
 		if (read == -1)
 		{
 			perror("recv failed");
 			break;
 		} else if (read == 0) {            /* EOF */
 			break;
-		} else if (read != MTU) {
+		} else if (read != len) {
 			printf("partial read: %d != %d\n", read, MTU);
 			break;                     /* Usually catastrophic */
 		}
@@ -132,15 +151,12 @@ int main()
 
 		/* Get destination address from packet. */	
 		/* Already in network order, so don't convert endian. */	
-		memcpy(&dest_addr.sin_addr.s_addr, (char*)buf + 13, 4);
+		memcpy(&dest_addr.sin_addr.s_addr, (char*)buf + 16, 4);
 
 		printf("dest addr = %s\n", inet_ntoa(dest_addr.sin_addr));
 
-		int i;
-		for (i = 0; i < 20; i++)
-			printf("%2x ", (char)buf[i]);
+		addr_len = sizeof(struct sockaddr_in);
 
-		printf("Sending to raw socket...\n");
 		/* Strange how IP_HDRINCL raw sockets require sendto(), 
                  * therefore requiring the dest addr to be specified twice. */
 		wrote = sendto(rs, buf, MTU, 0, 

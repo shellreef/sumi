@@ -670,12 +670,15 @@ def fixULPChecksum(packet):
 # Send data to raw socket, use this in place of sendto()
 def sendto_raw(s, data, dst):
     global raw_proxy
-    print "sendto_raw"
-    if raw_proxy == None:
-        print "RET=", s.sendto(data, dst)
-    else:
-        print "USIG RAW PROXY"
-        raw_proxy.send(data)
+    try:
+        if raw_proxy == None:
+            print "RET=", s.sendto(data, dst)
+        else:
+            print "USING RAW PROXY"
+            raw_proxy.send("RP" + struct.pack("!H", len(data)) + data)
+    except socket.error, e:
+        print "Couldn't send raw data: ", e[0], e[1]
+        sys.exit(-6)
 
 # Send non-spoofed packet. For debugging purposes ONLY.
 # This uses the high(er)-level socket routines; its useful because you
