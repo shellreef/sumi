@@ -13,17 +13,78 @@ progress; although anonymous file transfer works there are some rough edges.
 is now in CVS. Patches welcome!
 
 <p>Official IRC channel is #sumi at irc.liquidirc.com, key anon. LiquidIRC was
-chosen because it anonymizes the hostmask automatically, for example this is
-my whois information:
-<pre>
-[jeff2] (nobody@7A25F17EB5F8DF7183D16B2D9ED89x) : User &
---- [jeff2] @#sumi 
---- [jeff2] LiquidIRC :Where are you today?
---- [jeff2] idle 00:00:47, signon: Sun Aug  8 15:18:09
---- [jeff2] End of WHOIS list.
-</pre>
+chosen because it anonymizes the hostmask automatically. Sample files are 
+served here, though you can also chat and ask questions.
 
-<p><a href="ss.html">Screenshots</a>.
+<p><a href="ss.html">Screenshots here</a>.
+
+<h2>SUMI Mini-HOWTO</h2>
+<p>If you want to try out SUMI, this tentative guide may help. If you have
+any questions or get stuck, feel free to ask for help in the channel or via
+email.
+
+<ol>
+<li><a href="http://sourceforge.net/projects/sumi">Download</a> and unpack
+the latest release to a directory of your choice. 
+<li>Proceed to 
+<a href="#windows">SUMI Mini-HOWTO for Windows</a> or
+<a href="#unix">SUMI Mini-HOWTO for Unix</a> depending on your OS. Continue
+below after completing the Windows- or Unix- specific steps.<p>
+<li><a name="continue">Welcome back</a>. In your IRC client, type
+<tt>/server irc.liquidirc.com</tt> and then
+<tt>/join #sumi anon</tt>. 
+<li>Feel free to say hi. The developers have a ! or @ in front of their name,
+the servers +.
+<li>To download a small sample file, use 
+<tt>/sumi get sumi-00 #3</tt>. If this works, wait for sumi-00 to list and
+download the other, larger files if you want to. All the files offered on this
+bot are believed to be legal to distribute. If you get "No such nick", make
+sure that sumi-00 is signed on -- sometimes it is not available.
+<li>If you're so inclined, try to discover the true source of the files from
+sumi-00. If SUMI is performing as intended, the source should be anonymous.
+If not, please contact a developer.
+<li>Setup your own SUMI server! For starters, edit <tt>sumiserv.cfg</tt> to suit
+your needs (sharing the files you wish to, etc.), and run
+<tt>python sumiserv.py</tt>. This step is more involved, if you require any
+assistance feel free to ask in the channel.
+<li>Enjoy anonymous file transfers!
+</ol>
+
+<a name="windows"><h2>SUMI Mini-HOWTO for Windows</h2></a>
+<ol>
+<li>Install <a href="http://www.mirc.com/">mIRC</a>.
+<li>Run the included sumiinst.exe installer.
+<li>Make sure you have mIRC integration selected. Proceed with the installation.
+If you don't have SUMI mIRC already installed, it should popup a dialog saying
+its about to install, and install itself to your Aliases.ini.
+<li>If you installed SUMI to a directory other than
+<tt>C:\Program Files\SUMI</tt>, open Aliases.ini
+(usually in <tt>C:\Program Files\mIRC</tt>) and edit the run line to match
+the real location of <tt>sumigetw</tt>.
+<li>Install <a href="http://www.activestate.com/">ActivePython</a> for various
+libraries. (TODO: Make this unnecessary! win32api should be included with the
+distribution. Only install Python if you have trouble.)
+<li><a href="#continue">Continue here</a>
+</ol>
+
+<a name="unix"><h2>SUMI Mini-HOWTO for Unix</h2></a>
+<ol>
+<li>You need <a href="http://www.python.org/">Python</a>. Install it however
+is normal to do so on your OS.
+<li>Install <a href="http://xchat.org/">Xchat</a>, at least version 2. 
+Alternatively, install
+<a href="http://pyirclib.sourceforge.net/">irclib</a>, but xchat2 is preferred.
+<li>Edit <tt>client-side/xchat.pl</tt> so that the <tt>$SGW_PATH</tt> points
+to where you placed <tt>sumigetw.py</tt>.
+<li>Start xchat, then go to the menu item X-Chat -&gt; Load Plugin or Script, 
+navigate to <tt>sumi/client-side/xchat.pl</tt> and load it. Optionally, use
+<tt>cp sumi/client-side/xchat.pl ~/.xchat2/sumi.pl</tt> if you want to autoload
+the SUMI script whenever xchat starts.
+<li>xchat should say "SUMI xchat2 transport loading".
+<li><a href="#continue">Continue here</a>.
+</ol>
+
+
 
 </body>
 </html>

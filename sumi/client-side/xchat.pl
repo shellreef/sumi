@@ -4,12 +4,16 @@
 
 # SUMI xchat client-side script
 # 20040712: rewritten for xchat2, no patch required anymore
+# Note, but doesn't use xchat2's new Xchat:: functions, still using old IRC::
 
 $XCHAT_FILE = "/tmp/xchat";  # Make sure this matches modxchat.py's
+$SGW_PATH = "/home/jeff/p2p/sumi/sumigetw.py";
 
 IRC::register("SUMI", "0.1", "", "");
 IRC::add_command_handler("sumi", on_sumi);
 IRC::add_command_handler("SIGUSR2", on_sigusr2);
+
+IRC::print("SUMI xchat2 transport loading\n");
 
 # /sumi X Y Z - this starts up sumiget
 sub on_sumi
@@ -28,7 +32,7 @@ sub sumi_get
     my ($nick, $file) = @_;
     IRC::print("SUMI: You want $file from $nick");
     # TODO: find a way to background a process with list system
-    system("/home/jeff/p2p/sumi/sumigetw.py xchat '$nick' '$file' &");
+    system("$SGW_PATH xchat '$nick' '$file' &");
 }
 
 # New xchat2 feature (previously implemented as a patch for xchat1)

@@ -16,6 +16,8 @@ Section "SUMI (required)"
  SectionIn RO
  SetOutPath $INSTDIR
  File "dist\*"
+ File /r "transport"
+ File /r "client-side"
  ;File "dist\sumigetw.exe"
  ;File "dist\sumiserv.exe"
  ;File "dist\*.pyd"

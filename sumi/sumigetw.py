@@ -427,7 +427,8 @@ class TransferPanel(wxPanel, wxColumnSorterMixin):
         info.m_format = 0
 
         colnames = ['Filename', 'Peer', 'Status', 'Progress', 'Size', \
-                    'Bytes', 'Rate', 'From', 'Missing', 'Rexmits', 'ETA']
+                    'Bytes', 'Rate', 'From', 
+                    'Missing', 'Rexmits', 'ETA']
         colfmt = [0, 0, 0, wxLIST_FORMAT_RIGHT, wxLIST_FORMAT_RIGHT, \
                   wxLIST_FORMAT_RIGHT, wxLIST_FORMAT_RIGHT, \
                   wxLIST_FORMAT_RIGHT, wxLIST_FORMAT_RIGHT, \
@@ -685,6 +686,12 @@ class SUMIApp(wx.wxApp):
         # Frame to hold the notebook
         self.frame = wx.wxFrame(None, -1, "SUMI", pos=(50,50), 
                         style=wx.wxNO_FULL_REPAINT_ON_RESIZE|wx.wxDEFAULT_FRAME_STYLE|wxTAB_TRAVERSAL)
+
+        self.frame.icon = wxIcon("sumi.ico", wxBITMAP_TYPE_ICO)
+        if self.frame.icon:
+            self.frame.SetIcon(self.frame.icon)
+        else:
+            print "failed to set icon"
 
         #self.frame.CreateStatusBar()
         self.nb = MainNotebook(self.frame, self)

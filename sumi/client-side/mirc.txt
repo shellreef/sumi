@@ -19,5 +19,5 @@
     return
   }
   //echo SUMI: Getting $3 from $2 ...
-  run "X:\p2p\sumi\dist\sumigetw" mirc $2 $3
+  run "C:\Program Files\SUMI\sumigetw" mirc $2 $3
 }

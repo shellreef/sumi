@@ -1,13 +1,14 @@
 Change Log for SUMI
 
 [CVS]
-20040805 jc new transport: aim, for Windows AOL Instant Messenger
+20040811 Keith Oakley   designed the SUMI icon used for sumigetw
+20040805 Jeff Connelly  new transport: aim, for Windows AOL Instant Messenger
 
 0.7 (20040724) - Focus on getting things to work, cleanup for CVS
-20040724 jc archive now contains CVS files so you can commit/update easier
-20040723 jc import to SourceForge CVS, committed
-20040721 jc public-key encryption (RSA) added but not yet complete
-20040721 jc pre-authenticated encryption now works, at least with AES
+20040724 Jeff Connelly  archive now contains CVS files, so you can commit easier
+20040723 Jeff Connelly  import to SourceForge CVS, committed
+20040721 Jeff Connelly  public-key encryption (RSA) added but not yet complete
+20040721 Jeff Connelly  pre-authenticated encryption now works,at least with AES
 
 0.6 (20040720) - Rewriting of sumigetw.py GUI
       * better GUI, actually works, not dialog-based anymore, resizable

@@ -27,10 +27,16 @@
 
 from distutils.core import setup
 import py2exe
+import glob
 
 setup(console=["sumiget.py"])
- #setup(windows=["sumigetw.py"])
-setup(console=["sumigetw.py"])
+#setup(windows=["sumigetw.py"])
+setup(windows=[
+	{"script": "sumigetw.py",
+# Icon from Keith Oakley 2004-08-11
+	"icon_resources": [(1, "sumi.ico")]}
+	], data_files=[
+	("transports", glob.glob("transports/*")),
+	(".", ["sumi.ico"])])
 setup(console=["sumiserv.py"])
-setup(console=["wxfoo.py"])
-# TODO: {'script': 'sumigetw.py', "icon_resources": [(1, "sumi.ico")]}
+#setup(console=["wxfoo.py"])

@@ -478,7 +478,7 @@ def xfer_thread(nick):
         d = time.time() - clients[nick]["ack_ts"]
         if (float(d) >= float(clients[nick]["rwinsz"] * 2)):
             #clients[nick]["xfer_lock"].acquire() 
-            print "Since we haven't heard from %s in %f (> %f), stopping" %  \
+            print "Since we haven't heard from %s in %f (> %d), stopping" %  \
                 (nick, d, clients[nick]["rwinsz"] * 2)
             clients[nick]["xfer_stop"] = 1
 
