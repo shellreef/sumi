@@ -21,6 +21,7 @@
 #include <netinet/in.h>
 #include <cppsocket/socket.h>
 #include <cppsocket/exception.h>
+#include <cppsocket/stringbuffer.h>
 
 #define PORT 7010
 
@@ -40,12 +41,14 @@ int main()
 	int rs;
 	// Create an instance of the Weber Vector
 	// WeberVector<char> buf;
-	char buf[1500];
+	// char buf[1500];
 	CPPSocket::Socket server;
 	CPPSocket::Address serverAddress(CPPSocket::Address::ANY_IP, PORT, true);
 	CPPSocket::Socket connection;
+	CPPSocket::Socket rawsock;
 	CPPSocket::Address clientAddress;
 	size_t MTU = 1500;
+	CPPSocket::StringBuffer buf(MTU);
 	
 	// Check to see if root, then setuid
 	if (getuid() == 0)
@@ -57,15 +60,16 @@ int main()
 	  }
 	
 	// Creating raw socket
-	rs = socket(AF_INET, SOCK_RAW, IPPROTO_RAW);
-	if (rs < 0) {
-	   cout << "failed to create raw socket" << endl;
-	   check_socket_fail((int)errno);
-	   exit(-1);
-	}
+	//	rs = socket(AF_INET, SOCK_RAW, IPPROTO_RAW);
+	//	if (rs < 0) {
+	//	   cout << "failed to create raw socket" << endl;
+	//	   check_socket_fail((int)errno);
+	//	   exit(-1);
+	//	}
    
-	// Set server to a TCP Connection
+	// Open Sockets
 	server.open(CPPSocket::Socket::TCP);
+	rawsock.open(CPPSocket::Socket::RAW);
 	
 	// Allow reusage of an address
 	server.setsockopt(CPPSocket::SocketOption::ReuseAddr(1));
@@ -86,16 +90,18 @@ int main()
 	     cout << "Receiving " << MTU << " bytes...\n";
 	     /*      if (recv(cs, &buf, MTU, MSG_WAITALL) == 0)
 	      break; */
-	     if (connection.recv(buf,MTU,0) == 0)
+	     if (connection.recv(buf) == 0)
 	       break;
 	     cout << "Sending to raw socket...\n";
-	     send(rs, &buf, MTU, 0);
+	     // send(rs, &buf, MTU, 0);
+	     rawsock.sendto(clientAddress,buf);
 	  }
 	
 	// Destructors
 	close(rs);
 	connection.close();
 	server.close();
+	rawsock.close();
      }
    catch (CPPSocket::Exception &e) 
      {
