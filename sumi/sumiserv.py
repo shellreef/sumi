@@ -216,7 +216,7 @@ def recvmsg(nick, msg, no_decrypt=0):
             mss      = int(args["m"])
             b64prefix= args["p"]
             speed    = int(args["b"])   # b=bandwidth
-            rwinsz   = args["w"]
+            rwinsz   = int(args["w"])
             dchantype= args["d"]            
             crypto   = None
             passwd   = None
@@ -452,6 +452,13 @@ def recvmsg(nick, msg, no_decrypt=0):
         else:
             clients[nick]["fh"] = \
                 open(cfg["filedb"][clients[nick]["file"]]["fn"], "rb")   
+
+
+        # Find size...
+        clients[nick]["fh"].seek(0, 2)   # SEEK_END
+        clients[nick]["size"] = clients[nick]["fh"].tell()
+        clients[nick]["fh"].seek(0, 0)   # SEEK_SET
+
         print "Starting transfer to %s..." % nick
         print "Sending: ", cfg["filedb"][clients[nick]["file"]]["fn"]
         ##
@@ -465,6 +472,8 @@ def recvmsg(nick, msg, no_decrypt=0):
         #make_thread(xfer_thread, nick)
 
     elif (msg.find("sumi done") == 0):
+        # Possible thread concurrency issues here. Client can do sumi done at
+        # any time, which will result in accessing nonexistant keys
         print "Transfer to %s complete\n" % nick
         if (clients[nick].has_key("file")):
             cfg["filedb"][clients[nick]["file"]]["gets"] += 1
@@ -597,11 +606,15 @@ def datapkt(nick, seqno):
 
     blocksz = clients[nick]["mss"] - SUMIHDRSZ
 
-    try:
-        clients[nick]["fh"].seek(blocksz * (seqno - 1))
-    except IOError:
-        print "Error when seeking: ", sys.exc_info()
-        return 
+    #print "I AM GOING TO SEEK TO ",blocksz*(seqno-1)
+
+    #if (blocksz * (seqno - 1)) > clients[nick]["size"]:
+    #    print nick,"tried to seek past end-of-file"
+    #    return
+
+    # Many OS's allow seeking past the end of file
+    clients[nick]["fh"].seek(blocksz * (seqno - 1))
+
     block = clients[nick]["fh"].read(blocksz)
 
     pkt = clients[nick]["prefix"]        # 3-byte prefix
@@ -1136,7 +1149,14 @@ def make_thread(f, arg):
        f(arg)
     except KeyboardInterrupt, SystemExit:
        on_exit()
-
+    except KeyError:
+       # Client finished while we were trying to help it, oh well
+       print "Lost client"
+       pass
+    except:
+       x = sys.exc_info()
+       print "Unhandled exception in ",f,": ",x[0]," line",x[2].tb_lineno
+ 
 def on_exit():
     global config_file, cfg
 
