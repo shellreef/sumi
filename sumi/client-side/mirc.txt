@@ -2,12 +2,11 @@
 
 ; This tells you how. Go near the end of this file, starting with ";sumi".
 ; Copy and from there to the end (^C). Then open aliases.txt and paste
-; (^V) at the end.
+; (^V) at the end. Either go to C:\Program Files\mIRC\aliases.txt, or
+; press Alt-R then go to the "Aliases" tab within mIRC.
 
-; (jc) this should be added if requested, by nsis installer
-; HKLM 
-;  "Software\Microsoft\Windows\CurrentVersion\Uninstall\mIRC\UninstallString"
-; if exists, then mIRC exists, can get mIRC folder with, then append to aliases
+; Note that the NSIS installer tries to do this for you if it detects mIRC.
+
 ; the "sumi-mirc 0.0" tag is required by the installer, if upgrading
 
 ; add this to aliases.ini:
