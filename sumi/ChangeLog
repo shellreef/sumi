@@ -1,0 +1,7 @@
+2004-08-29 Dan Weber <dan@mirrorlynx.com>
+
+	* rawproxd.cpp (NEW):  Added rawproxd.cpp.  This is a new
+	implementation of rawproxd that works.
+
+	* ChangeLog (NEW): Finally a GNU ChangeLog format.
+	* ChangeLog.old (OLD): move of the old changelog.
