@@ -186,39 +186,34 @@ class Client:
 
             # Open the file and set it up
             if not self.senders[nick].has_key("fh"):  #  file not open yet
-                print "Opening tempout for %s..." % nick,
+                fn = self.config["dl_dir"] + os.path.sep + \
+                    self.senders[nick]["fn"]
+                print "Opening %s for %s..." % (fn, nick)
                 self.senders[nick]["start"] = time.time()
 
                 # These try/except blocks try to open the file rb+, but if
                 # it fails with 'no such file', create them with wb+ and
                 # open with rb+. Good candidate for a function!
                 try:
-                    self.senders[nick]["fh"] = open(self.config["dl_dir"] + \
-                         os.path.sep + self.senders[nick]["fn"], "rb+")  
+                    self.senders[nick]["fh"] = open(fn, "rb+")
                 except IOError:
-                    open(self.config["dl_dir"] + os.path.sep +\
-                        self.senders[nick]["fn"], "wb+").close()
-                    self.senders[nick]["fh"] = open(self.config["dl_dir"] + \
-                        os.path.sep + self.senders[nick]["fn"], "rb+")
+                    open(fn, "wb+").close()
+                    self.senders[nick]["fh"] = open(fn, "rb+")
                 print "open"
 
                 # Open a new resuming file (create if needed)
                 try:
-                    self.senders[nick]["fs"] = open(self.config["dl_dir"] + \
-                        os.path.sep+self.senders[nick]["fn"]+ ".lost", "rb+")   
+                    self.senders[nick]["fs"] = open(fn + ".lost", "rb+")
                     is_resuming = 1  # unless proven otherwise
                 except IOError:
-                    open(self.config["dl_dir"] + os.path.sep + \
-                        self.senders[nick]["fn"] + ".lost", "wb+").close()
-                    self.senders[nick]["fs"] = open(self.config["dl_dir"] + \
-                        os.path.sep+self.senders[nick]["fn"] + ".lost", "rb+")
+                    open(fn + ".lost", "wb+").close()
+                    self.senders[nick]["fs"] = open(fn + ".lost", "rb+")
                     is_resuming = 0   # empty resume file
 
                 # Check if the data file exists, and if so, resume off it
                 lostdata = None
 
-                if (os.access(self.config["dl_dir"] + os.path.sep + \
-                    self.senders[nick]["fn"], os.R_OK)):
+                if (os.access(fn, os.R_OK)):
                    # The data file is readable, read lost data 
                     lostdata = self.senders[nick]["fs"].read().split(",")
 
@@ -236,7 +231,7 @@ class Client:
                 if (len(lostdata) <= 1): is_resuming = 0
                 print "LEN LOSTDATA=",len(lostdata)
 
-                is_resuming=0#FORCE
+                #is_resuming=0#FORCE
  
                 # Setup lost
                 if (is_resuming):   # this works
@@ -277,9 +272,8 @@ class Client:
                         self.senders[nick]["rwin"][int(L)] = 0
 
                     # Bytes received = (MSS * at) - (MSS * numlost)
-# TODO: Fix error in reporting number of bytes received, off by about 16,
-# even though it is saved correctly...this leads to >100% progress rates
                     # XXX: MSS's may be inconsistant across users! Corruption
+                    # TODO: FIX RESUMING!
                     self.senders[nick]["bytes"] = \
                         (self.mss * self.senders[nick]["at"]) - \
                         (self.mss * len(self.senders[nick]["lost"].keys()))

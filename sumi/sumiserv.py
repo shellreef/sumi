@@ -502,7 +502,7 @@ def xfer_thread(nick):
         if (float(d) >= float(clients[nick]["rwinsz"] * 2)):
             #clients[nick]["xfer_lock"].acquire() 
             print "Since we haven't heard from %s in %f (> %d), stopping" %  \
-                (nick, d, clients[nick]["rwinsz"] * 2)
+                (nick, int(d), float(clients[nick]["rwinsz"] * 2))
             clients[nick]["xfer_stop"] = 1
 
         # If transfer lock is locked (pause), then wait until unpaused
@@ -971,9 +971,9 @@ def thread_notify(ignored):
         chans = cfg["irc_chans"].keys()
         # we're a lot like iroffer.org xdcc, so it makes sense to look similar
         # and it may allow irc spoders to find us
-        to_all(chans, "** %d packs ** X of Y slots open, Record: Z" % \
+        to_all(chans, "** %d packs ** all slots open, Record: N/A" % \
                len(cfg["filedb"]))
-        to_all(chans, "** Bandwidth Usage ** Current: X, Record: Y")
+        to_all(chans, "** Bandwidth Usage ** Current: N/A, Record: N/A")
         to_all(chans, '** To request a file type: "/sumi get %s #x"' % \
                cfg["irc_nick"])
         total_offered = 0
@@ -985,9 +985,10 @@ def thread_notify(ignored):
             total_offered += cfg["filedb"][n]["size"]
             total_xferred += cfg["filedb"][n]["size"] * cfg["filedb"][n]["gets"]
         to_all(chans, "** Offered by SUMI")
-        to_all(chans, "Total Offered: %4s  Total Transferred: %4s" % \
+        to_all(chans, "Total Offered: %4s  Total Transferred: %4s  Bandwidth Cap: %4s" % \
             (human_readable_size(total_offered), 
-            human_readable_size(total_xferred)))
+            human_readable_size(total_xferred),
+            "%d bps" % cfg["our_bandwidth"]))
 
         time.sleep(cfg["sleep_interval"])
 

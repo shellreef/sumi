@@ -5,9 +5,11 @@ TO DO  20040217JC
 * Pause/Cancel transfers in sumiget
 * Two-way transport communication
 * sumiserv.py transport integration
-* Resuming. When quitting, or crashes, or when each packet received, SAVE the
+* FIX Resuming.When quitting, or crashes, or when each packet received, SAVE the
   list of the missed packets before it, and the last packet received. From this
   information, the gaps can be filled and the transfer complete for resuming.
+  XXX Currently, too many packets are missed, causing excess flood
+
 * Checksumming (each packet?) to verify integrity. CRC32, 16? MD5,SHA1 large.
   Just use UDP or ICMP checksums for each packet, and SHA-1 for overall.
 * Pre-auth encryption, so covert (optional) + data chan can be encrypted. This

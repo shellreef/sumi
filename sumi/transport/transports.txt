@@ -23,9 +23,11 @@ modxchat.py: Integrate with the Unix xchat program, see client-side/xchat.txt.
 
 Suggested transports:
 modmute.py: TODO: use mute-net.sf.net's anonymous routing system
-modaim.py: AOL Instant Messenger
+modaim.py: AOL Instant Messenger TODO: 2-way, and sumiserv
 modgaim.py: Plugin for GAIM, so can use AIM, MSN, Y!, ICQ, IRC, etc.
  Note, gaim-remote won't suffice as it can only handle URIs. Requires plugin.
+modwaste.py: Nullsoft WASTE. Uses IRC? TODO: talk to WASTE devs (Shared) (Eric)
+modants.py: antsp2p.sf.net
 
 TODO: Right now, sumiserv only does its own IRC. Extend this so it can use a
       transport here, and receive incoming messages as well as send messages.
