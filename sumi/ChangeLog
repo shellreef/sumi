@@ -2,6 +2,13 @@ Change Log for SUMI
 
 [CVS]
 
+0.8.3 (20040825) exe release only
+20040825 Jeff Connelly  fix dl_dir format string
+
+0.8.2 (20040825) exe release only
+20040825 Jeff Connelly  sumigetw runs on Unix again
+20040825 Jeff Connelly  better input validation in sumiget
+
 0.8.1 (20040824)
 20040824 Jeff Connelly  ported sumiserv.py to Win32
 

@@ -678,10 +678,14 @@ class Client:
                    "a real, valid IP address. If you are not sure what your IP is, go to \n" +\
                    "http://whatismyip.com/. Your IP can be set in the Client tab of sumigetw." 
 
+        # Force trailing slash?
+        #if self.config["dl_dir"][:1] != "/" and \
+        #   self.config["dl_dir"][:1] != "\\": 
+        #   self.config["dl_dir"] += "/"
         if not os.access(self.config["dl_dir"], os.W_OK | os.X_OK | os.R_OK):
-            return "Your download directory, %s, is not writable. You can \n"+\
+            return "Your download directory, " + self.config["dl_dir"] + ", is not writable. You can \n"+\
                    "select a valid download directory in the Client tab of sumigetw by\n"  +\
-                   "clicking the ... button." % self.config["dl_dir"]
+                   "clicking the ... button." 
 
         # Passed all the tests
         return None
