@@ -1270,7 +1270,6 @@ def main(argv):
         server.connect(cfg["irc_server"], cfg["irc_port"], cfg["irc_nick"])
     except:
         print "couldn't connect to server"
-        main(argv)
         sys.exit(4)
     print "OK."
     join_lock.acquire()   #  will be released when channels are joined
@@ -1280,7 +1279,6 @@ def main(argv):
         irc.process_forever()
     except KeyboardInterrupt, SystemExit:
         on_exit()
-    main(argv)
     #while(1):
     #    irc.process_once()
 
