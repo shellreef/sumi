@@ -1,0 +1,246 @@
+<html>
+<head>
+<title>SUMI FAQ</title>
+</head>
+<body>
+<h1>SUMI FAQ</h1>
+
+<h2>How does SUMI work?</h2>
+<p>SUMI uses a covert channel for client-to-server communication to keep
+the address of the server secret (on IRC), and a faster spoofed UDP channel
+for server-to-client data transfer. Both channels are required to successfully
+transmit data with flow control and retransmissions. It should also be possible
+in the future to use other transmission mechanisms.
+
+<h2>What OS do I have to have to run SUMI?</h2>
+<p>For a client, any OS should be sufficient (see next question).
+
+<p>For a server, you need to have either: a) a Unix system with root
+access, or b) a Windows XP/2000 or better system. Either of these setups
+will allow raw sockets required for IP source address spoofing. In particular,
+Windows NT, Me, 98, 95, and 3.11 will not work with sumiserv. With Unix, if
+your sysadmin is kind enough to set the setuid bit on "launch" and change 
+ownership to root, you should be able to run SUMI by typing this command as
+a normal user: <tt>launch ./sumiserv</tt>. This is recommended for security
+purposes, as the actual sumiserv will not be run as root; rather launch will
+create a raw socket, and pass it to sumiserv.
+
+<h2>Why does SUMI use UDP by default, instead of another protocol such as ICMP?</h2>
+<p>ICMP offers a distinct advantage over all other protocols: an ICMP echo
+request can be sent with a spoofed source address to any pingable host on
+the Internet, and an echo reply will be forwarded, with the original data, back
+to the spoofed source address. ICMP allows nearly any host to be a proxy.
+Win32 raw sockets allow receiving echo replies. 
+
+<p>UDP will be dropped by some routers under heavy load in favor of TCP
+packets. Routers may form TCP "aggregates" and forward them, which may or may
+not be possible with UDP. (?)
+
+<p>However, using UDP has several advantages over any other protocol. Systems 
+not able to handle raw sockets (Windows Me, 98, 95, NT, 3.11) or users not
+able to create raw sockets (anything but root on normal Unix systems) can
+still receive the packets. Most TCP/IP stacks can only receive TCP or UDP
+without special priviledges (the exception is WinXP/2K). Portability is
+important; anyone should be able to receive these packets.
+
+<p>However, in the future it may be an option to use ICMP or spoofed TCP
+if the client is able to. Receiving TCP packets will require libcap, and care
+has to be taken to not have the OS interfere with attempting to establish
+a TCP connection. (SUMI can't use TCP provided by the OS because TCP is a
+connection-oriented service, see the next question).
+
+<h2>What is the "ICMP Echo" data channel type?</h2>
+<p>An ICMP echo request is sent (by the server) from a source address of
+the client, to a random pingable host. The host's kernel receives the ping,
+swaps the source and destination, and sends an echo reply with the same 
+payload. Therefore the client receives an ICMP echo reply from the gateway
+with the server's data in it. 
+
+<p>However, ICMP echo mode is often slow and inefficient. An extraordinarly
+small MSS may have to be used, and the extra host introduces more latency and
+packet losses.
+
+<h2>How does SUMI differ from TCP?</h2>
+<p>SUMI's file transfer protocol and TCP have much the same goal:
+reliability, guaranteed order, retransmissions. However, there are some
+subtle differences. Of course, SUMI's data packets can be spoofed which is not
+possible with TCP.
+
+<p>In SUMI, a client-to-server messages have high-latency. The message has
+to travel to the IRC server, and the IRC server has to send it to the final
+destination. For this reason, client-to-server acknowledgements must be
+minimized as much as possible; and therefore a acknowledgement mechanism
+similar to TCP's own "selective acknowledgements" (see 
+<a href="http://www.ietf.org/rfc/rfc2018.txt">RFC2018</a>) is used. Only the
+sequence numbers of missing packets are transmitted. Additionally, the window
+size is transmitted with each acknowledgement, implicitedly acknowledging all
+packets not listed as successfully received. SUMI has a window, although it
+does not (yet) "slide" as TCP's does.
+
+<p>Fortunately, the server-to-client channel has about the same bandwidth and
+latency as it would with TCP. In this regard, SUMI is asymmetric. TCP uses
+the same channel for both directions, SUMI uses UDP for data (server to client)
+and IRC for error control (client to server).
+
+<p>SUMI has some advantages, however. TCP is and has always been a stream
+protocol. SUMI is not. Thousands of packets can be sent; and any one can be
+missed and data can continue flowing. The missed packets can be resent later.
+The file doesn't have to be received as one contigious whole, although it must
+be in order. Sequence numbers take care of that.
+
+<h2>Is SUMI more efficient than TCP?</h2>
+<p>Probably not. Its true that SUMI allows 8 bytes more of payload (due to
+IP's header of 20, TCP's header of 20, UDP's header of 8, and SUMI's header
+of 4), but this is hardly significant. TCP has been highly optimized over the
+years and sophisticated algorithms have been developed using Nagle's algorithm,
+slow start, silly window avoidance, Van Jacobson algorithm, and others. SUMI
+does not have this maturity, although it doesn't try to be less efficient than
+TCP.
+
+<h2>What if I can't IP spoof?</h2>
+<a href="ftp://ftp.ietf.org/rfc/rfc2827.txt">RFC2827</a> describes egress and
+ingress filtering suggested as the way to stop IP spoofing. The most legitimate
+concern for stopping IP spoofing is to stop DoS attacks. However, this also
+influences SUMI because SUMI servers spoof their source address to remain
+more anonymous. You may still be in luck.
+
+<p>Dial-in users and other point-to-point users most likely cannot spoof their
+IP. Its easy to verify at the dial-up point. Cable and DSL users may have an
+easier time. You may be able to spoof your IP to have a valid prefix (the same
+as your real IP), but a ever-changing unique host number. This varies depending
+on the size of your subnet, but RFC2827 says it well:
+<blockquote>
+   As mentioned previously, while ingress traffic filtering drastically
+   reduces the success of source address spoofing, it does not preclude
+   an attacker using a forged source address of another host within the
+   permitted prefix filter range. It does, however, ensure that when an
+   attack of this nature does indeed occur, a network administrator can
+   be sure that the attack is actually originating from within the known
+   prefixes that are being advertised. This simplifies tracking down the
+   culprit, and at worst, the administrator can block a range of source
+   addresses until the problem is resolved.
+</blockquote>
+<p>An example would be "204.69.207.0/24". You could spoof the last octet to
+help obfuscate your source. (Note that this RFC is directed towards preventing
+IP spoofing <i>attacks</i>. SUMI is not an attack.)
+
+<p>ICMP proxying can help obfuscate your source further in face of egress
+filtering, although it is currently unimplemented.
+
+<p>Another filter ISPs may impose is blocking internal address they own 
+coming in to their network. The server can easily circumvent this by not
+spoofing the IP to have the prefix as the client. If the client and server
+are within the same prefix, behind the filtering router, any spoofing may
+occur.
+
+<p>Other <a href="http://www.xs4all.nl/~rmeijer/spoofing.html">spoofing
+prevention techniques</a> exist, although some are impractical.
+
+<p>CERT says this in <a href="http://www.cert.org/advisories/CA-1998-01.html">
+CA-1998-01</a>:
+<blockquote>
+Attacks like the smurf attack rely on the use of forged packets, that is, packets for which the attacker deliberately falsifies the origin address. With the current IP protocol technology, it is impossible to eliminate IP-spoofed packets. However, you can use filtering to reduce the likelihood of your site's networks being used to initiate forged packets.
+</blockquote>
+
+In spite of all this, plenty of ISPs still allow source address spoofing,
+using <i>any</i> source address. (Private IP addresses may be dropped by
+other routers, however.) One way to find out is to try running a SUMI server
+and having your friend connect using the SUMI recipient software. If you get
+a warning saying possible IP spoofing failure, your ISP may filter. Many 
+still do not however.
+
+<h2>Assuming I can spoof any address, what addresses should I not spoof?</h2>
+<p>(See the previous question for how to determine if you can.)
+
+<p><a href="http://www.isi.edu/in-notes/rfc1918.txt">RFC1918</a> says:
+<blockquote><pre>
+   The Internet Assigned Numbers Authority (IANA) has reserved the
+   following three blocks of the IP address space for private internets:
+
+     10.0.0.0        -   10.255.255.255  (10/8 prefix)
+     172.16.0.0      -   172.31.255.255  (172.16/12 prefix)
+     192.168.0.0     -   192.168.255.255 (192.168/16 prefix)</pre>
+</blockquote>
+
+<a href="http://minwoo.jeong.or.kr/openbsd/securing_small_networks_with_OBSD.html">An ipfilter tutorial</a> blocks these addresses outgoing:
+<blockquote><pre>
+block out quick on tun0 from any to 192.168.0.0/16
+block out quick on tun0 from any to 172.16.0.0/12
+block out quick on tun0 from any to 127.0.0.0/8
+block out quick on tun0 from any to 10.0.0.0/8
+block out quick on tun0 from any to 0.0.0.0/8
+block out quick on tun0 from any to 169.254.0.0/16
+block out quick on tun0 from any to 192.0.2.0/24
+block out quick on tun0 from any to 204.152.64.0/23
+block out quick on tun0 from any to 224.0.0.0/3
+</pre></blockquote>
+
+<p>127/8 is the loopback, 0/8 is used to refer to "this" network,
+169.254/16 is the link-local block, 192.0.2/24 is "TEST-NET", 204.152.64/23
+is reserved for private Sun servers, and 224/3 is Class D and Class E. SUMI
+has the is_nonroutable function to test for these addresses.
+
+<h2>Are there any file size limits?</h2>
+<p>Yes. The maximum file size depends on your MTU. It can be calculated as
+follows: (MTU - 32) * 16777216. It varies from 8GB to 12GB depending on
+your MTU; this should be enough for anybody. If its not, you can always split
+the file.
+
+<h2>How can I be anonymous on my covert channel?</h2>
+<p>For IRC, you have several options:
+<p>Use a network that supports the +x mask, or automatically provides hostname
+masking. The major networks do not usually provide this but the smaller ones
+may. Note that there are several levels of masking; the best replace your host
+with a seemingly-random series of characters (a hash, actually) not revealing
+any information about you; next best masks all but your last two domains (thus
+revealing your ISP); next best mask only the first domain, revealing your ISP
+and possibly location (if your ISP encodes that in their client's hostnames).
+The worst IRC networks, anonymity-wise, reveal your full hostname, leaving you
+vulnerable to IRC viruses as well as defeating the purpose of SUMI.
+
+<p>A few networks let you create a "virtual host" or vhost, that replaces your
+real mask. Some networks require an administrator to create one for you, which
+they may not be willing to do; it is also cumbersome especially for your users.
+Better networks provide an automated or semi-automated vhost registration 
+system, possibly available from NickServ or #vhost.
+
+<p>A bouncer is also an option but provides less security if your bnc host is
+not trustworthy. Bouncer shell operators may be susceptable to social 
+engineering even if their box is completely secure.
+
+<p>An option not available to most is changing your reverse DNS after
+connecting. The majority of clients most likely will not be able to do this, 
+but in some situations it could be useful. Change your reverse DNS to something
+bogus, connect, and then change it again if desired.
+
+<h2>What encryption should I use?</h2>
+<p>SUMI ensures anonymity of the sender--untrackability of its IP address, as 
+much as possible. However, anonymity doesn't guarantee that the data cannot
+be intercepted and read (although the source cannot be traced). If your data
+is not sensitive, the transfer will be the fastest if no crypto is used.
+Sensitive data has the option of being encrypted with several algorithms.
+
+<p><b>Symmetric encryption</b> is most secure when the covert channel is
+encrypted. The IIP project provides this security, as do SSL IRC servers but
+SSL-IRC may be interceptable by the server administrator(s). SUMI currently
+uses the AES (Rijndeal) block cipher and it is relatively fast. The covert 
+channel is used to send a 256-bit key, with which the file is encrypted with
+prior to transmission.
+
+<p><b>One-time pad</b> encryption is unbreakable. There is a catch: a file
+(preferably on CD or DVD) needs to be securely be possessed by both the sender
+and recipient. The file must be at least the length of all the files to be
+transferred, and the data must be as random as possible.
+<a href="http://www.fourmilab.ch/random/">Ent</a> can be used to verify the
+entropy, <a href="http://www.random.org/">random.org</a> and 
+<a href="http://www.fourmilab.ch/hotbits/">Hotbits</a> can provide small
+quantities of random numbers from atomospheric noise and radioactive decay,
+respectively. Large quantities can also be self-generated. OTP
+is the best method for highly sensitive data. (NOT YET SUPPORTED)
+
+<p><b>Asymmetric public-key encryption</b> does not require an encrypted 
+covert channel but the public keys need to be exchanged. This is a good general
+method, as in theory the IP of the recipient, and all covert data, can be 
+encrypted before authenticating, revealing nothing to know one. However SUMI
+has NOT YET IMPLEMENTED this.
+

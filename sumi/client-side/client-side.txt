@@ -1,0 +1,8 @@
+Client Side Scripts   20040125JC
+
+These scripts run in your transport client (mIRC, xchat, gaim, and so on). Not
+to be confused with transport scripts, located in ../transports, which are
+invoked by sumiget and are used to communicate with the transport client.
+Client side scripts are used to execute sumiget from within your client, and
+to print sumiget errors. They may also communicate with the transport.
+

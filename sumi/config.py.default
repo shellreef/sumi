@@ -1,0 +1,78 @@
+#!/usr/bin/env python
+# Created:20040201
+# By Jeff Connelly
+
+# SUMI configuration file, default version
+# Copy this to config.py if you wish to restore defaults
+# Comments here are okay because, unlike config.py, its never overwritten
+
+# See also config.html
+
+{
+# Where to save downloaded files - must end in a / (or \ for win32)
+#"dl_dir": "/home/jeff/p2p/sumi/incoming/", 
+"dl_dir": "C:\\",
+"save_interval": 1,#s   # Save resuming file every X seconds
+        # Your IP and your port - these must be INTERNET ACCESSIBLE! That means
+        # use your public IP, and forward a UDP port on your router  
+
+# Note that SUMI downloaders are not anonymous, only uploaders. Uploading is
+# usually the dodgey activity. Canada has ruled downloading legal:
+#  http://news.zdnet.co.uk/business/legal/0,39020651,39118537,00.htm
+        # TODO: Make myport configurable, attempt to read myip from the  
+        #  network interfaces. Local IPs are bad, as they indicate they will  
+        #  be translated by a NAT most likely, so warn and offer to use real IP
+        #  but with EXTREME CAUTION.  
+        # TODO: While we're at it, also get netmask and offer to use it  
+        # http://tgolden.sc.sabren.com/python/wmi_cookbook.html#ip_addresses  
+        #  has WMI to get IP and MACs of IP-enabled network devices, can  
+        #  use ioctl for BSD  
+        # get_network_interfaces()  
+#"myip": "4.34.151.113", 
+#"myip": "10.0.0.7",
+"myip": "",     # = get default IP
+"myport": 41170,# A good port, it will be open if has Blubster/Piolet/RockItNet
+
+        # MSS = MTU - IP_header(20 bytes) - IP header(8 bytes)  
+        # Most minimal: MTU 552, MSS=524 (still not that bad)  
+        # MIN: Hosts required to handle 576 byte IP datagrams, 548 byte payload 
+        # With VLAN/tunnel headers, MSS<=1450  
+        # On Ethernet, MTU=1500, MSS=1472  
+        # MAX: 65535 - 28 = 65,507 (excluding jumbo payload option)  
+        # We don't want fragmentation -- makes packets much more fragile.  
+  
+        # IMPORTANT:UDP MSS is not TCP MSS! UDP MSS is 12 bytes larger because  
+        # of UDP's smaller headers (8 vs 20). Keep this in mind for best   
+        # efficiency.  
+#"mss": 1492 - 28,      # Ethernet w/ PPPoE
+"mss": 1500 - 28,       # Ethernet
+#"mss": 4352 - 28,      # FDDI
+#"mss": 9244 - 28,      # Loopback on many OS's (FreeBSD, OSF/1)
+
+        # RWINSZ - Receive window size. This is the number of SECONDS   
+        # before acking  
+"rwinsz": 3,#seconds
+
+        # Our DL bandwidth in bps. From this value, the sender will calculate  
+        # the packet send delay as to not overwhelm our bandwidth. If this  
+        # is set to higher than your real bandwidth, packets may be lost and  
+        # it will be slower. Note that sender may have less bandwidth.  
+#"bandwidth":   500000,
+"bandwidth": 1500000,#bits/sec     # 1.5Mbps
+
+"maxwait": 5,#seconds      # Maximum time to wait before timing out handshake
+
+"data_chan_type": "u",     # Data channel type, u is UDP
+#"data_chan_type": "i0,0",   # Arbitrary ICMP; 0,0 is ICMP echo reply (fw's)
+#"data_chan_type": "e",     # ICMP echo mode, bounce off a gateway
+
+"crypto":"s",               # Encryption? o=OTP, s=symmetric (wait until pre)
+"passwd":"1" * 32,          # Asymmetric encryption key
+"irc_nick": "sumiget", # This should be redelegated in transport-specific opt
+
+# Column widths for sumigetw
+"colwidths": [100,100,90,50,50,50,50,50,25,50],
+
+# Window size for sumigetw
+"winsize": (300, 600),
+}

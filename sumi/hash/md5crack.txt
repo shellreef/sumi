@@ -1,0 +1,39 @@
+Cracking MD5 2003-08-23 JC
+
+See: www.passcracking.com
+Rainbow codes. Can easily hash many strings and look them up in minutes.
+This is offtopic for SUMI. Originally went down this path to research the
+security weaknesses of MD5, to include or not include MD5 in SUMI. It seems
+that more and more file transfer protocols are moving to SHA-1. However,
+HTTP still uses MD5 headers, odd.
+
+--
+Finding one collision may lead to another.
+
+MD5 produces 128-bit (16-byte) output hashes.
+That is 2**128+1 = 340282366920938463463374607431768211457 possible outputs.
+Sixteen bytes each, requires 5444517870735015415413993718908291383312 bytes
+to store all the hashes from 0 to 2**128+1. To put in perspective, that is
+
+5444517870735015415413993718908291383312 bytes
+5316911983139663491615228241121378304 kilobytes
+5192296858534827628530496329220096 megabytes
+5070602400912917605986812821504 gigabytes
+4951760157141521099596496896 terabytes
+4835703278458516698824704 petabytes
+4722366482869645213696 exabytes
+4611686018427387904 zettabytes
+4503599627370496 yottabytes
+
+A lot of storage. Obviously, this is unfeasible by today's standards. To find
+a collision, every value has to be checked with every other value; a monumental
+task, (2 ** 128) ** (2 ** 128) (?) comparisons.
+
+Thus, cracking MD5 is impractical in both disk space and CPU power.
+Distributed?
+
+. Once all 2^128+1 values are calculated, the domain is mapped to the whole
+range. Thus, any hash can be looked up (because the entire range is calculated)
+to find a message that generates that hash. Any message that is hashed, 16
+bytes less or more or same, will be a collision, because the range in its
+entirety is mapped out.

@@ -1,0 +1,308 @@
+<html>
+<head>
+<title>UDP for Anonymity</title>
+</head>
+<body>
+<a name="#toc"><h1>Table of Contents</h1></a>
+<ul>
+<li>1. <a href="#1">The Need for Anonymity</a>
+<li>2. <a href="#2">Source Address Spoofing</a>
+<li>3. <a href="#3">Methods</a>
+<ul>
+<li>3.1. <a href="#3.1">Full-Duplex, Half-Anonymous: Trusted Hosts, Untrusted Network</a>
+<li>3.2. <a href="#3.2">Half-Duplex, High-Anonymity for Sender</a>
+<li>3.3. <a href="#3.3">Half-Duplex, High-Anonymity for Recipient</a>
+<li>3.4. <a href="#3.4">Half-Duplex, Full-Anonymity for Sender w/ Mediator</a>
+</ul>
+<li>4. <a href="#4">Introducing SUMI</a>
+<ul>
+<li>4.1. <a href="#4.1">Handshake and Negotiation</a>
+<li>4.2. <a href="#4.2">File Transfer</a>
+</ul>
+</ul>
+</ul>
+
+<h2><a name="1">1. The Need for Anonymity</a></h2>
+<p>Not discussed here.
+
+<h2><a name="2">2. Source Address Spoofing</a></h2>
+<p>The Internet is based on IP, the Internet protocol. This protocol is
+packet-based. Any data that is sent has a source and destination IP address
+attached to it, to allow routers to locate the destination as well as to 
+allow the destination to send replies to the source. 
+
+<p>Little known is that the majority of ISPs permit the source IP to be
+faked (or forged, or spoofed) on outgoing packets. Often, the source address 
+can be set to any address, even addresses not belonging to the ISP. This is
+the feature that we will attempt to take advantage of in this document in
+order to gain anonymity when transferring files. 
+
+<p>Of course, if the source address is not real, then a "connection" cannot
+be established because the destination host cannot send replies back to the
+source. This basically rules out TCP. UDP, however, is connectionless by
+nature. This makes UDP an ideal transport layer for sending packets with
+spoofed source addresses. (ICMP or raw IP is also a possibility).
+
+<h2><a name="3">3. Methods</a></h2>
+<p>Several possibilities exist.
+
+<h3><a name="3.1">3.1 Full-Duplex, Half-Anonymous: Trusted Hosts, Untrusted Network</a></h3>
+<p>This method is best suited for when two trusted hosts wish to exchange
+data without knowledge of the intermediate routers. (Note that the ISP's
+routers directly connected to the hosts may or may not be able to identify 
+them and locate which host is sending spoofed packets.) 
+
+<p>The recipient and sender each know each other's IP addresses; they were
+previously exchanged via a convent channel such as a PGP-encrypted email or
+in person. The hosts agree on a common port or token for transfer. 
+The sender sends
+packets with spoofed source addresses to the recipient, and the recipient can
+send packets with spoofed source addresses to the sender. Because both know
+each other's address, they can send replies and communicate two-way, in full-
+duplex mode. 
+
+<p>Each host's address is revealed in the destination field; the recipient 
+address is revealed in the destination field of packets sent by the sender,
+and vice versa. Only the source IP is spoofed. For this reason, I call this
+method "half-anonymous" -- the destination reveals both addresses, although
+not at the same time. The two addresses have to be somehow linked together to
+make any sense of the connection by a malicious sniffer. This may be possible
+by taking note of half of the protocol coming from one host and half from
+another. <i>Steganography</i> may help here by hiding within Internet
+application protocols common on the Internet.
+
+<p>Advantages:
+<ul>
+<li>Full-duplex two-way connection! May be possible to layer TCP over this.
+<li>Difficult for intermediate routers to discover source &amp; dest
+<li>Steganography
+</ul>
+
+<p>Disadvantages:
+<ul>
+<li>Both hosts must known each other's addresses
+<li>Not anonymous from POV of a host (sender or recipient)
+<li>Steganography
+</ul>
+
+<h3><a name="3.2">3.2. Half-Duplex, High-Anonymity for Sender</a></h3>
+<p>In order to introduce anonymity into the system, we must introduce a 
+concept known as "the network". This is a collection of peers that all know
+about each other. Multiple networks may exist. The key to anonymity here is
+that a request can be "broadcast" (sent to all hosts in the network) and 
+replies can anonymously trickle in. The recipient send requests to multiple
+senders, so in theory the sender cannot be determined. (The recipient can,
+however, "scan" the network by sending requests to each host, one by one,
+and waiting for a reply. This issue needs to be addressed, possibly by timing.)
+The anonymity is gained by <i>camouflage</i>.
+
+<p>Here's how this method works: the sender wants foobar.txt, so he broadcasts
+a request asking for it (along with his maximum connection speed and other
+parameters). Sender(s) then send bits of the file (with spoofed source 
+addresses on the packets) to the recipient. This may be wasteful if more than
+one host has the same file, although this allows for verification from other
+senders. 
+
+<p>(In order to reduce the number of replies, the recipient may include a
+probability field. This field contains two numbers: a maximum limit, and a 
+random number from 0 to the max. When potential senders receive the request
+packet, they generate a random integer within the maximum limit, and if it is
+equal to the given random number, they send the file. Otherwise, they ignore
+the packet. Assuming the random integers are uniformally distributed, this
+allows 100 senders to be cut down to 50 (max=1), 33 (max=2), 25 (max=3), etc.
+New_sender_count = Total_senders / (Max + 1))
+
+<p>Because senders never reveal their IP address, only the recipients do (to
+the sender), this method is ideal where sharing is more dangerous than taking.
+Sharers get nearly complete anonymity, while downloaders get none.
+
+<p>The only types of communication that can occur in this setup are:
+<ul>
+<li>Broadcast: Recipient -> The Network (of senders)
+<li>Malicious Scanning: Recipient -> Individual Sender
+<li>Transfer: Recipient &lt- Sender
+</ul>
+
+<p>Advantages:
+<ul>
+<li>Sender IP is only revealed in the list of peers, not during transfer
+</ul>
+
+<p>Disadvantages:
+<ul>
+<li>All senders are revealed in the peer list (the network)
+<li>Requesting from an individual sender and waiting for a reply may
+    compromise anonymity
+</ul>
+
+
+<h3><a name="3.3">3.3. Half-Duplex, High-Anonymity for Recipient</a></h3>
+<p>This is difficult, as far as I know it is not possible. The recipient
+wants a file to be sent to him without the sender knowing his identity.
+As far as I know this cannot be done because the sender must know the
+recipient's address in order to send him data. Anonymous proxies are
+a solution, but that is beyond the scope of this paper (the topic is 
+UDP.)
+
+<h3><a name="3.4">3.4. Half-Duplex, Full-Anonymity for Sender</a></h3>
+<p>There is a way to achieve complete anonymity for the sender(s): eschew
+the request packet. Instead, have the recipient(s) "join" a "group",
+similar to the long-dead Audiogalaxy groups, if anyone remembers those. Files
+will be sent out anonymously by the senders, whose addresses are kept secret 
+(by the group registration interface -- which would probably be web-based 
+and operated by a third party). The files will be sent at predetermined times,
+the recipients may join at any time before the deadline. Their IPs are also
+kept secret by the registrar.
+
+<p>The registrar can be anonymized by going through proxies, but HTTP proxies
+cannot serve. IRC may be the ideal medium, specifically, IRC with a virtual
+host -- all text will be sent through the IRC server, and its address will
+not be revealed. Sends can be scheduled and so on, untraceably. 
+<a href="http://invisiblenet.net/">Invisible IRC Project</a> (IIP) is even
+better, as DCC's are blocked at the server level. But networks that allow
+custom vhosts, such as irc.p2pchat.net, may be sufficient (networks that 
+remove unique info but not the domain, like irc.elite-irc.net, may do but
+are not preferred). This introduces another trusted host into the system --
+the IRC network, as well as the central registrar server. But maybe they can
+be trusted (especially if its IIP).
+
+<p>It may be possible to get some peer-to-peer action between the recipients,
+but that may compromise anonymity if we know who is sending what.
+
+<p>Advantages:
+<ul>
+<li><b>Senders totally anonymous to recipients</b>
+<li>Recipients don't have to send a request
+<li>Files can be sent as soon as available like AG groups
+<li>... or they can be requested
+<li>The mediator allows for a small, full-duplex control channel
+</ul>
+
+<p>Disadvantages:
+<ul>
+<li>A mediator is required, such as on IIP IRC (small disadvantage)
+</ul>
+
+<h2><a name="4">4. Introducing SUMI</a></h2>
+<p>SUMI, Spoofed UDP with Mediator of IRC, is a protocol implementing
+method #4, providing full anonymity for the sender. The sender's address is
+never revealed.
+
+<p>The network uses two channels:
+<ul>
+<li><b>IRC</b>: A two-way, anonymous, slow channel requiring a third party
+<li><b>UDP</b>: A one-way, anonymous, fast, unreliable channel
+</ul>
+<p>IRC can be anonymous when the IRC network is trusted, and users cannot
+/whois users to find their IP address or hostname. 
+<a href="http://invisiblenet.net/">IIP</a> is one such IRC network. Other
+networks let you set your own vhost or obfuscate your hostname for you, these
+may be sufficient. The IRC channel is used for negotiation between the
+recipient and the sender, as well as control information. It is the only way
+the recipient (client) can communicate with the sender (server).
+
+<p>The UDP channel is one-way; the server sends to the client datagrams with
+spoofed source addresses. Note that this is not entirely untraceable; Chinese
+may want to avoid using SUMI and instead stick to IIP directly. At the expense
+of anonymity from the intermediate routers, SUMI provides greater speed as well
+as anonymity of the sender to the recipient.
+
+<h3><a name="4.1">4.1. Handshake and Negotiation</a></h3>
+<p>The IRC channel is used for handshake and MSS negotation. 
+A client wanting a file sends
+a private message to a sender, containing the following:
+<pre>
+sumi send <i>Filename</i>\t<i>Offset</i>\t<i>Addr</i>\t<i>Port</i>\t
+<i>MSS</i>\t<i>Prefix</i>\t<i>Latency</i>
+</pre>
+<p>Each field is separated by a tab (\t).
+<ul>
+<li><b>Filename</b>: This can either be a complete filename, or a number like
+#1, #2, etc. as common with <a href="http://iroffer.com/">iroffer</a>. Spaces
+are definitely allowed; the only thing that isn't is tabs and newlines.
+<li><b>Offset</b>: Resume offset. Not yet used; may not be complete.
+<li><b>Addr</b>: IP address of the client that wants the file.
+<li><b>Port</b>: UDP port the client is listening on for file transfer.
+<li><b>MSS</b>: Maximum Segment Size, modelled after the TCP concept of the 
+same name. The UDP MSS is 12 bytes larger than the TCP MSS due to 12 fewer
+bytes in the UDP header. Sender will send datagrams this size. Minimum 256.
+<li><b>Prefix</b>: Random three bytes base-64 encoded, generated by client.
+Client should keep track of this, the sender will send it back.
+<li><b>Latency</b>: In microseconds, time sender should wait before sending
+each packet. Should match but not exceed download bandwidth.
+</ul>
+
+<p>Upon receiving the send request packet (above), the sender sends a UDP
+packet of size MSS to the specified IP and port, on port 65535, with the 
+following payload:
+<pre>
+<i>prefix</i> <i>seqno</i> <i>data</i>
+</pre>
+<p>The prefix is 3 bytes, and is what the client sent to the sender (base64
+decoded). Next (without any spaces) is the one-byte sequence number, which is
+set to 0 in this case. The remainder of the packet (of size MSS requested by
+the client) is pseudo-random data. The UDP source port number is used for
+the upper 16 bits of the sequence number, and 65535 means 0 (since port 0 is
+not easily sent from); thus, the authentication packet has a sequence number of
+0 (the lower 8 bits of the sequence number are in the packet itself).
+
+<p>The client receives this packet and checks for the prefix it requested.
+Packets without the prefix are dropped. This is done to make sure that the
+spoofed UDP packet really came from the same sender as communiciated through
+via IRC, and not some malicious entity. Essentially, it verifies the server
+to the client.
+
+<p>If all goes well, the client can send an authenticate
+message via IRC private message to the server:
+<pre>
+sumi auth <i>MSS</i>\t<i>Hash</i>
+</pre>
+<p>The MSS is the size of the authentication packet the sender sent. It may
+be less than the MSS the client requested (minimum 256 bytes), and the client 
+should make note of
+this as this new MSS will be used for file transfer. The hash is a base64-
+encoded MD5 hash of the entire payload of the UDP authentication packet.
+
+<p>The server receives the hash and hashes the substring of MSS bytes of the
+packet it sent, and compares it to the hash sent by the client. If it matches,
+the client is verified to by the server, and the spoofed UDP channel is good;
+the client specified a valid IP and port number.
+The sender now sends a start message via IRC:
+<pre>
+sumi start <i>Filename</i>\t<i>Offset</i>\t<i>FileSize</i>
+</pre>
+
+<p>Following this initial handshake, both hosts are authenticated, and a 
+terse, compact protocol is used to speed up communication over the secure
+channel. The client sends a single "k", ac<b>k</b>nowledging the sumi start,
+and the sender can begin sending.
+
+<h3><a name="4.2">File Transfer</a></h3>
+<p>TFTP-ish reliability mechanism: require the client to send an 
+acknowledgement (through IRC) for each packet, before the sender sends the
+next packet. This is inefficient but works; if sender doesn't receive an 
+acknowledgement after a certain time, the sender re-send's the offending
+datagram. In my tests with a small file and Ethernet window size, this allows
+for about 1.5KB/s with 16,000 bytes. Not very good. Latency of the IRC server
+limits latency on the UDP channel. Packets are acknowledged with k<i>seqno</i>
+from client to sender; when sender gets this packet he sends <i>seqno</i>+1.
+
+<p>Client knows last packet because its length is smaller than the MSS.
+(Implementation note: if the last packet is equal to the MSS in length, send
+an empty packet, with proper prefix and seqno of course. The client won't
+write any data to disk but will know the end of the file is there.)
+
+<p>Something better needs to be implemented, similar to TCP. Flow control
+through a sliding window,
+minimized acknowledgements, retransmissions. We already have sequence numbers
+for ordering, and in fact, this is one advantage SUMI has over TCP: not all
+packets have to be received to receive more; that is, packets can arrive at
+any time and be put in their place. TCP is a streaming protocol. SUMI doesn't
+have to be, and can take advantage of this.
+
+<p>Instead of k<i>seqno</i>, to request the next packet, client may send
+k<i>seqno</i>\t<i>RWIN</i>\t<i>delay</i> (RWIN = receive window) to request 
+<i>RWIN</i> packets, optionally with a delay of <i>delay</i> ns before each.
+These packets are acknowledged with a single line, but instead of k, n is used
+for negative acknowledgement and packets that didn't reach are listed,
+separated by commas.  

@@ -1,0 +1,88 @@
+The SUMI Protocol  20040116 JC
+
+Definitions
+ message: a small control message sent via a secure two-way channel (C<->S)
+ packet: a relatively large UDP data packet sent anonymously S->C
+
+Message
+C->S
+sumi sec <method><key>
+
+This is pre-auth encryption. <method> is a one-byte method:
+"O"          one-time pad, key=<offset>,<otp-id>
+"S"          symmetric, key=password (AES)
+"A"          asymmetric, key=public key
+Lowercase types = encrypt acks, also (default not)
+
+Pre-auth crypto allows sumi send to be enciphered so the IP is hidden, and only
+the server can decrypt it. See crypto.txt.
+
+Message
+C->S
+sumi send <packed_args>
+(f) file     File which is requested, either a filename or package number.
+XX(o) offset   Initial position to begin transfer at, used for resuming.
+             (moved to sumi auth, so client can resume from filename)
+(i) ip       IP address of client.
+(n) port     UDP port number of client. If "X", S will send to random ports.
+             If dtype is ICMP, encoded as type*0x100+code
+(m) mss      Maximum segment size to try initially; largest packet C->S
+(
+(p) prefix   Random 3-byte prefix, base64'd to 4 bytes
+(b) speed    Bandwidth in bits per second
+(d) dtype    Data channel type
+             u=UDP t=TCP e=ICMP(echo)  i..other ICMP codes useful?
+XX(l) latency  Delay to wait before sending each packet (use b instead)
+
+Client requests a file from a server. Server sends SUMI auth packet to<IP:port>,
+beginning with <prefix>, filled with random data up to <mss> bytes.
+* Client says what it wants
+
+Packet
+C<-S
+IPv4src: (random IP, random port)
+IPv4dst: <ip>:<port> 
+Payload: size=<mss>
+ prefix - 3 bytes, from <prefix>
+ seqno  - 3 bytes, set to "0"
+ XXX: should include length of filename, filename hash, so on
+ data   - random
+Sent in response to sumi send message. Elicits sumi send message from client.
+* Server says what it has
+
+Message
+C->S
+sumi auth <args>
+(m) mss      Calculated MSS--size of authentication packet
+(s) asrc     Received source IP of authentication packet
+(h) hash     MD5 base64 hash of authentication packet up to <mss> bytes
+(o) offset   Resume at this offset, in the transfer
+ (t) trasfer mode? vvvv
+Client has received the authentication packet, and sends this in response once
+it is ready to begin transfer. If valid, S sends back sumi start.
+* Client considers and says if what server has meets what client wants
+
+DATA TRANSMISSION PROTOCOLS
+Message
+C->S
+Negative-Acknowledgement Non-Sliding Window Transfer
+n<winsz>,<resend1>,<resend2>,<resend3>,...,<resendN>
+winsz     Window size: number of packets S should send before another "n"
+resendN   Individual packets to be resent, 1-based number
+Server will send up to <winsz> packets, starting with the <resend>s, and then
+continuing where it currently is in the file.
+
+Message
+C->S
+Positive-Acknowledgement, TFTP-Style
+k
+Server will send the next packet.
+
+Message
+C->S
+Forward-Error-Corrected Ack-free Transfer
+f
+(in theory)
+
+Digital Fountain, Tornado codes, open source FEC, secret sharing?
+

@@ -1,0 +1,45 @@
+SUMI for Year 2004 20040101
+Pseudo-code
+
+* SUMI Server *
+-- Messaging module --, deals with messages (IRC, AIM, ...)
+Functions: (handles small messages, used sparingly, but necessarily)
+ login(nick) - login
+ recvmsg(nick,msg) - dispatches handlers of received messages
+ sendmsg(nick,msg) - send a message
+
+recvmsg("msg" from "nick"):
+ if authenticated(nick):
+  transfer_control(nick, msg)    # authenticated clients can use shorter prtcl
+ if "sumi send <file> <offset> <ip> <port> <mss> <b64prefix> <latency>":
+  error(MSS too small) if mss<256
+  error(MSS too large) if mss>global_mss
+  error(prefix != 4) if b64prefix.length() != 4
+  prefix = decode_base64(b64prefix)
+  key = prefix + "\0\0\0" + random bytes to fill mss
+  error(bad key generation) if key.length()!=mss
+  send packet to ip:port, with payload of key
+  save key and other fields associated with nickname
+ if "sumi auth <srcip> <msg> <hash>":
+  error(step 1 not complete) if !authenticated(nick)
+  if mss < saved_mss:
+   notify(Downgrading MSS <saved_mss> -> <mss>)
+   saved_mss = mss
+  else
+   error(MSS too high)
+ 
+  # Verify src ip
+  if (saved_asrc != srcip)
+   print(Possible spoof failure)
+
+  # Verify hash
+  error(key error) if mss > key.length()
+  strdigest = md5hash (key)
+  error(error: hash) if hash != strdigest
+
+  g_cli_auth[nick] = 2  # fully authenticated, let transfer begin
+  sendmsg("sumi start <filename>\t<start>\t<length>")
+error(str) = sendmsg("error: " + (terse ? "(hidden, contact admin)" : str)
+
+* SUMI Client *
+todo

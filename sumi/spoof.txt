@@ -1,0 +1,97 @@
+Spoofing Capabilities     2003-08-03 JC
+
+Major ISPs:
+"ISPs and major backbones don't effectively prevent bogon (unallocated and unannounced) IP space from traversing the wide Internet. Therefore a hacker with minimal sophistication can attack you from IP addresses that don't exist."
+"As far as a technical solution, Tier-1 providers and local ISPs need to filter traffic. If you are using 68.78.10.0/24 and the IPs in the packet headers leaving your network are from something else, your configuration is broken. All the suddenly spoofed packets can be located to within a Class C."
+ -- http://software.newsforge.com/software/04/02/28/0130209.shtml
+http://en.wikipedia.org/wiki/Bogon_filtering bogon space = unallocated
+Vixie's solutions to DDoS:
+http://www.isc.org/index.pl?/about/mgmt/vixie.php
+http://www.cctec.com/maillists/nanog/historical/0106/msg00681.html
+ 	Each peer agrees to emit only IP packets with accurate
+	source addresses, to require their customers to do likewise,
+	and to extend this requirement to all other peers by $DATE.
+
+
+A very similar idea to SUMI:
+ http://sourceforge.net/forum/forum.php?thread_id=1017118&forum_id=283651
+Update: egress filtering is also known as RPF. It may be more widely
+ implemented with time as DDoS attacks continue.
+http://www.kuro5hin.org/story/2004/2/4/101948/6201 is one of many
+http://ddos-ca.org/ Distributed Denial of Service - Class Action Lawsuit
+ "attacks can be traced if you get a tier1 provider to start looking. I know 
+  the one I work for will trace attacks for customers, if they are going to 
+  press charges, and will trace attacks that originate from our network if
+  another tier1 calls and has traced a live attack to us." -- applies to SUMI?
+Unicast RPF: google:rpf filtering
+ - Checks IP packet source address against CEF table and discards if !rev-path
+ - Interface command: ip verify unicast reverse-path
+ - Requires Cisco Express Forwarding (CEF)
+ - IOS 11.1(17)CC CEF 13 & 12.0 (not 11.2 and 11.3)
+* RPF needs to be done at the edges of the trust boundary, not the 1st hop rtr
+^ this means all within the "trust boundary" IPs are allowed
+
+Interesting point: if you connect a switch to your DSL/cable modem, you may
+be able to have two computers with two routable, public IP addresses. This
+works with Verizon. This may not work with ISPs that require authentication.
+
+-- http://www.dslreports.com/forum/remark,7652257~root=security,1~mode=flat --
+>Re: MSBLAST analysis thread
+>It seems that the first two octets of the spoofed IP address will always 
+>match the first two octets of the actual machine's IP address.
+>
+>This seems like a good idea: machines behind NAT (with private addresses such 
+>as 10.X.X.X or 192.168.X.X) are not likely to get infected, but machines that 
+>are "wide open" will spoof from addresses that are more likely to be within 
+>the ISP's address space. This means that even ISPs that perform egress 
+>filtering (throwing away outbound traffic that couldn't have originated on 
+>their network -- spoofed traffic) won't catch much of it.
+>
+>This is the first clever thing I've seen in this program.
+>
+>Steve
+Very clever indeed - I thought of this too; they have a /16 mask.
+
+Verizon 
+- allows full spoofing, even of unrouteable IPs (10.0.0.0) within the network
+  as well as spoofing outside the network (tried to Comcast), the 768/128
+  and 1500/128 are equally spoofable but the former gets about 14.5KB/s,
+  while the later gets around 16.5KB/s. /22
+
+MSN Dialup (*.rasserver.net aka ICGCom(?))
+- allows spoofing (tried 1.2.3.4)
+
+Comcast Cable
+- /16 subnet, /24 works, /20
+xxxx-xxxx.xxxx-xxxx.0100-1110 (78) - NO
+xxxx-xxxx.xxxx-xxxx.0100-1101 (77) - yes
+xxxx-xxxx.xxxx-xxxx.0100-1001 (73) - yes
+xxxx-xxxx.xxxx-xxxx.0100-1000 (72) - NO
+
+Juno Dialup
+- allows spoofing (tried 41.0.0.0, 35.72.0.0, 144.95.0.0, ...)
+- 1.2.3.4:5, port remains intact
+
+Shaw Cable
+- 1.2.3.4 doesn't work,
+  24.108.44.142. Subnet mask: 255.255.255.0
+  Use, for example allow: 24.108.44.142/24
+
+TeleStar/AOL(CompuServ) - satellite
+- doesn't work?
+
+AOL Dialup
+- fails on 1.2.3.4:5
+Comcast
+- rumored to egress filter. they do NetBIOS filtering
+- subnet: 255.255.255.0
+- didn't work, even with own IP(!) in one case
+
+Dial-Up ISPs
+- rumored to have most of them filter, since its point-to-point (PPP)
+Source: http://www.megasecurity.org/trojans/skydance/Skydance3.6.html
+"In addition to that MOST ISPs DO FILTER SPOOFED PACKETS OF DIAL IN COMPUTERS
+ ANYWAY!"
+
+PacBell
+- rumored to have PPPoE, which is rumored to be common with DSL

@@ -1,0 +1,8 @@
+You are in the directory for the Perl version of SUMI, which only lasted
+for one revision (0.1), through 20030402 to 20030803. This was the initial
+prototype of SUMI which laid the groundwork for later versions and proved
+the idea of spoofed transfer with a mediator was feasiable. 
+
+Requires perl5.
+
+-jc 20040721

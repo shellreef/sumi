@@ -1,0 +1,24 @@
+Resuming SUMI 20040222
+
+Resuming a transfer is necessary in every file transfer program. SUMI should
+store:
+
++ offset at which no packets were received yet
++ currently lost packets behind the offset
+
+to do: everything identifying the transfer
+- "IRC" + IRC server + channel (where to go)
+  + channel key if needed     <- are the channel+key needed? if has to join
+- nickname of server           (what to send to)
+- filename                     (what to send)
+
+With this, the lost files can have a .sumi extension, clicking them in Win32
+will open SUMI, use the transport to connect, (join), send, receive and resume
+the file. Data file is always <basename> if resume file is <basename>.sumi.
+
+Would be useful. The .sumi files could even be sent around if the offset & lost
+packets are zeroed (offset=1, lost packets=[]). If <basename> doesn't exist,
+it can be ignored and the transfer could start over, resuming to the .sumi.
+
+Just like .torrent files.
+

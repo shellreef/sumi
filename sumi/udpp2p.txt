@@ -1,0 +1,17 @@
+udpp2p is another project - 
+http://udpp2p.sf.net/
+
+it mainly uses broadcasts, but a bug report on 
+http://sourceforge.net/tracker/index.php?func=detail&aid=732045&group_id=76192&atid=547683 suggests:
+
+"udp flow control
+why not utilize another project for flow control
+http://www.invisiblenet.net/iip/index.php
+they focus on anonymous IRC but their goal is anonymous IP.
+Send the bulk of the data via UDP and flow control with
+IIP and presto large file anonymous sending"
+
+This is what SUMI tries to do, though IIP is in some cases overkill
+
+Seems that many people have similar ideas to SUMI.
+

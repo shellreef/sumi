@@ -1,0 +1,42 @@
+Taken from
+http://www.zeropaid.com/bbs/showthread.php?p=216287#post216287
+with my comments in >>
+
+eivioolla
+Registered User
+
+Joined: Feb 2003
+Location: Finland
+	
+
+    Quote: Originally Posted by Malicious Intent
+    EDIT: No I havn't tried the PXP release, last time I installed that program it was disarster. I just want to know how it works. 
+
+
+Well, the head programmer posted a pretty good description of it on Slyck forums sometime ago. Basically it binds a dummy network interface with a fake IP address to your system and uses that on sends. I guess the searches and the necessary loopback traffic is proxied trough other PXP nodes. It's naturally based on UDP.
+
+-edit- Found it so here's a quote from that post
+
+    Quote: There is an alternative that doesn't use proxies but uses ip spoofing.
+
+    1) Server sets up fake ip address (adds another address (fake) to its LAN adapter, easy to do). Does not require HDR_INCL TCP support.
+>> This is interesting...useful idea. IP_HDRINCL is not available everywhere.
+>> in bsd, "ifconfig fxp0 alias 192.168.69.1"?
+>> or maybe, change the ip(?) ifconfig dummyif0 inet w.x.y.z netmask m.m.m.m up
+>> But what is "HDR_INCL" TCP support??
+
+    2) Server advertises its files to Supernode but Supernode stores 9 fake addresses along with one real address of Server
+
+    3) Client finds file, and receives 10 addresses. Client requests large segment of file to all 10 addresses.
+
+    4) Server answers request from fake ip address.
+
+    5) Traffic control etc done by method similar to 3. Protocol is optimized to require as little backtraffic (client to server) as possible.
+
+    5) Client never knows real ip address with certainty enough to file lawsuit, but gets file.
+
+    Some people cannot ip spoof for various reasons, however, the large number that can ip spoof discredit ip addresses in the entire network. After suing a few innocent grandmothers and 5 year olds, attacker gives up.
+>> ISP firewalls
+
+    Theoretical? No, this is called PXP and is actually working on one particular P2P application.
+

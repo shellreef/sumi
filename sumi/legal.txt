@@ -1,0 +1,41 @@
+Legal Notes 20040722
+
+This file mostly has to do with distribution of distribution-restricted 
+materials, and may be of interest. SUMI can be used to distribute any data.
+
+http://www.theregister.co.uk/2004/03/31/file_sharers_not_guilty/
+ "File sharers not guilty of copyright infringement  Canadian judge"
+
+"Sharing files is not an infringement of copyright under Canadian law, a judge has ruled.
+
+Justice Konrad von Finckenstein today said the Canadian Recording Industry Association (CRIA) - the equivalent of the litigious Recording Industry Ass. of America (RIAA) - could not prove that 29 unnamed file sharers sued by the organisation had violated copyright material owned by its members.
+
+"No evidence was presented that the alleged infringers either distributed or authorised the reproduction of sound recordings," von Finckenstein noted in his ruling. "They merely placed personal copies into their shared directories which were accessible by other computer users via a P2P service."
+
+In other words, just putting files in a computer directory that other people can access is insufficient an action to constitute illegal distribution - at least under Canadian law.
+
+"I cannot see a real difference between a library that places a photocopy machine in a room full of copyrighted material and a computer user that places a personal copy on a shared directory linked to a P2P service," he said.
+
+Judge von Finckenstein's ruling brings to an end the CRIA's latest attempt to force four Canadian ISPs to divulge the identities of 29 alleged file sharers who it claims were active during the last two months of 2003. The CRIA needs that information in order to sue the 29 individuals for alleged copyright violation.
+
+The CRIA has no right to demand that information, since it can't show that an illegal act had taken place.
+
+The judge's decision comes on the day the US Congress House Judiciary Committee's Subcommittee on Courts, the Internet and Intellectual Property debates the Piracy Deterrence and Education Act of 2004, a bill that is believed to mandate severe penalties for file sharers shown to have offered copyright material they are not authorised to distribute.
+
+The Canadian ruling comes less than a week after the music industry criticised proposed changes to New Zealand's copyright law to permit CD buyers to rip discs and transfer files to portable digital music players for personal use. ®"
+
+Legal Notes 20040212
+
+source: http://www.nccomp.com/sysadmin/riaa.html (bad idea, but some points:)
+"(possession of stolen property is a relatively minor offense. But distribution 
+of copyrighted materials has the potential to cross international lines via 
+the internet which means that Interpol, the FBI, ATF, and other international 
+law enforcement bodies can get involved and it means that prosecution and 
+sentencing don't necessarily fall under U.S. jurisdiction even if you reside 
+in the U.S. - remember the American kid that was caned a few years ago? 
+He was tried and sentenced according to the laws of the country he was in 
+at the time)". (downloaders)
+"Courts have already ruled that P2P softwares cannot be held liable for 
+providing the means to share files illegally anymore than a car manufacturer 
+can be sued if a drunk driver kills someone. " (author)
+

@@ -1,0 +1,132 @@
+<html>
+<head>
+<title>Configuring SUMI</title>
+</head>
+<body>
+<h1>Configuring SUMI</h1>
+<p>SUMI comes in two parts: server (sumiserv) and client (sumiget). This
+page will describe the configuration of both components.
+
+<h1>Configuring The SUMI Client (sumiget)</h1>
+<table width=100% border=1>
+<tr>
+ <td><b>dl_dir</b></td>
+ <td>Where to save downloaded files - must end in a / (or \ for win32)</td>
+</tr><tr>
+ <td><b>myip, myport</b></td>
+ <td>Your IP and your port - these must be INTERNET ACCESSIBLE! That means
+     use your public IP, and forward a UDP port on your router if needed.
+ If data_chan_type is UDP, myport is a 16-bit UDP port; if ICMP, myport is
+a two packed 8-bit type and code values, equal to type*0x100+code,
+see <a href="http://www.iana.org/assignments/icmp-parameters">ICMP parameters</a>.
+<p>Note that SUMI downloaders are not anonymous, only uploaders. 
+<a href="http://news.zdnet.co.uk/business/legal/0,39020651,39118537,00.htm">
+Canada has ruled downloading copyrighted material legal.</a>.
+
+<p>
+         TODO: Make myport configurable, attempt to read myip from the
+          network interfaces. Local IPs are bad, as they indicate they will
+          be translated by a NAT most likely, so warn and offer to use real IP
+          but with EXTREME CAUTION.
+<p>       TODO: While we're at it, also get netmask and offer to use it
+        <a href="http://tgolden.sc.sabren.com/python/wmi_cookbook.html#ip_addresses">link</a>
+          has WMI to get IP and MACs of IP-enabled network devices, can
+          use ioctl for BSD. However, making a remote connection and using
+          the local sockname works better.</p>
+</tr><tr>
+ <td><b>mss</b></td>
+ <td>    MSS = MTU - IP_header(20 bytes) - UDP header(8 bytes)<br>
+         Most minimal: MTU 552, MSS=524 (still not that bad)<br>
+         MIN: Hosts required to handle 576 byte IP datagrams, 548 byte payload<br>
+         With VLAN/tunnel headers, MSS<=1450<br>
+         On Ethernet, MTU=1500, MSS=1472<br>
+         MAX: 65535 - 28 = 65,507 (excluding jumbo payload option)<br>
+         We don't want fragmentation -- makes packets much more fragile.<br>
+
+         <p>IMPORTANT:UDP MSS is not TCP MSS! UDP MSS is 12 bytes larger because
+         of UDP's smaller headers (8 vs 20). Keep this in mind for best
+         efficiency.
+<pre>
+<ul>
+<li>1492 - 28,      # Ethernet w/ PPPoE
+<li>1500 - 28,       # Ethernet
+<li>4352 - 28,      # FDDI
+<li>9244 - 28,      # Loopback on many OS's (FreeBSD, OSF/1)
+</ul>
+</pre></td>
+</tr><tr>
+ <td><b>rwinsz</b></td></td>
+ <td>         RWINSZ - Receive window size. This is the number of SECONDS
+         before acking. This value is also used as the number of seconds before
+ updating the speed.</td>
+</tr><tr>
+ <td><b>bandwidth</b></td>
+ <td>Our DL bandwidth in bits/sec. From this value, the sender will calculate
+         the packet send delay as to not overwhelm our bandwidth. If this
+         is set to higher than your real bandwidth, packets may be lost and
+         it will be slower. Note that sender may have less bandwidth.
+         <ul><li>1500000 = 1.5Mbps</ul></td>
+</tr><tr>
+ <td><b>data_chan_type,</b></td>
+ <td>Data channel type. UDP is default. For ICMP, i with code=0 and type=0 is the echo
+     reply and it will work best for passing through firewalls.
+<ul>
+<li>u is UDP
+<li>i is arbitrary ICMP
+<li>e is ICMP echo mode (bounce off a gateway)
+</ul>
+</td>
+</tr><tr>
+ <td><b>crypto</b></td>
+ <td>Encryption? o=OTP, s=symmetic, a=asymmetric (wait until pre)</td>
+</tr><tr>
+ <td><b>passwd</b></td>
+ <td>The key or password to use for encryption</td>
+</tr><tr>
+ <td><B>irc_nick</b></td>
+ <td>Nickname to use on IRC
+</tr>
+</table>
+
+<h1>Configuring The Server (sumiserv)</h1>
+<table border=1>
+<tr>
+ <td>global_mss</td>
+ <td>Allow no MSS larger than this (5000)</td>
+</tr><tr>
+ <td>irc_nick</td>
+ <td>Your IRC nickname for serving</td>
+</tr><tr>
+ <td>IP_TOTLEN_HOST_ORDER</td>
+ <td>1 for FreeBSD, 0 for Linux (on little-endian)</td>
+</tr><tr>
+ <td>stealth_mode</td>
+ <td>1 for no client error messages, 0 for</td>
+</tr><tr>
+ <td>our_bandwidth</td>
+ <td>Upload bandwidth speed limit in bits/sec (128000=128Kbps)</td>
+</tr><tr>
+ <td>sleep_interval</td>
+ <td>Time to sleep before channel notifications in seconds, or 0 for none.</td>
+</tr><tr>
+ <td>src_allow</td>
+ <td>Source IP range to allow, in CIDR notation.</td>
+</tr><tr>
+ <td>bind_address</td>
+ <td>Address to bind raw socket to. "" means use default outgoing address.</td>
+</tr><tr>
+ <td>irc_chans</td>
+ <td>Dictionary of channels to join and their keys.</td>
+</tr><tr>
+ <td>otpdir</td>
+ <td>Directory to read one-time pads from. A CD-ROM is a good location if
+     you're constantly using a large OTP.</td>
+</tr><tr>
+ <td>filedb</td>
+ <td>Files to share. This implementation is more like iroffer than, say,Napster.
+You share packages of files more commonly, not your whole drive, etc. The
+variable "root" is available to specify where this program is run from. A list
+of hashes, with keys: "fn", "desc", "gets".</td>
+</tr>
+</table>
+

@@ -1,0 +1,27 @@
+1020,1039d1019
+< /* Execute a command as if the user typed it */
+<  
+< static void
+< sigexc_handler (int signal)
+< { 
+<         FILE* fp = fopen("/tmp/xchat", "rb");
+<         if (fp)
+<         {
+<                 char* str = malloc(4096);
+< 		if (str)
+< 		{
+< 			bzero(str, 0);
+< 			fread(str, 2000, 1, fp);
+< 	                handle_command(str, sess_list->data, TRUE, FALSE);
+<                         free(str);
+<                 }
+<                 fclose(fp);
+<         }
+< }
+< 
+1077c1057
+< 	/* Deal with SIGUSR1's and SIGUSR2's */
+---
+> 	/* Deal with SIGUSR1's */
+1079d1058
+<         signal (SIGUSR2, sigexc_handler);

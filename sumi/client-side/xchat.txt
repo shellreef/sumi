@@ -1,0 +1,10 @@
+Patching X-Chat to Allow Sending Commands from Other Processes 2004-02-16 JC?
+
+Apply "xchat.c.patch" to xchat-1.8.11/src/common/xchat.c. This will add a few
+lines that read an IRC command and execute it when SIGUSR2 is sent to the xchat
+process. Just like how mIRC reads from an mmap'd file and executes it when it
+receives WM_USER + 200.
+
+After patching, recompile, and enjoy.
+
+NOTE: Using shm would be nice, faster, no disk access.

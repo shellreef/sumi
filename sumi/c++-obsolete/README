@@ -1,0 +1,11 @@
+Version 0.2 of SUMI (20030729) was a reimplementation of sumiserv in C++,
+ported from the original Perl. This C++ version added raw sockets. Come
+0.4, the C++ version was superseded with the SUMI Python implementation.
+
+To build, type make.
+
+One useful utility that came out of SUMI C++ was "launch", a C++ setuid
+program to create a raw socket and pass it to a program via envars. It
+still remains above this directory.
+
+-jc 20040721

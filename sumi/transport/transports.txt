@@ -1,0 +1,54 @@
+Transports   2004-02-06 JC
+
+SUMI is designed to be extensible and generic. Although the acronym stands for
+"Spoofed UDP w/ Mediator of IRC", it has been conceived to replace both the 
+spoofed UDP and IRC mediator with other means of communication. Basically, the
+SUMI protocol requires two channels:
+ One-way, anonymous to server, for sending small messages hopefully reliably
+ One-way, anonymous to client, for sending bulk data possibly unreliably
+
+Transports implement the small message covert channel. To make a transport:
+
+def transport_init():      - sumiget will call this before doing anything
+def sendmsg(id, msg):      - send a one-way message to a server identifier
+
+Current transports:
+
+modfake.py: Dummy
+modirclib.py: Uses Python's own irclib (irclib.sf.net) module to communicate.
+    Useful if you don't have an IRC client, or don't want to use it.
+modmirc.py: Integrates with the Win32 mIRC program, see client-side/mirc.txt.
+modxchat.py: Integrate with the Unix xchat program, see client-side/xchat.txt.
+    Using this transport requires patching your xchat to accept SIGUSR2's.
+
+Suggested transports:
+modmute.py: TODO: use mute-net.sf.net's anonymous routing system
+modaim.py: AOL Instant Messenger
+modgaim.py: Plugin for GAIM, so can use AIM, MSN, Y!, ICQ, IRC, etc.
+ Note, gaim-remote won't suffice as it can only handle URIs. Requires plugin.
+
+TODO: Right now, sumiserv only does its own IRC. Extend this so it can use a
+      transport here, and receive incoming messages as well as send messages.
+
+Below is from an older file, integ.txt, which foreshadowed transports:
+** mIRC Integration 20040120JC
+
+"Remote", respond to IRC server events. For "error: " messages.
+"Aliases", new commands
+
+Transfer is client-initiated.
+/sumi <nick> <file> ?
+
+/sumi {
+  # should tell sumiget.py to start a connection, receive cmd, send it
+}
+
+Use COM?
+
+** xchat Integration 20040120JC
+Perl can be embedded directly. Python if compiled for it.
+~/.xchat/*.pl automatically loaded
+xcsumi.pl
+
+** GAIM Integration
+Make a GAIM plugin..and while I'm at it, one for OTP

@@ -1,0 +1,23 @@
+; So You Want to Use SUMI with mIRC?
+
+; This tells you how. Go near the end of this file, starting with ";sumi".
+; Copy and from there to the end (^C). Then open aliases.txt and paste
+; (^V) at the end.
+
+; (jc) this should be added if requested, by nsis installer
+; HKLM 
+;  "Software\Microsoft\Windows\CurrentVersion\Uninstall\mIRC\UninstallString"
+; if exists, then mIRC exists, can get mIRC folder with, then append to aliases
+; the "sumi-mirc 0.0" tag is required by the installer, if upgrading
+
+; add this to aliases.ini:
+;
+;sumi-mirc 0.0
+/sumi {
+  if ($1 != get) {
+    //echo SUMI: No such command $1
+    return
+  }
+  //echo SUMI: Getting $3 from $2 ...
+  run "X:\p2p\sumi\dist\sumigetw" mirc $2 $3
+}

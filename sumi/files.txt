@@ -1,0 +1,68 @@
+SUMI PACKING LIST       20040722
+
+ DIRECTORIES
+build/            used by py2exe during build process
+dist/             output of py2exe, distribution for Windows
+incoming/         default download directory
+share/            default upload directory
+otp/              default one-time pad directory
+
+transport/        modules to send messages, may work with client-side/
+client-side/      scripts or plugins to help integrate sumi, client side
+launch/           setuid script to make a raw socket and pass it to sumiserv
+c++-obsolete/     obsolete C++ version of sumi (0.2)
+perl-obsolete/    obsolete Perl version of sumi (0.1)
+fec/              notes & code on Forward Error Correction (not yet implemented)
+hash/             notes & code on hashes (not yet implemented)
+ss/               a few screenshots
+
+ CODE
+sumiget.py        SUMI Client Core
+sumigetw.py       wxPython SUMI Client
+setup.py          distutils script to package a win32 executable
+config.py         sumiget(w) client configuration
+config.py.default default config.py
+sumiserv.cfg      sumiserv server configuration
+sumiserv.cfg.default sumiserv client default configuration
+getifaces.py      retrieve network interface information
+images.py         some images, taken from wxPython demo 
+libsumi.py        shared routines between client & server
+nonroutable.py    check if an address is routable
+rawproxd.c        raw socket proxy
+cmp.pl            compare two files
+sumi.nsi          NSIS install file, generates sumiinst.exe
+sumiinst.exe      win32 install file (keep this)
+
+ping.py           3rd-party implementation of ping 
+
+
+ DOCUMENTATION
+faq.html          Q&A about sumi
+config.html       config.py manual
+
+TODO              list of things to do
+ChangeLog         list of changes
+bogus-nets.txt    list of nonroutable networks
+files.txt         list of useful files
+crypto.txt        notes on cryptography in sumi
+dchan.txt         notes on the data channel of sumi 
+design.txt        notes on sumi design
+es5-spoof.txt     notes on ES5's alleged PXP spoofing protocol
+gui.txt           notes on the aesthetics and user interfaces
+legal.txt         notes on legality of uploading
+protocol.txt      notes on the SUMI protocol
+resume.txt        notes on resuming
+spoof.txt         notes on successful IP spoofing
+strings.txt       notes on C++ strings
+udpp2p.txt        notes on using UDP for P2P and the udpp2p.sf.net project
+
+Files not included in archive, because they can be generated easily:
+
+build/ dist/ incoming/ share/ otp/ 
+*.pyc *.o
+launch/launch
+c++-obsolete/sender
+c++-obsolete/sumiserv
+hash/mddriver
+hash/test
+rawproxd

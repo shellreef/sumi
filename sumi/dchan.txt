@@ -1,0 +1,76 @@
+Data Channel Types  2004-02-06 JC (formerly titled "Carriers")
+
+Data channels, sometimes known as carriers, carry the data for SUMI.
+Conversly, transport channels ensure the reliability of the carrier channel
+data. The actual bulk file transfer goes on in the carrier.
+
+At present sumiserv supports send_packet_SOCKET(), a spoofed UDP, which
+is easily received by a simple UDP server in sumiget.
+
++ non-spoofed regular socket UDP (for debugging purposes) send_packet_DEBUG
++ py-libnet created packets, send_packet_LIBNET(src,dst,payload).. no work
++ raw sockets, using RAWSOCKFD if exists, works well send_packet_SOCKET
++ spoofed ICMP with arbitrary type/code or echo mode, send_packet_ICMP
+
+Further ideas include:
+* ICMP tunnelling http://www.phrack.org/phrack/49/P49-06
+  This is good because traffic can masquarade as pings, and may be usable when
+  restrictive anti-UDP firewalls are in place (but not NATs)
+Update: ICMP echo mode (data_chan_type 'e') is now supported. Works by pinging
+a gateway with a spoofed source address, the gateway replies to this address
+which is really the client address, so it receives it.
+
+UNIMPLEMENTED IDEAS
+* ICMP Firewall Subversion (new idea 2004-07-20)
+When you ping a host, behind a firewall: (you're behind a fw, not the host)
+
+PING google.com (216.239.39.99): 56 data bytes
+64 bytes from 216.239.39.99: icmp_seq=0 ttl=244 time=72.465 ms
+64 bytes from 216.239.39.99: icmp_seq=1 ttl=244 time=72.552 ms
+64 bytes from 216.239.39.99: icmp_seq=2 ttl=244 time=72.077 ms
+[etc]  ^ if this doesn't work, 
+
+Sends ECHO_REQUEST, receives ECHO_REPLY. The amazing thing is this works
+behind NAT and firewalls. Even though ICMP lacks source ports. If it works,
+your firewall is setup to keep state on ICMP request/replies.
+The echo request stores a state in the firewall, and the echo reply matches it.
+
+So to allow ICMP packets through your firewall, you simply have to send a
+packet which creates a state that the incoming packet(s) will match. This
+most likely has to be done for every incoming packet, reverting the transfer
+mode to TFTP-ish (k) rather than the usual windowed NAK (n), resulting in
+much slower transfers. 
+
+The advantage is no firewall reconfiguration is needed! 
+
+Some more details: From the client perspective, all that is happening is
+someone is pinging a host. Of course, this host doesn't exist, and the pings
+never reach anyone (required). The SUMI server is sending replies from the
+nonexistant host, so they look real, and can enter the firewall.
+
+Think of UDP keep state or how TCP is allowed through firewalls if a host
+behind the NAT initiated the connection. This is the same thing with ICMP, 
+and the good thing is it should work with *every* NAT device! No config!
+
+/However/, TFTP-mode isn't good at all, so its better to just make the user
+forward a UDP port. 
+
+* TCP spoofing
+  Routers are said to combine TCP streams into "aggregates" to transfer faster.
+  Not sure if this applies to UDP as well, but random source addresses destroys
+  any router-sensed concept of connection. Spoofed TCP would address this; it
+  would be made to look like a real connection as much as possible (three-way
+  handshake? do routers pay that close attention to notice if its missing?),
+  which might mean a fixed source address might need to be used. UDP is thrown
+  away first, TCP isn't, so this could be more reliable and faster!
+ Note: to receive, can't use IPPROTO_TCP, need BPF. libpcap should work well.
+
+"What exactly is it you're trying to do?  Re-implement TCP (or a
+protocol layered on top of TCP) in userspace or something like that?
+That runs into all sorts of problems: the in-kernel protocol _is_
+going to generate responses to packets which it thinks belong to it,
+*will* reset your userspace TCP connections (for which it has no
+state), etc., etc."
+-- http://mail-index.netbsd.org/tech-net/1998/03/16/0000.html
+
+NOTE: Carriers will need to include both send_packet and a receiving server

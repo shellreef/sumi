@@ -1,0 +1,31 @@
+#!/usr/bin/env python
+# Configuration file
+
+{
+
+"global_mss": 5000,           # Allow no MSS larger than this
+"irc_nick": "sumixyz",        # Your IRC nickname for serving
+"IP_TOTLEN_HOST_ORDER": 1,    # 1 for FreeBSD, 0 for Linux (on little-endian)
+"stealth_mode":0,            # 1 for no client error messages, 0 for
+"our_bandwidth":128000,      # Upload bandwidth speed limit
+"sleep_interval":300,#sec    # time to sleep before channel notifications,0=stop
+"src_allow":"4/24",          # src IPs to allow in CIDR notation
+#bind_address = get_default_ip()    # address to bind raw socket to
+"bind_address": "",
+
+# Channels and keys
+"irc_chans": {"#sumi": "riaa", "#sumi2": ""},
+
+# Directory to read one-time pad files from. A CD-ROM is a good location if
+# you're constantly using a large OTP.
+"otpdir": root + "otp" + os.sep,
+
+# Files to share. This implementation is more like iroffer than, say, Napster.
+# You share packages of files more commonly, not your whole drive, etc. The
+# variable "root" is available to specify where this program is run from.
+"filedb":[{"fn": root + "lptest", "desc":"lptest", "gets":0},
+        {"fn": root + "1mb", "desc":"ONE MEG TEST", "gets":0},
+        {"fn": root + "5mb","desc":"Five Megabytes","gets":0},
+        {"fn": root + "chernobyl.zip","desc":"Chernoybl 18 Years Later (w/pictures)","gets":0},
+       ]
+}
