@@ -51,6 +51,7 @@ IPHDRSZ = 20
 ICMPHDRSZ = 8
 UDPHDRSZ = 8  
 raw_socket = 0
+raw_proxy = None
 
 # https://sourceforge.net/tracker/?func=detail&atid=105470&aid=860134&group_id=5
 470
@@ -298,8 +299,7 @@ def recvmsg(nick, msg, no_decrypt=0):
             clients[nick]["src_gen"] = lambda : clients[nick]["addr"]
             clients[nick]["dst_gen"] = rand_pingable_host  # no port
         elif (dchantype == "i"):
-             # XXX: Why is type+code inside dchantype and not myport?
-             # TODO: Put type+code in myport, possibly packed, unify it
+             # Type+code used to be in dchantype, now its inside myport, packed
              #(type, code) = dchantype[1:].split(",")
              #type = int(type)
              #code = int(code)
@@ -667,6 +667,16 @@ def fixULPChecksum(packet):
                     struct.pack('!H', csum),
                     packet[IPHDRSZ+18:]])
 
+# Send data to raw socket, use this in place of sendto()
+def sendto_raw(s, data, dst):
+    global raw_proxy
+    print "sendto_raw"
+    if raw_proxy == None:
+        print "RET=", s.sendto(data, dst)
+    else:
+        print "USIG RAW PROXY"
+        raw_proxy.send(data)
+
 # Send non-spoofed packet. For debugging purposes ONLY.
 # This uses the high(er)-level socket routines; its useful because you
 # don't need to run as root when testing it.
@@ -697,11 +707,37 @@ def send_packet_UDP_LIBNET(src, dst, payload):
 def setup_raw(argv):
     """Setup the raw socket. Only one raw socket is needed to send any number
     of packets, so it can be created at startup and root can be dropped; 
-    alternatively, a setuid program can set envar RAWSOCKFD and pass it here."""
+    alternatively, a setuid program can set envar RAWSOCKFD and pass it here.
+    The third option is to set raw_proxy in sumiserv.cfg to the address of a
+    server running rawproxd, in which case all raw socket writes will be 
+    sent to and sent by that server."""
 
-    global raw_socket
-    if (os.environ.has_key("RAWSOCKFD")):
+    global raw_socket, raw_proxy
+
+    set_hdrincl = 1
+
+    if (os.environ.has_key("RAWSOCKFD")):   # Launched from 'launch'
         raw_socket = socket.fromfd(int(os.environ["RAWSOCKFD"]), socket.AF_INET, socket.IPPROTO_UDP)
+    elif cfg.has_key("raw_proxy"):          # Remote raw proxy server
+        raw_proxy_list = cfg["raw_proxy"].split(":")
+        if len(raw_proxy_list) == 1:
+            raw_proxy_ip = raw_proxy_list[0]
+            raw_proxy_port = 7010
+        elif len(raw_proxy_list) == 2:
+            (raw_proxy_ip, raw_proxy_port) = raw_proxy_list
+            raw_proxy_port = int(raw_proxy_port)
+        else:
+           print "Invalid raw proxy format: " + cfg["raw_proxy"]
+           sys.exit(-4)
+        print "Using raw proxy server at",raw_proxy_ip,"on port",raw_proxy_port
+        try:
+            raw_proxy = socket.socket(socket.AF_INET, socket.SOCK_STREAM, socket.IPPROTO_TCP)
+            raw_proxy.connect((raw_proxy_ip, raw_proxy_port))
+        except socket.error, e:
+            print "Raw proxy connection error:", e[0], e[1]
+            sys.exit(-5)
+        set_hdrincl = 0
+        # sendto_raw() will use raw_proxy to send now 
     else:    # have to be root, create socket
         if (dir(os).__contains__("geteuid")):
             print "EUID=", os.geteuid(), "UID=", os.getuid()
@@ -722,11 +758,12 @@ def setup_raw(argv):
             os.setuid(os.getuid()) 
             print "Running with uid: ", os.getuid()
 
-    # Bind raw socket to interface
-    err = raw_socket.setsockopt(socket.IPPROTO_IP, socket.IP_HDRINCL, 1)
-    if err:
-        print "setsockopt: ",err
-        sys.exit(-1)
+    # Include header option if needed
+    if set_hdrincl:
+        err = raw_socket.setsockopt(socket.IPPROTO_IP, socket.IP_HDRINCL, 1)
+        if err:
+            print "setsockopt: ",err
+            sys.exit(-1)
 
     #print "Binding to address:", cfg["bind_address"]
     # XXX: why IPPROTO_UDP? and why even bind? Seems to work without it.
@@ -774,7 +811,8 @@ def send_packet_ICMP(src, dst, payload, type, code):
 
     packet += icmphdr
     packet += payload
-    raw_socket.sendto(packet, dst) 
+    #raw_socket.sendto(packet, dst) 
+    sendto_raw(raw_socket, packet, dst)
 
 def build_iphdr(totlen, src_ip, dst_ip, type):
     """Return an IP header with given parameters."""
@@ -799,11 +837,18 @@ def build_iphdr(totlen, src_ip, dst_ip, type):
         struct.unpack("!L", socket.inet_aton(dst_ip))[0], # Destination address
        );
 
+# def build_ethernet_hdr():
+# TODO: Build Ethernet header (for spoofing on the same network segment)
+# Routers replace the MAC with theirs when they route, but if there are no
+# routers between the source and destination, the identity will be revealed
+# in the source MAC address.
+
 def send_packet_TCP(src, dst, payload):
     # TODO: TCP aggregates are efficient! So, offer an option to send
     #       spoofed UDP packets, which form streams, so it looks real + valid.
     #       UDP is often discarded more by routers, best of both worlds=TCP!
-    #     However, receiving it would require pylibcap.
+    #     However, receiving it would require pylibcap, and the extra TCP
+    #     segments might confuse the OS TCP stack...
     print "TODO: implement"
 
 def send_packet_UDP_WINPCAP(src, dst, payload):
@@ -819,7 +864,7 @@ def send_packet_UDP_WINPCAP(src, dst, payload):
 
     # If we do decide to implement this, note that the datalink headers
     # need to be included as well. Could perhaps spoof these to thwart
-    # detection on a totally switched network?
+    # detection on a totally switched network? (See build_ethernet_hdr #'s)
     
     # pcap_open_live()
     # pcap_send_packet()
@@ -857,7 +902,9 @@ def send_packet_UDP_SOCKET(src, dst, payload):
     #raw_socket.send(packet)
     #print packet
     # Win32: socket.error (10049, "Can't assign requested address")
-    raw_socket.sendto(packet, dst)
+    # ^ If you get that error message, use _socket.pyd (ws2_32 vs. wsock32)
+    #raw_socket.sendto(packet, dst)
+    sendto_raw(raw_socket, packet, dst)
 
 # Random IP for spoofing
 # From http://cvs.sourceforge.net/viewcvs.py/*checkout*/udpp2p/udpp2p/todo?rev=HEAD&content-type=text/plain:
