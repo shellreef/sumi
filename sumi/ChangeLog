@@ -5,3 +5,4 @@
 
 	* ChangeLog (NEW): Finally a GNU ChangeLog format.
 	* ChangeLog.old (OLD): move of the old changelog.
+	* rawproxd (REBUILD): rebuilt rawproxd from rawproxd.cpp
