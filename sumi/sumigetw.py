@@ -2,8 +2,7 @@
 # Created:2004-07-11
 # By Jeff Connelly
 
-# New sumigetw
-
+# wxWindows GUI interface to sumiget
 
 # Requires wxPython 2.4.2.4 (go to sf.net/projects/wxpython, view all releases)
 # NOT wxPython 2.5
@@ -145,7 +144,9 @@ class LogPanel(wxPanel):
         #time.sleep(1)
         #sys.stdout = gui_stdout()
     def OnFocus(self, event):
-        sys.stdout = gui_stdout()
+        # disabled for now
+        #sys.stdout = gui_stdout()
+        pass
 
     def OnKillFocus(self, event):
         self.stdout = self.real_stdout

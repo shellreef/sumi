@@ -1,13 +1,22 @@
+2004-09-02 Jeff Connelly <jeffconnelly@users.sourceforge.net>
+	* rawproxd.c working, raw proxy support added to sumiserv
+	  (works on a Linksys WRT54GS router!)
+	* rawproxd.cpp obsoleted due to new protocol format
+	* .lost suffix changed to .sumi
+	* Resuming seems to finally work correctly now
+	* Fixed 100% CPU + excess flood bug involving lost packets
+	* Fixed overestimated client timeout, saves bandwidth
+	* sumigetw explicitedly aborts transfers when closing instead of
+	  waiting for them to time out on the server
+
 2004-08-31 Dan Weber <dan@mirrorlynx.com>
 	* Rewrote strings.txt in strings.texi,  I want to start a
 	  process of rewriting documentation in texinfo
 
 2004-08-31 Jeff Connelly <jeffconnelly@users.sourceforge.net>
-
 	* ChangeLog converted to GNU style, old version in ChangeLog.old
 
 2004-08-29 Dan Weber <dan@mirrorlynx.com>
-
 	* rawproxd.cpp (NEW):  Added rawproxd.cpp.  This is a new
 	implementation of rawproxd that works.
 	* ChangeLog (NEW): Finally a GNU ChangeLog format.
@@ -15,7 +24,6 @@
 	* rawproxd (REBUILD): rebuilt rawproxd from rawproxd.cpp
 
 2004-08-25 Jeff Connelly <jeffconnelly@users.sourceforge.net> - 0.8.4
-
 	* add abort to sumiget, sumigetw, and sumiserv (right-click->Abort)
 	* fix duplicate packets causing progress >100%
 	* fix dl_dir format string
@@ -23,18 +31,15 @@
 	* input validation in sumiget, validate configuration file
 
 2004-08-24 Jeff Connelly <jeffconnelly@users.sourceforge.net> - 0.8.1
-
 	* ported sumiserv.py to Win32
 
 
 2004-08-20 Jeff Connelly <jeffconnelly@users.sourceforge.net> - 0.8
-
 	* fixed obnoxious "Couldn't retrieve information about
 	  list control item" bug caused by left over code from 
 	  wxListCtrl sample code
 
 2004-08-19 Jeff Connelly <jeffconnelly@users.sourceforge.net>
-
 	* McMillian sumigetw.spec added, alternative to py2ee
 	* win32api, mmap modules now included with exe
 	  SUMI can now run without Python installed
@@ -42,33 +47,26 @@
 	  cannot do simultaneous transfers from same user yet
 
 2004-08-19 Scott Johnston <Lazybum98723>
-
 	* found bug where failed senders/finished weren't removed,
 	  fixed by JC, won't add to list if already transferring
 
 2004-08-11 Keith Oakley
-
 	* designed SUMI icon
 
 2004-08-05 Jeff Connelly <jeffconnelly@users.sourceforge.net>
-
 	* new transport: aim, for Windows AOL Instant Messenger
 
 2004-07-24 Jeff Connelly <jeffconnelly@users.sourceforge.net> - 0.7
-
 	* archive now contains CVS files, so you can commit easier
 
 2004-07-23 Jeff Connelly <jeffconnelly@users.sourceforge.net>
-
 	* import to SourceForge CVS, committed
 
 2004-07-21 Jeff Connelly <jeffconnelly@users.sourceforge.net>
-
 	* public-key encryption (RSA) added but not yet complete
 	* pre-authenticated encryption now works, at least with AES
 
 2004-07-20 Jeff Connelly <jeffconnelly@users.sourceforge.net> - 0.6
-
 	* better GUI (sumigetw.py rewrite), actually works, not
 	  dialog-based anymore, resizable
 	* handshake timeouts after (default) 5 seconds, maxwait client
@@ -79,7 +77,6 @@
 	* first public (pre-alpha) release! http://sumi.sourceforge.net/
 
 2004-04-07 Jeff Connelly <shellreef+sumi@gmail.com> - 0.5
-
 	* enhancements
 	* latency parameter replaced with bandwidth parameter in bps 
 	* sumiserv acts more like iroffer, file database
@@ -101,22 +98,18 @@
 	* AES symmetric encryption
 
 2004-01-17 Jeff Connelly <shellreef+sumi@gmail.com> - 0.4
-
 	* reimplementation of sumiserv and sumiget in Python
 	* improved messages support
 	* pipe-based transports and wxfer (wxWindows GUI to sumiget)
 	* compiled versions available via py2exe
 
 2003-08-01 Jeff Connelly <shellreef+sumi@gmail.com> - 0.3
-
 	* negative/selective acknowledgements, latency parameter
 
 2003-07-29 Jeff Connelly <shellreef+sumi@gmail.com> - 0.2
-
 	* reimplementation of sumiserv in C++ with raw sockets
 
 2003-04-02 Jeff Connelly <shellreef+sumi@gmail.com> - 0.1
-
 	* initial implementation in Perl
 	* positive acknowledgements (TFTP-ish mode)
 

@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+
 # Created:20040117M
 # By Jeff Connelly
 
@@ -105,16 +106,27 @@ class Client:
             print "*** Error: ", errmsg
 
     # Write the resume file for transfer from nick
-    def save_lost(self, x):
-        lost = ",".join(map(str, self.senders[x]["lost"].keys()))
-        lost += "," + str(self.senders[x]["at"])   # last is at, cur/last
-        if (lost != ""):
-            self.senders[x]["fs"].seek(0)
-            self.senders[x]["fs"].truncate()
-            self.senders[x]["fs"].flush()
-            self.senders[x]["fs"].write(lost)
+    def save_lost(self, x, finished=0):
+        finished=0    # no special case
+        self.senders[x]["fs"].seek(0)    
+        self.senders[x]["fs"].truncate()    # Clear
+        self.senders[x]["fs"].flush()
+        if not finished:
+            # .sumi file format: lostpkt1,lostpkt2,...,lostpktn,current_pkt
+            lost = ",".join(map(str, self.senders[x]["lost"].keys()))
+            lost += "," + str(self.senders[x]["at"])   # last is at, cur/last
+            self.senders[x]["fs"].write(lost)   # Overwrite with new lostdata
             self.senders[x]["fs"].flush()
             #print "WROTE LOST: ",lost
+        else:    # NOT REACHED
+            # Don't remove the resume file. Leave it around so know finished.
+            #lfn = self.config["dl_dir"] + os.path.sep \
+            #      + self.senders[x]["fn"] + ".sumi"
+            #print "Removing resume file ",lfn
+            #os.unlink(lfn) 
+            # Mark as finished
+            self.senders[x]["fs"].write("FIN")
+            self.senders[x]["fs"].flush() 
 
     def handle_packet(self, data, addr):
         """Handle received packets."""
@@ -203,58 +215,34 @@ class Client:
 
                 # Open a new resuming file (create if needed)
                 try:
-                    self.senders[nick]["fs"] = open(fn + ".lost", "rb+")
+                    self.senders[nick]["fs"] = open(fn + ".sumi", "rb+")
                     is_resuming = 1  # unless proven otherwise
                 except IOError:
-                    open(fn + ".lost", "wb+").close()
-                    self.senders[nick]["fs"] = open(fn + ".lost", "rb+")
-                    is_resuming = 0   # empty resume file
+                    open(fn + ".sumi", "wb+").close()
+                    self.senders[nick]["fs"] = open(fn + ".sumi", "rb+")
+                    is_resuming = 0   # empty resume file, new download
 
-                # Check if the data file exists, and if so, resume off it
+                # Lost data format: lostpkt1,lostpkt2,...,current_pkt
                 lostdata = None
 
-                if (os.access(fn, os.R_OK)):
-                   # The data file is readable, read lost data 
+                # Check if the data file exists, and if so, resume off it
+                if os.access(fn, os.R_OK):
+                    # The data file is readable, read lost data 
                     lostdata = self.senders[nick]["fs"].read().split(",")
-
-                    # If the below is true, the xfer is complete--",X".
-                    # TODO: Let user overwrite or cancel. Needs to have
-                    # a better interface for this, GUI-able.
-                    if (len(lostdata) == 2 and lostdata[0] == "" \
-                        and int(lostdata[1]) == lostdata[1]):
-                        is_resuming = 0
-                        print self.senders[nick]["fn"] + " is finished!" + \
-                              " It will not be resumed."
-                        sys.exit(1)
                 else: 
-                    is_resuming = 0
+                    is_resuming = 0     # Can't read data file, so can't resume
+
+                # Need at least an offset to resume...
                 if (len(lostdata) <= 1): is_resuming = 0
-                print "LEN LOSTDATA=",len(lostdata)
+                print "LEN LOSTDATA=",len(lostdata),"and lostdata=",lostdata
 
                 #is_resuming=0#FORCE
  
                 # Setup lost
                 if (is_resuming):   # this works
                     self.senders[nick]["at"] = int(lostdata.pop())
-                    if (len(lostdata) == 0 or len(lostdata[0]) == 0):
-                        # Several ways to do this. a) Go through the normal
-                        #  process, and finish there. con: auth. pro: simple?
-                        #  b) save user the time, finished. c) overwrite choice
-                        print "File complete, not resumed"
-
-                        self.senders.pop(nick)
-
-                        # Right now, it finishes the transfer.
-                        self.callback(nick, "fin", 0, \
-                            self.senders[nick]["size"], \
-                            0, "")
-
-
-                        # TODO: give choice
-                        #self.cb("overwrite?", self.senders[nick]["fn"]
-                        #sys.exit(1)
-                        return #XYZ
-                    print "RESUMING"
+ 
+                    print "RESUMING AT ", self.senders[nick]["at"]
                     print "IS_RESUMING: LOST: ",lostdata
                     self.senders[nick]["lost"] = {}
                     for x in lostdata:
@@ -266,17 +254,43 @@ class Client:
 
                     # Initialize the rwin with empty hashes, mark off missings
                     self.senders[nick]["rwin"] = {}
-                    for x in range(1, self.senders[nick]["at"]):
+                    for x in range(1, self.senders[nick]["at"] + 1):
                         self.senders[nick]["rwin"][int(x)] = 1   # received 
-                    for L in self.senders[nick]["rwin"]:    # mark losses
+
+                    for L in self.senders[nick]["lost"]:    # mark losses
                         self.senders[nick]["rwin"][int(L)] = 0
 
+                    #print "RESUME RWIN: ", self.senders[nick]["rwin"]
+
+                    # Formula below is WRONG. Last packet is not size of MSS.
                     # Bytes received = (MSS * at) - (MSS * numlost)
                     # XXX: MSS's may be inconsistant across users! Corruption
-                    # TODO: FIX RESUMING!
+                    #self.senders[nick]["bytes"] = \
+                    #    (self.mss * self.senders[nick]["at"]) - \
+                    #    (self.mss * len(self.senders[nick]["lost"].keys()))
+                    s = self.senders[nick]["fh"].tell()
+                    self.senders[nick]["fh"].seek(0, 2)   # SEEK_END
                     self.senders[nick]["bytes"] = \
-                        (self.mss * self.senders[nick]["at"]) - \
-                        (self.mss * len(self.senders[nick]["lost"].keys()))
+                        self.senders[nick]["fh"].tell()
+                    self.senders[nick]["fh"].seek(s, 0)
+ 
+                    #print "STORED BYTES: ", self.senders[nick]["bytes"]
+                    #print "AND THE SIZE: ", self.senders[nick]["size"]
+
+                    # XXX NO CHECK!
+                    if 0 and self.senders[nick]["bytes"] == \
+                       self.senders[nick]["size"]:
+                       print "File complete, not resumed"
+                       # Send a fake write to fill in the values, and a real fin
+                       self.callback(nick, "write", \
+                                     self.senders[nick]["bytes"], \
+                                     self.senders[nick]["bytes"], \
+                                     self.senders[nick]["size"], \
+                                     ["(resumed)"])
+                       self.callback(nick, "fin", 0, \
+                                     self.senders[nick]["size"], 0, "")
+                       self.senders.pop(nick)
+                       return
 
                     # Files don't store statistics like these
                     self.senders[nick]["all_lost"] = []  # blah
@@ -299,9 +313,13 @@ class Client:
 
 
             # Tell the sender to start sending, we're ok
+            # Resume /after/ our current offset: at + 1
             print "Sending sumi auth"
             self.sendmsg(nick, "sumi auth " + pack_args({"m":self.mss,
-                "s":addr[0], "h":hash, "o":self.senders[nick]["at"]}))
+                "s":addr[0], "h":hash, "o":self.senders[nick]["at"] + 1}))
+
+            self.on_timer()    # instant update
+
             # The rest of this function handles data transfer
             return
         else:
@@ -330,7 +348,10 @@ class Client:
                 print "(DUPLICATE PACKET %d, IGNORED)" % seqno
                 return
 
-            self.senders[nick]["bytes"] += len(data)   # correct
+            #print "THIS IS RWIN: ", self.senders[nick]["rwin"]
+
+            # New data (not duplicate) - add to running total
+            self.senders[nick]["bytes"] += len(data) 
 
             self.callback(nick, "write", offset, self.senders[nick]["bytes"],
                 self.senders[nick]["size"], addr)
@@ -339,12 +360,16 @@ class Client:
             #Check previous packets, see if they were lost (unless first packet)
             if (seqno > 1):
                 i = 1 
-                while 1:
-                    if (not self.senders[nick]["rwin"].has_key(seqno - i)):
+                # Nice little algorithm. Work backwards, searching for gaps.
+                #print "I'm at ",seqno
+                while seqno - i >= 0:
+                    #print "?? ", seqno-i
+                    if not self.senders[nick]["rwin"].has_key(seqno - i):
                         self.senders[nick]["lost"][seqno - i] = 1
                         self.senders[nick]["all_lost"].append(str(seqno - i))
                         i += 1
                     else:
+                        #print "ITS THERE!"
                         break  # this one wasn't lost, so already checked
     
                 if self.senders[nick]["lost"].has_key(seqno):
@@ -354,21 +379,23 @@ class Client:
                     print "(rexmits = ", self.senders[nick]["rexmits"]
                     self.callback(nick, "rexmits", self.senders[nick]["rexmits"])
                     #on_timer()   # Maybe its all we need
+                # Less than full sized packet = last
+                if (len(data) != self.mss - SUMIHDRSZ):
+                    print "NON-FULLSIZED: %d != %d" % (len(data), self.mss - SUMIHDRSZ)
+                    self.senders[nick]["gotlast"] = 1
+                    # File size is now sent in auth packet so no need to calc it here
+                    #self.senders[nick]["size"] = self.senders[nick]["fh"].tell()
+                    self.on_timer()     # have it check if finished
+
+
+            if self.senders.has_key(nick):
+                self.save_lost(nick)  # for resuming
 
             if (self.senders.has_key(nick) and len(self.senders[nick]["lost"])):
                 self.callback(nick, "lost", self.senders[nick]["lost"].keys())
                 #print "These packets are currently lost: ", self.senders[nick]["lost"].keys()
-                self.save_lost(nick)
             else:
                 self.callback(nick, "lost", ())
-
-        # Less than full sized packet = last
-        if (len(data) != self.mss - SUMIHDRSZ):
-            print "NON-FULLSIZED: %d != %d" % (len(data), self.mss - SUMIHDRSZ)
-            self.senders[nick]["gotlast"] = 1
-            # File size is now sent in auth packet so no need to calc it here
-            #self.senders[nick]["size"] = self.senders[nick]["fh"].tell()
-            self.on_timer()     # have it check if finished
 
     def thread_timer(self):
         """Every RWINSZ seconds, send a nak of missing pkts up to that point."""
@@ -387,7 +414,7 @@ class Client:
                 self.senders[x]["retries"] = 0   # initialize
                 continue
 
-            # Worth trying to update bps here
+            # Update rate display
             if self.senders[x].has_key("bytes"):
                 if self.senders[x].has_key("last_bytes"):
                     bytes_per_rwinsz = \
@@ -406,11 +433,22 @@ class Client:
                 else:
                     self.senders[x]["last_bytes"] = self.senders[x]["bytes"]
 
-            if (len(self.senders[x]["lost"]) == 0 and 
-                self.senders[x].has_key("gotlast")):
-                return self.finish_xfer(x) # there's nothing left, we're done!
+            # Old way: EOF if nothing missing and gotlast
+            #if (len(self.senders[x]["lost"]) == 0 and 
+            #    self.senders[x].has_key("gotlast")):
+            #    return self.finish_xfer(x) # there's nothing left, we're done!
+            # New way: EOF if total bytes recv >= size
+            if self.senders[x]["bytes"] >= self.senders[x]["size"]:
+                 return self.finish_xfer(x)
+
             try:
                 # Some missing packets, finish it up
+                if len(self.senders[x]["lost"]) > 100:
+                    print self.senders[x]["lost"]
+                    print "Excessive amount of packet loss!"
+                    print "could be a programming error. quitting"
+                    sys.exit(-7)
+
                 lost = ",".join(map(str, self.senders[x]["lost"].keys()))
                 # Compress by omitting redundant elements to ease bandwidth
                 if (self.rwinsz_old == self.rwinsz and lost == ""):
@@ -437,7 +475,7 @@ class Client:
 
         # Nothing lost anymore, update. Saved as ",X" where X = last packet.
         print "DONE - UPDATING"
-        self.save_lost(nick)
+        self.save_lost(nick, 1)
 
         # If was encrypted, decrypt
         # TODO: Separate transport and dchan encryption types
@@ -877,6 +915,15 @@ class Client:
         # ^ I place all comments in config.py.default instead, or the docs
         pprint.pprint(self.config, savefile)
         savefile.close()
+
+        self.set_callback(lambda *x: 0)
+
+        # Abort all the transfers, be polite. Rudely leaving without aborting
+        # will cause the server to time out after not receiving our acks, but
+        # it takes a while to time out and wastes bandwidth.
+        for x in self.senders.keys():
+            print "Aborting ",x
+            self.abort(x)
 
         sys.exit()
 
