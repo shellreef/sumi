@@ -1,3 +1,6 @@
+2004-08-31 Dan Weber <dan@mirrorlynx.com>
+	* Rewrote strings.txt in strings.texi,  I want to start a
+	  process of rewriting documentation in texinfo
 
 2004-08-31 Jeff Connelly <jeffconnelly@users.sourceforge.net>
 
