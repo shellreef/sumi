@@ -346,9 +346,12 @@ def recvmsg(nick, msg, no_decrypt=0):
             print "SYMMETRIC"
         # TODO: put information about the file here. hash?
 
-        # XXX: This should be the encrypted size; size on wire.
-        authhdr = struct.pack("!L", \
+        try:
+            # XXX: This should be the encrypted size; size on wire.
+            authhdr = struct.pack("!L", \
             os.path.getsize(cfg["filedb"][clients[nick]["file"]]["fn"]))
+        except IndexError:
+            return sendmsg_error(nick, "no such pack number")
 
         # 24-bit prefix. The server decides on the prefix to use for the auth
         # packet, but here we embed the prefix that we, the server, decide to

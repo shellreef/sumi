@@ -1,5 +1,6 @@
 TO DO  20040217JC
 
+* Other transfer modes--support old TFTP-style, new ack-less FEC
 * GUI to create sumiserv.cfg easily
 * Multicasting support
   - need to continously transmit (data carousel) file over and over, until
