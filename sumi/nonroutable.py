@@ -30,8 +30,8 @@ def __init__():
             struct.unpack("<L", struct.pack(">L", \
             (0xffffffffL >> (32 - cidr) << (32 - cidr))))[0]
         nr_ranges.append([net_start, net_end, net_cidr])
-        print socket.inet_ntoa(struct.pack(">L", net_start)),cidr,"~",\
-              socket.inet_ntoa(struct.pack(">L", net_end))
+        #print socket.inet_ntoa(struct.pack(">L", net_start)),cidr,"~",\
+        #      socket.inet_ntoa(struct.pack(">L", net_end))
 
 # Returns True if str_ip is a nonroutable src address (bogus src address)
 # Note that it may still be a valid private address however
@@ -40,10 +40,10 @@ def is_nonroutable_ip(str_ip):
     for range in nr_ranges:
         (start, end, pattern) = range
         if ip >= start and ip <= end:
-            print str_ip,"failed",pattern
+            #print str_ip,"failed",pattern
             return True
     return False
 
 __init__()
-print is_nonroutable_ip("192.168.0.1")
+#print is_nonroutable_ip("192.168.0.1")
  

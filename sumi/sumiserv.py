@@ -594,7 +594,11 @@ def datapkt(nick, seqno):
 
     blocksz = clients[nick]["mss"] - SUMIHDRSZ
 
-    clients[nick]["fh"].seek(blocksz * (seqno - 1))
+    try:
+        clients[nick]["fh"].seek(blocksz * (seqno - 1))
+    except IOError:
+        print "Error when seeking: ", sys.exc_info()
+        return 
     block = clients[nick]["fh"].read(blocksz)
 
     pkt = clients[nick]["prefix"]        # 3-byte prefix

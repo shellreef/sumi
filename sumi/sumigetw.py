@@ -16,7 +16,8 @@ import os
 import socket
 
 # Modules used by transports; import them
-import win32api
+if sys.platform == 'win32':
+    import win32api
 import mmap
 
 import images
@@ -78,19 +79,39 @@ class MainNotebook(wxNotebook):
         #self.AssignImageList(il)
         #self.SetPageImage(0, idx1) 
 
-        EVT_NOTEBOOK_PAGE_CHANGED(self, self.GetId(), self.OnPageChanged)
+        EVT_NOTEBOOK_PAGE_CHANGING(self, self.GetId(), self.OnPageChanged)
         self.Show()
+        self.Validate()
+
+    def Validate(self):
+        err = self.app.client.validate_config()
+        if err:
+            dlg = wxMessageDialog(self.app.frame, err,
+                  "Invalid setting", wxOK | wxICON_ERROR);
+            dlg.ShowModal()
+            dlg.Destroy()
+            #self.SetSelection(1)   # Would be nice if it worked
+            return False
+        else:
+            print "Passed validation"
+            return True
 
     def OnPageChanged(self, event):
         old = event.GetOldSelection()
         new = event.GetSelection()
         sel = self.GetSelection()
+ 
         print "OnPageChange: ",old,new,sel
+
         # Use new instead of sel because on Win32, sel is 0 for the first
         # page change, but new is updated correctly
         if (new == self.GetPageCount() - 1):  # Last page = Exit
             self.app.OnCloseFrame()   # save win size
             self.app.OnExit()
+
+        if old == 1:    # Client configuration tab, if change, validate
+            if not self.Validate():
+                event.Veto()
         event.Skip()   #  requires especially on Win32
 
 global real_stdout, log

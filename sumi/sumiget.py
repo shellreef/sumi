@@ -17,6 +17,7 @@ import md5
 import time
 import popen2
 from libsumi import *
+from nonroutable import is_nonroutable_ip
 
 from getifaces import get_ifaces, get_default_ip
 
@@ -32,7 +33,7 @@ print "Using config file: ", config_file
 # Setup run-time path for loading transports
 sys.path.append(os.path.realpath(os.path.dirname(sys.argv[0])))
 sys.path.append(os.path.realpath(os.path.dirname(sys.argv[0])) + "/../")
-print "USING PATH = ", sys.path
+#print "USING PATH = ", sys.path
 
 #import transport.modmirc
 
@@ -76,82 +77,7 @@ class Client:
         self.config = eval("".join(open(config_file, "rU").read()))
         print "OK"
 
-        if self.config.has_key("myip"):
-            if self.config["myip"] != "":
-                self.myip = self.config["myip"]
-            else:
-                self.myip = get_default_ip()
-                print "Using IP: ", self.myip
-        else:
-            print "IP not specified, getting network interface list..."
-
-            # Look for an up interface. Use get_ifaces instead of just the
-            # IP so we can also get the netmask, too
-            ifaces = get_ifaces()
-            for name in ifaces:
-                if not ifaces[name].has_key("status") or \
-                   ifaces[name]["status"] != True and \
-                   ifaces[name]["status"] != "active":
-                    continue
-                if not ifaces[name]["inet"]: continue
-
-                print name,ifaces[name]["inet"],ifaces[name]["netmask"]
-            # XXX: This is a problem for wxfer.py! It needs input! This is
-            # how it should be, though. Chuck popen into the trash.
-            print "Which interface? ",
-            i = sys.stdin.readline()[:-1]
-            print "Using IP ", ifaces[i]["inet"]
-            self.myip = ifaces[i]["inet"]
-            self.netmask = ifaces[i]["netmask"]   # save for later
-            self.netmask = int(ifaces[i]["mtu"]) - 28
-
-        if self.config.has_key("myport"):
-            self.myport = self.config["myport"]
-        else:
-            print "defaulting to port 41170"
-            self.myport = 41170
-
-        # Your local IP to bind to. This can be your private IP if you're behind
-        # a NAT it can be the same as "myip", or it can be "" meaning bind to
-        # all ifaces
-        self.localaddr = ""
-
-        self.senders = {}
-
-        if self.config.has_key("irc_nick"):
-            self.irc_nick = self.config["irc_nick"]
-        else:
-            print "No IRC nick specified. What to use? "
-            self.irc_nick = sys.stdin.readline()[:-1]
-       
-        if self.config.has_key("irc_name"):
-            self.irc_name = self.config["irc_name"]
-        else:
-            self.irc_name = self.irc_nick
-
-        if self.config.has_key("mss"):
-            self.mss = self.config["mss"]
-        else:
-            try:
-                self.mss
-            except:
-                print "MSS not found! Please set it."
-                raise SystemExit        
-   
-        if self.config.has_key("rwinsz"):
-            self.rwinsz = self.config["rwinsz"]
-            self.rwinsz_old = 0
-                                  #RWINSZ never changes here! TODO:if it does,
-                                  # then rwinsz_old MUST be updated to reflect.
-        else:
-            print "Please set rwinsz"
-            raise SystemExit 
-
-        if self.config.has_key("bandwidth"):
-            self.bandwidth = self.config["bandwidth"]
-        else:
-            print "Please set bandwidth"
-            sys.exit(5)
+        self.validate_config()
 
         self.set_callback(self.default_cb)   # override me please
 
@@ -667,6 +593,98 @@ class Client:
         # Now, communicate in crypto with server_nick
         self.senders[server_nick]["crypto"] = self.config["crypto"]
         self.senders[server_nick]["passwd"] = self.config["passwd"]
+
+    def validate_config(self):
+        """Return None if configuration is valid, or an error message if not."""
+        if self.config.has_key("myip"):
+            if self.config["myip"] != "":
+                self.myip = self.config["myip"]
+            else:
+                self.myip = get_default_ip()
+                print "Using IP: ", self.myip
+        else:
+            print "IP not specified, getting network interface list..."
+
+            # Look for an up interface. Use get_ifaces instead of just the
+            # IP so we can also get the netmask, too
+            ifaces = get_ifaces()
+            for name in ifaces:
+                if not ifaces[name].has_key("status") or \
+                   ifaces[name]["status"] != True and \
+                   ifaces[name]["status"] != "active":
+                    continue
+                if not ifaces[name]["inet"]: continue
+
+                print name,ifaces[name]["inet"],ifaces[name]["netmask"]
+            # XXX: This is a problem for wxfer.py! It needs input! This is
+            # how it should be, though. Chuck popen into the trash.
+            print "Which interface? ",
+            i = sys.stdin.readline()[:-1]
+            print "Using IP ", ifaces[i]["inet"]
+            self.myip = ifaces[i]["inet"]
+            self.netmask = ifaces[i]["netmask"]   # save for later
+            self.netmask = int(ifaces[i]["mtu"]) - 28
+
+        if self.config.has_key("myport"):
+            self.myport = self.config["myport"]
+        else:
+            print "defaulting to port 41170"
+            self.myport = 41170
+
+        # Your local IP to bind to. This can be your private IP if you're behind
+        # a NAT it can be the same as "myip", or it can be "" meaning bind to
+        # all ifaces
+        self.localaddr = ""
+
+        self.senders = {}
+
+        # Not used in all transports
+        if self.config.has_key("irc_nick"):
+            self.irc_nick = self.config["irc_nick"]
+        else:
+            print "No IRC nick specified. What to use? "
+            self.irc_nick = sys.stdin.readline()[:-1]
+       
+        if self.config.has_key("irc_name"):
+            self.irc_name = self.config["irc_name"]
+        else:
+            self.irc_name = self.irc_nick
+
+        if self.config.has_key("mss"):
+            self.mss = self.config["mss"]
+        else:
+            try:
+                self.mss
+            except:
+                return "MSS was not set, please set it in the Client tab."
+   
+        if self.config.has_key("rwinsz"):
+            self.rwinsz = self.config["rwinsz"]
+            self.rwinsz_old = 0
+                                  #RWINSZ never changes here! TODO:if it does,
+                                  # then rwinsz_old MUST be updated to reflect.
+        else:
+            return "Please set rwinsz. Thank you."  
+
+        if self.config.has_key("bandwidth"):
+            self.bandwidth = self.config["bandwidth"]
+        else:
+            return "Please set your bandwidth,"
+            sys.exit(5)
+
+        # More validation, prompted by SJ
+        if is_nonroutable_ip(self.myip):
+            return "Your IP address, " + self.myip + " (" + self.config["myip"] + "), is nonroutable. Please choose\n"+\
+                   "a real, valid IP address. If you are not sure what your IP is, go to \n" +\
+                   "http://whatismyip.com/. Your IP can be set in the Client tab of sumigetw." 
+
+        if not os.access(self.config["dl_dir"], os.W_OK | os.X_OK | os.R_OK):
+            return "Your download directory, %s, is not writable. You can \n"+\
+                   "select a valid download directory in the Client tab of sumigetw by\n"  +\
+                   "clicking the ... button." % self.config["dl_dir"]
+
+        # Passed all the tests
+        return None
 
 #    def sendmsg(self, nick, msg):
 #        """Send a message over the covert channel using loaded module."""
