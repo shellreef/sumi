@@ -14,10 +14,11 @@ import thread
 import os
 import socket
 
-# Modules used by transports; import them
-if sys.platform == 'win32':
-    import win32api
-import mmap
+# Modules used by transports; import them  MOVED to sumiget.py
+#if sys.platform == 'win32':
+#    import win32api
+#import irclib
+#import mmap
 
 import images
 

@@ -475,8 +475,9 @@ def recvmsg(nick, msg, no_decrypt=0):
         # and the client reject it (not ack the auth packet, but redo sumi send
         # again) if the prefix conflicts. This way the server can assign 
         # multiple clients the same prefix, and they all can get it!
+
         if casts.has_key(clients[nick]["addr"]):
-            casts[clients[nick]["addr"]].push(nick)
+            casts[clients[nick]["addr"]].append(nick)
             print "Multicast detected:", clients[nick]["addr"],":",\
                   casts[clients[nick]["addr"]]
             return    # Already sending to
@@ -492,6 +493,7 @@ def recvmsg(nick, msg, no_decrypt=0):
         # Possible thread concurrency issues here. Client can do sumi done at
         # any time, which will result in accessing nonexistant keys
         print "Transfer to %s complete\n" % nick
+        casts[clients[nick]["addr"]].remove(nick)
         if (clients[nick].has_key("file")):
             cfg["filedb"][clients[nick]["file"]]["gets"] += 1
             print "NUMBER OF GETS: ", cfg["filedb"][clients[nick]["file"]]["gets"]
@@ -610,6 +612,7 @@ def transfer_control(nick, msg):
     elif msg[0] == '!':        # abort transfer
         print "Aborting transfer to ", nick
         clients.pop(nick)
+        casts[clients[nick]["addr"]].remove(nick)
 
 def datapkt(nick, seqno):
     """Send data packet number "seqno" to nick, for its associated file. 

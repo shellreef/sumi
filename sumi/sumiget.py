@@ -22,6 +22,12 @@ from nonroutable import is_nonroutable_ip
 
 from getifaces import get_ifaces, get_default_ip
 
+# Modules used by transports. Imported here so they compile in.
+if sys.platform == 'win32':
+    import win32api
+import mmap
+import irclib
+
 input_lock = thread.allocate_lock()
 #transport = "python -u transport/sumi-irc.py"
 #global transport   

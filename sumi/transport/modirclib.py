@@ -19,7 +19,7 @@ irc_lock = thread.allocate_lock()
 server = None
 irc_nick = "sumiget"
 (irc_chan, irc_chankey) = ("#sumi", "anon")
-irc_server, irc_port = "irc.gigairc.net", 6667
+irc_server, irc_port = "irc.zerolimit.net", 6667
 
 def on_msg(c, e):
     nick, msg = irclib.nm_to_n(e.source()), e.arguments()[0]
@@ -45,8 +45,10 @@ def irc_thread():
         server = irc.server()
         print "Connecting to IRC server...",
         server.connect(irc_server, irc_port, irc_nick)
-    except:
+    except irclib.ServerConnectionError, e:
         print "Error connecting to",irc_server,"port",irc_port
+        print e, dir(e)
+        sys.exit(1)
     print "OK."
     irc.process_forever() 
 
