@@ -1,5 +1,12 @@
 TO DO  20040217JC
 
+$Id$
+
+* Realistically, the rawproxd model we are currently using will not work.
+  The program will close after one connection.  CPPSocket library has
+  implemented a TCPThreaded server.  It spawns a thread per connection and
+  is probably the end goal. 
+
 * SOCKS proxy, to allow any TCP/UDP service to be used with SUMI
   (like tor - http://freehaven.net/tor/ - but without the onion routing)
 * Pause/Cancel transfers in sumiget
