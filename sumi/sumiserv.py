@@ -5,6 +5,10 @@
 # SUMI server
 # Communicates with client via IRC, sends data via UDP
 
+# TODO: This needs to be generalized to use transports like sumiget.
+# However, transports must be made 2-way and more informative before this
+# happens.
+
 import string
 import thread
 import irclib
@@ -609,8 +613,6 @@ def in_cksum(str):
   answer=~sum
   answer=answer & 0xffff
 
-  # Swap bytes. Bugger me if I know why.
-  #answer=answer >> 8 | (answer << 8 & 0xff00)
   return answer
 
 # this function was also taken from comp.lang.python, some modifications
@@ -634,22 +636,6 @@ def fixULPChecksum(packet):
     return ''.join([packet[:IPHDRSZ+16],
                     struct.pack('!H', csum),
                     packet[IPHDRSZ+18:]])
-
-# Do away with? clients[nick]["send"] called instead
-def send_packet_NOT_USED(src, dst, payload, mode):
-    """Send an anonymous packet across the Internet. Builds transport headers,
-       but not application headers. Mode specifies protocol to use."""
-    #print "Packet-> ",src,"->",dst," bytes:",len(payload)
-    #send_packet_UDP_LIBNET(src, dst, payload)
-    #send_packet_UDP_DEBUG(src, dst, payload)
-    if (mode == "U"):     # non-spoofed UDP
-        send_packet_UDP_DEBUG(src, dst, payload)
-    elif (mode == "u"):   # spoofed UDP
-        send_packet_UDP_SOCKET(src, dst, payload)
-    elif (mode == "t"):   # TCP
-        print "TCP spoofing not yet implemented"
-    elif (mode == "e"):   # ICMP echo
-        send_packet_ICMP(src, dst, payload)
 
 # Send non-spoofed packet. For debugging purposes ONLY.
 # This uses the high(er)-level socket routines; its useful because you
@@ -780,10 +766,32 @@ def build_iphdr(totlen, src_ip, dst_ip, type):
         struct.unpack("!L", socket.inet_aton(dst_ip))[0], # Destination address
        );
 
-# TODO: TCP aggregates are efficient! So, offer an option to send
-#       spoofed UDP packets, which form streams, so it looks real + valid.
-#       UDP is often discarded more by routers, best of both worlds=TCP!
-#     However, receiving it would require pylibcap.
+def send_packet_TCP(src, dst, payload):
+    # TODO: TCP aggregates are efficient! So, offer an option to send
+    #       spoofed UDP packets, which form streams, so it looks real + valid.
+    #       UDP is often discarded more by routers, best of both worlds=TCP!
+    #     However, receiving it would require pylibcap.
+    print "TODO: implement"
+
+def send_packet_UDP_WINPCAP(src, dst, payload):
+    # TODO: Use pcap_sendpacket from WinPcap. See
+    # http://winpcap.polito.it/docs/docs31beta3/html/group__wpcapfunc.html#a41
+    # Regular socket() calls work fine on Win2K/XP, but WinPcap's will work
+    # on 95, 98, Me... provided that the winpcap library is installed.
+    # Implementing this isn't a very high priority because the older OS's
+    # are, well, old. However, being able to run sumiserv as a non-admin user
+    # might be more secure, and spoofing data-link addresses may prove useful.
+
+    # Pcapy: http://oss.coresecurity.com/projects/pcapy.html
+
+    # If we do decide to implement this, note that the datalink headers
+    # need to be included as well. Could perhaps spoof these to thwart
+    # detection on a totally switched network?
+    
+    # pcap_open_live()
+    # pcap_send_packet()
+
+# Send packet from given source.
 def send_packet_UDP_SOCKET(src, dst, payload):
     """Send a UDP packet from src to dst.
        This uses the standard socket() functions, and is recommended."""

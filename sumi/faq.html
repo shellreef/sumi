@@ -18,7 +18,9 @@ in the future to use other transmission mechanisms.
 <p>For a server, you need to have either: a) a Unix system with root
 access, or b) a Windows XP/2000 or better system. Either of these setups
 will allow raw sockets required for IP source address spoofing. In particular,
-Windows NT, Me, 98, 95, and 3.11 will not work with sumiserv. With Unix, if
+Windows NT, Me, 98, 95, and 3.11 will not work with sumiserv. (Note to self:
+Winpcap has a pcap_send function that supposedly works on these OS's.)
+With Unix, if
 your sysadmin is kind enough to set the setuid bit on "launch" and change 
 ownership to root, you should be able to run SUMI by typing this command as
 a normal user: <tt>launch ./sumiserv</tt>. This is recommended for security
