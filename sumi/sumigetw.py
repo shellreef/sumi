@@ -463,17 +463,6 @@ class TransferPanel(wxPanel, wxColumnSorterMixin):
             colno += 1
         #self.list.SetColumnWidth(0, 100)
 
-        # show how to select an item
-        self.list.SetItemState(5, wxLIST_STATE_SELECTED, wxLIST_STATE_SELECTED)
-
-        # show how to change the colour of a couple items
-        item = self.list.GetItem(1)
-        item.SetTextColour(wxBLUE)
-        self.list.SetItem(item)
-        item = self.list.GetItem(4)
-        item.SetTextColour(wxRED)
-        self.list.SetItem(item)
-
         self.currentItem = 0
 
     # Used by the wxColumnSorterMixin, see wxPython/lib/mixins/listctrl.py
@@ -794,6 +783,10 @@ class SUMIApp(wx.wxApp):
         # do multiple transfers per nick
         if nick2index.has_key(nick):
             index = nick2index[nick]
+            if self.nb.xfpanel.getColumnText(index, COL_STATUS) == 'Transferring...':
+                print "ERROR: In-progress transfer from",nick,"at",index,"already"
+                print "Currently you can only have one transfer per user, sorry"
+                return -1 
         else:
             nick2index[nick] = last_index
             index = nick2index[nick]

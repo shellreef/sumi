@@ -2,8 +2,11 @@ Change Log for SUMI
 
 [CVS]
 
-20040819 Scott Johnston found bug where failed senders/finished weren't removed
-                        and fixed by JC
+20040820 Jeff Connelly  fixed obnoxious "Couldn't retrieve information about
+                        list control item" bug caused by left over code from 
+                        wxListCtrl sample code
+20040819 Scott Johnston found bug where failed senders/finished weren't removed,
+                        fixed by JC, won't add to list if already transferring
 20040819 Jeff Connelly  new sumigetw error message if already transferring
                         from a sender,can't do simultaneous same user xfers yet
 20040811 Keith Oakley   designed the SUMI icon used for sumigetw
