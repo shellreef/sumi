@@ -66,3 +66,7 @@ c++-obsolete/sumiserv
 hash/mddriver
 hash/test
 rawproxd
+
+Note: build/ and dist/ are from py2exe. Run setup.py py2exe to use it.
+The McMillian Installer also works. Generate a spec file with options
+--icon sumi.ico sumigetw.py, and pass it to build.py--it will give you an exe.
