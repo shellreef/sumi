@@ -1,7 +1,7 @@
 # Client configuration file
 # Please note - ALL COMMENTS IN THIS FILE WILL BE DESTROYED
 {'bandwidth': 1500000,
- 'colwidths': [69, 136, 107, 55, 73, 69, 76, 99, 71, 49],
+ 'colwidths': [160, 136, 107, 55, 73, 69, 76, 99, 71, 49],
  'crypto': '',
  'data_chan_type': 'u',
  'dl_dir': '/home/jeff/p2p/sumi/incoming/',

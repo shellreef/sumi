@@ -1,6 +1,18 @@
 TO DO  20040217JC
 
 * Multicasting support
+  - need to continously transmit (data carousel) file over and over, until
+    all the users in casts[address] have received it
+  - need to have a way to not excessively request loss packets that will be
+    resent when next file starts sending, i.e.,:
+     if excessive lost packets:
+         if multicasting: ignore
+         else: stop, too much
+    what is "excessive" anyway? rethink this
+  - already have a casts[] hash, the index being the multicast/bcast address,
+    and the entries a hash where the keys are the nicknames (values=1)
+  - need to do IGMP commands, join group etc. in sumiget for mcast
+  - test with bcast
 * SOCKS proxy, to allow any TCP/UDP service to be used with SUMI
   (like tor - http://freehaven.net/tor/ - but without the onion routing)
 * Pause/Cancel transfers in sumiget

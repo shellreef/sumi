@@ -215,7 +215,7 @@ def recvmsg(nick, msg, no_decrypt=0):
             ip       = args["i"]
             port     = int(args["n"])
             mss      = int(args["m"])
-            b64prefix= args["p"]
+            b64prefix= args["p"] 
             speed    = int(args["b"])   # b=bandwidth
             rwinsz   = int(args["w"])
             dchantype= args["d"]            
@@ -246,7 +246,7 @@ def recvmsg(nick, msg, no_decrypt=0):
             return sendmsg_error(nick, "MSS too small: %d" % (mss,))
         if (mss > cfg["global_mss"]):
             return sendmsg_error(nick, "MSS too large")
-  
+
         # Prefix is base64-encoded for IRC transport
         # Note: There is no need to use Base85 - Base94 (RFC 1924) because
         # it can increase by a minimum of one byte. yEnc might work, but
@@ -260,13 +260,14 @@ def recvmsg(nick, msg, no_decrypt=0):
         if (len(prefix) != 3):   # b64-encoded:4 decoded:3
             return sendmsg_error(nick, "prefix length != 3, but %d" % (
                                        len(prefix)))
+        b64prefix = base64.encodestring(prefix)
 
         # TODO: make sure the filename/pack number is valid, and we have it
-        print "nick=%s, FILE=%s, OFFSET=%d, IP=%s:%d MSS=%d PREFIX=%s" % (
-              nick, file, offset, ip, port, mss, b64prefix)
+        print"nick=%s,FILE=%s,OFFSET=%d,IP=%s:%d MSS=%d PREFIX=%s" % (
+              nick, file, offset, ip, port, mss, prefix.encode("hex"))
 
-        # Build the authentication packet
-        key = "%s\0\0\0" % prefix       # 3-byte prefix, 3-byte seqno 0
+        # Build the authentication packet using the client-requested prefix
+        key = "%s\0\0\0" % prefix       # 3-byte prefix, 3-byte seqno (0)
         if (len(key) != SUMIHDRSZ):
             return sendmsg_error(nick, "key + seqno != SUMIHDRSZ")
 
@@ -342,9 +343,42 @@ def recvmsg(nick, msg, no_decrypt=0):
         # XXX: This should be the encrypted size; size on wire.
         authhdr = struct.pack("!L", \
             os.path.getsize(cfg["filedb"][clients[nick]["file"]]["fn"]))
-        #XYZ
-        authhdr += os.path.basename(cfg["filedb"][clients[nick]["file"]]["fn"] + \
+
+        # 24-bit prefix. The server decides on the prefix to use for the auth
+        # packet, but here we embed the prefix that we, the server, decide to
+        # use for the data transfer. 
+        clients[nick]["prefix1"] = clients[nick]["prefix"]   # first prefix
+        if casts.has_key(clients[nick]["addr"]):
+            # Use prefix of client already sending to
+            print "Multicast detected:", clients[nick]["addr"],":",\
+                  casts[clients[nick]["addr"]]
+
+            cs = casts[clients[nick]["addr"]]
+            found = 0
+            for c in cs:
+                if clients.has_key(c) and clients[c]["authenticated"] == 2:
+                    clients[nick]["prefix"] = clients[c]["prefix"]
+                    found = 1
+                    break
+
+            if found == 0:
+                print "No transferring clients found, assuming unicast"
+            else:
+                casts[clients[nick]["addr"]][nick] = 1
+
+                print "    Using old prefix: %s" % \
+                    (clients[nick]["prefix"].encode("hex"))
+        else:
+            # An array would do here, but a hash easily removes the possibility
+            # of duplicate keys. List of clients that have the same address.
+            casts[clients[nick]["addr"]] = { nick: 1 }
+
+        # Used for data transfer, may differ from client-chosen auth pkt prefix
+        authhdr += clients[nick]["prefix"]
+        
+        authhdr += os.path.basename(cfg["filedb"][clients[nick]["file"]]["fn"]+\
                    "\0");  # Null-term'd
+
         #if (len(authhdr) != SUMIAUTHHDRSZ):
         #    print "internal error: auth header incorrect"
         #    sys.exit(-4)
@@ -369,6 +403,7 @@ def recvmsg(nick, msg, no_decrypt=0):
         print "Sending auth packet now."
         clients[nick]["send"](clients[nick]["asrc"], \
                               clients[nick]["dst_gen"](), key)
+        print " AUTH PREFIX=",key[0:3].encode("hex")
         #send_packet(clients[nick]["asrc"], (ip, port), key)
  
     elif (msg.find("sumi auth ") == 0):
@@ -475,14 +510,10 @@ def recvmsg(nick, msg, no_decrypt=0):
         # and the client reject it (not ack the auth packet, but redo sumi send
         # again) if the prefix conflicts. This way the server can assign 
         # multiple clients the same prefix, and they all can get it!
-
-        if casts.has_key(clients[nick]["addr"]):
-            casts[clients[nick]["addr"]].append(nick)
-            print "Multicast detected:", clients[nick]["addr"],":",\
-                  casts[clients[nick]["addr"]]
-            return    # Already sending to
+        if len(casts[clients[nick]["addr"]]) > 1:
+            print "Since multicast, not starting another transfer"
         else:
-            casts[clients[nick]["addr"]] = [ nick ]
+            print "Unicast - starting transfer"
 
         # In a separate thread to allow multiple transfers
         #thread.start_new_thread(xfer_thread, (nick,))
@@ -493,13 +524,16 @@ def recvmsg(nick, msg, no_decrypt=0):
         # Possible thread concurrency issues here. Client can do sumi done at
         # any time, which will result in accessing nonexistant keys
         print "Transfer to %s complete\n" % nick
-        casts[clients[nick]["addr"]].remove(nick)
+        try:
+            casts[clients[nick]["addr"]].remove(nick)
+        except:
+            pass
         if (clients[nick].has_key("file")):
             cfg["filedb"][clients[nick]["file"]]["gets"] += 1
             print "NUMBER OF GETS: ", cfg["filedb"][clients[nick]["file"]]["gets"]
         else:
             print "Somehow lost filename"
-        clients.pop(nick)   # destroy client
+        destroy_client(nick)
 
 # TODO: The following conditions need to be programmed in:
 # * If peer QUITs, kill transfer
@@ -552,7 +586,7 @@ def xfer_thread(nick):
             # TODO: Allow multiple transfers per server? No, queue instead.
             print "Most likely client is trying to get >1 files at once."
             sys.exit(42)
-        print "#%d, len=%d" % (clients[nick]["seqno"], blocklen)
+        #print "#%d, len=%d" % (clients[nick]["seqno"], blocklen)
         if (blocklen < clients[nick]["mss"] - SUMIHDRSZ or blocklen == 0):
             clients[nick]["seqno"] = None  # no more sending, but can resend
             break
@@ -567,6 +601,15 @@ def xfer_thread(nick):
             break 
 
     print "Transfer complete."
+
+def destroy_client(nick):
+    print "Severing all ties to",nick
+    casts[clients[nick]["addr"]].pop(nick)
+    if len(casts[clients[nick]["addr"]]) == 0:
+        print "Last client for",clients[nick]["addr"],"exited:",nick
+        # TODO: stop all transfers to this address
+        casts.pop(clients[nick]["addr"])
+    clients.pop(nick)
 
 def transfer_control(nick, msg):
     """Handle an in-transfer message"""
@@ -611,8 +654,7 @@ def transfer_control(nick, msg):
             resend_queue.put(resend)
     elif msg[0] == '!':        # abort transfer
         print "Aborting transfer to ", nick
-        clients.pop(nick)
-        casts[clients[nick]["addr"]].remove(nick)
+        destroy_client(nick)
 
 def datapkt(nick, seqno):
     """Send data packet number "seqno" to nick, for its associated file. 
@@ -705,9 +747,10 @@ def sendto_raw(s, data, dst):
     global raw_proxy
     try:
         if raw_proxy == None:
-            print "RET=", s.sendto(data, dst)
+            #print "RET=", 
+            s.sendto(data, dst)
         else:
-            print "USING RAW PROXY"
+            #print "USING RAW PROXY"
             raw_proxy.send("RP" + struct.pack("!H", len(data)) + data)
     except socket.error, e:
         print "Couldn't send raw data: ", e[0], e[1]
@@ -1224,7 +1267,7 @@ def on_exit():
     import pprint      # pretty print instead of ugly print repr
     pprint.pprint(cfg, open(config_file, "w"))
 
-    print "CFG=",cfg
+    #print "CFG=",cfg
     sys.exit()
     sys._exit(1)
     raise SystemExit

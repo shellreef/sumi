@@ -150,10 +150,14 @@ class Client:
         for x in self.senders:
             if self.senders[x].has_key("prefix") and \
                self.senders[x]["prefix"] == prefix:
+                print "DATA:Prefix=%02x%02x%02x its %s" %\
+                    (tuple(map(ord, prefix)) + (x, ))
                 nick = x
                 break
         if nick == None:
-            print "DATA:UNKNOWN PREFIX!",len(data),"bytes from",addr
+            p = "%02x%02x%02x" % (tuple(map(ord, prefix)))
+            print "DATA:UNKNOWN PREFIX!",p,len(data),\
+                  "bytes from",addr
             return
         #print "Incoming:",len(data),"bytes from",addr,"=",nick," #",seqno
 
@@ -190,10 +194,21 @@ class Client:
             (self.senders[nick]["size"], ) = struct.unpack("!L", 
                 data[SUMIHDRSZ:SUMIHDRSZ + SUMIAUTHHDRSZ])
             print "SIZE:%d" % (self.senders[nick]["size"],)
-            filename=data[SUMIHDRSZ+4:data[SUMIHDRSZ+4:].find("\0")+SUMIHDRSZ+4]
+            new_prefix = data[SUMIHDRSZ + 4:SUMIHDRSZ + 4 + 3]
+            if len(new_prefix) != 3:
+                print "Missing new_prefix in auth packet!"
+                sys.exit(1)
+            filename=data[SUMIHDRSZ+7:data[SUMIHDRSZ+7:].find("\0")+SUMIHDRSZ+7]
 
             self.senders[nick]["fn"] = filename
             print "Filename: <%s>" % filename   
+
+            print "OLD PREFIX: %02x%02x%02x", (tuple(map(ord, self.senders[nick]["prefix"])))
+            print "NEW PREFIX: %02x%02x%02x", (tuple(map(ord, new_prefix)))
+            if new_prefix != self.senders[nick]["prefix"]:
+                print "Switching to a new prefix!"
+            self.senders[nick]["prefix"] = new_prefix
+
             self.callback(nick, "info", self.senders[nick]["size"], \
                 base64.encodestring(prefix)[:-1], filename, \
                 self.senders[nick]["transport"], \
@@ -821,15 +836,16 @@ class Client:
         print "You want %s from %s" % (server_nick, file)
 
         offset = 0
+
         prefix = string.join(map(chr, (random.randint(0, 255),
                                        random.randint(0, 255),
                                        random.randint(0, 255))), "")
- 
         self.senders[server_nick]["prefix"] = prefix
 
         msg = "sumi send " + pack_args({"f":file,
             "o":offset, "i":self.myip, "n":self.myport, "m":self.mss,
-            "p":base64.encodestring(prefix)[:-1], "b":self.bandwidth,
+            "p":base64.encodestring(prefix)[:-1], 
+            "b":self.bandwidth,
             "w":self.rwinsz, "d":self.config["data_chan_type"],
             "x":self.config["crypto"]})
             # XYZ: In sumi sec
