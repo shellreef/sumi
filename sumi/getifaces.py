@@ -6,6 +6,7 @@
 
 import sys
 
+# http://tgolden.sc.sabren.com/python/wmi_cookbook.html#ip_addresses
 def get_ifaces_win32():
     import wmi
     c = wmi.WMI()
@@ -90,6 +91,7 @@ def get_ifaces():
 
 # Connects to a given host and gets its the address of our side of the socket
 # If behind a NAT this still will return the local IP, not the WAN IP
+# Seems to be easier and work better than get_ifaces()
 def get_default_ip(test_host="google.com", test_port=80):
     import socket
     sockfd = socket.socket()

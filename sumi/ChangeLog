@@ -1,3 +1,14 @@
+2004-09-08 Jeff Connelly <jeffconnelly@users.sourceforge.net>
+	* broadcasting - send to multiple clients simultaneously (beta),
+	  this paves the way for multicast support (not yet implemented)
+	* ack timeout set to rwinsz*5 (for slower connections)
+
+2004-09-07 Jeff Connelly <jeffconnelly@users.sourceforge.net> - 0.8.7
+	* fix KeyError: broadcast bug in sumiserv (Asuran)
+	* validate client IP address in sumiserv (microbrew)
+	* client resolves DNS names to IP addresses for myip
+	* data carousel implemented for multicast, but still needs testing
+
 2004-09-06 Jeff Connelly <jeffconnelly@users.sourceforge.net>
 	* server-specified prefix now sent encapsulated in auth packet
 	* last release until I have more time to continue working on SUMI

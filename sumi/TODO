@@ -1,5 +1,6 @@
 TO DO  20040217JC
 
+* GUI to create sumiserv.cfg easily
 * Multicasting support
   - need to continously transmit (data carousel) file over and over, until
     all the users in casts[address] have received it
@@ -15,6 +16,7 @@ TO DO  20040217JC
   - test with bcast
 * Fill in UDP checksum! Invalid UDP checksums should be tossed, act as if
   never received them and they will be resent.
+* Adjust requested bandwidth based on actual bandwidth
 * SOCKS proxy, to allow any TCP/UDP service to be used with SUMI
   (like tor - http://freehaven.net/tor/ - but without the onion routing)
 * Pause/Cancel transfers in sumiget

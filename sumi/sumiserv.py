@@ -260,7 +260,12 @@ def recvmsg(nick, msg, no_decrypt=0):
         if (len(prefix) != 3):   # b64-encoded:4 decoded:3
             return sendmsg_error(nick, "prefix length != 3, but %d" % (
                                        len(prefix)))
-        b64prefix = base64.encodestring(prefix)
+        #b64prefix = base64.encodestring(prefix)
+
+        try:
+            socket.inet_aton(ip)
+        except:
+            return sendmsg_error(nick, "invalid IP address: %s" % ip)
 
         # TODO: make sure the filename/pack number is valid, and we have it
         print"nick=%s,FILE=%s,OFFSET=%d,IP=%s:%d MSS=%d PREFIX=%s" % (
@@ -348,6 +353,7 @@ def recvmsg(nick, msg, no_decrypt=0):
         # packet, but here we embed the prefix that we, the server, decide to
         # use for the data transfer. 
         clients[nick]["prefix1"] = clients[nick]["prefix"]   # first prefix
+
         if casts.has_key(clients[nick]["addr"]):
             # Use prefix of client already sending to
             print "Multicast detected:", clients[nick]["addr"],":",\
@@ -356,26 +362,33 @@ def recvmsg(nick, msg, no_decrypt=0):
             cs = casts[clients[nick]["addr"]]
             found = 0
             for c in cs:
-                if clients.has_key(c) and clients[c]["authenticated"] == 2:
+                if clients.has_key(c) and clients[c].has_key("authenticated") and clients[c]["authenticated"] == 2:
                     clients[nick]["prefix"] = clients[c]["prefix"]
                     found = 1
                     break
 
             if found == 0:
                 print "No transferring clients found, assuming unicast"
+                casts[clients[nick]["addr"]] = { nick: 1 }
+                mcast = 0
             else:
                 casts[clients[nick]["addr"]][nick] = 1
 
                 print "    Using old prefix: %s" % \
                     (clients[nick]["prefix"].encode("hex"))
+                mcast = 1
         else:
             # An array would do here, but a hash easily removes the possibility
             # of duplicate keys. List of clients that have the same address.
             casts[clients[nick]["addr"]] = { nick: 1 }
+            mcast = 0
+        clients[nick]["mcast"] = mcast
 
         # Used for data transfer, may differ from client-chosen auth pkt prefix
         authhdr += clients[nick]["prefix"]
-        
+
+        authhdr += chr(mcast) 
+
         authhdr += os.path.basename(cfg["filedb"][clients[nick]["file"]]["fn"]+\
                    "\0");  # Null-term'd
 
@@ -510,14 +523,15 @@ def recvmsg(nick, msg, no_decrypt=0):
         # and the client reject it (not ack the auth packet, but redo sumi send
         # again) if the prefix conflicts. This way the server can assign 
         # multiple clients the same prefix, and they all can get it!
-        if len(casts[clients[nick]["addr"]]) > 1:
+        if clients[nick]["mcast"]:
             print "Since multicast, not starting another transfer"
+            return
         else:
             print "Unicast - starting transfer"
 
         # In a separate thread to allow multiple transfers
         #thread.start_new_thread(xfer_thread, (nick,))
-        thread.start_new_thread(make_thread, (xfer_thread, nick,))
+        thread.start_new_thread(make_thread, (xfer_thread_loop, nick,))
         #make_thread(xfer_thread, nick)
 
     elif (msg.find("sumi done") == 0):
@@ -535,6 +549,16 @@ def recvmsg(nick, msg, no_decrypt=0):
             print "Somehow lost filename"
         destroy_client(nick)
 
+def xfer_thread_loop(nick):
+    if 0 and clients[nick]["mcast"]: 
+       i = 0
+       while 1:
+           print "Multicast detected - loop #%d" % i  # "data carousel"
+           i += 1
+           xfer_thread(nick)
+    else:
+       xfer_thread(nick)
+
 # TODO: The following conditions need to be programmed in:
 # * If peer QUITs, kill transfer
 # * If peer doesn't send NAK within 2*RWINSZ, pause transfer (allocate_lock?)
@@ -550,21 +574,23 @@ def xfer_thread(nick):
         # Resend queued resends if they come up, but don't dwell
         try:
             while 1:
-                resend = resend_queue.get_nowait()
+                resend = resend_queue.get_nowait()   # TODO: multiple users!
+                print "Q: ",nick,resend
                 datapkt(nick, resend)
         except Queue.Empty:
+            print "Q: empty"
             pass
 
         if (clients[nick]["seqno"]):
             blocklen = datapkt(nick, clients[nick]["seqno"])
 
-        ## If haven't received ack from user since RWINSZ*2, pause
+        ## If haven't received ack from user since RWINSZ*5, pause
         # ^ now we stop instead
         d = time.time() - clients[nick]["ack_ts"]
-        if (float(d) >= float(clients[nick]["rwinsz"] * 3)):
+        if (float(d) >= float(clients[nick]["rwinsz"] * 5)):
             #clients[nick]["xfer_lock"].acquire() 
             print "Since we haven't heard from %s in %f (> %d), stopping" %  \
-                (nick, int(d), float(clients[nick]["rwinsz"] * 3))
+                (nick, int(d), float(clients[nick]["rwinsz"] * 5))
             clients[nick]["xfer_stop"] = 1
 
         # If transfer lock is locked (pause), then wait until unpaused
@@ -604,12 +630,15 @@ def xfer_thread(nick):
 
 def destroy_client(nick):
     print "Severing all ties to",nick
-    casts[clients[nick]["addr"]].pop(nick)
-    if len(casts[clients[nick]["addr"]]) == 0:
-        print "Last client for",clients[nick]["addr"],"exited:",nick
-        # TODO: stop all transfers to this address
-        casts.pop(clients[nick]["addr"])
-    clients.pop(nick)
+    try:
+        casts[clients[nick]["addr"]].pop(nick)
+        if len(casts[clients[nick]["addr"]]) == 0:
+            print "Last client for",clients[nick]["addr"],"exited:",nick
+            # TODO: stop all transfers to this address
+            casts.pop(clients[nick]["addr"])
+        clients.pop(nick)
+    except:
+        pass
 
 def transfer_control(nick, msg):
     """Handle an in-transfer message"""
@@ -640,6 +669,7 @@ def transfer_control(nick, msg):
         # the b/w can be throttled up optimistically sometimes, if good
         # conditions and no/little losses. TCP has a "slow start" where it
         # starts out with low bandwidth and increases until too much. Consid.
+        # TODO: How about this... set bandwidth requested to actual bandwidth
         #print "Lost bytes: ", clients[nick]["mss"] * len(resends)
 
         # If any resends, push these onto global resend_queue
@@ -668,6 +698,7 @@ def datapkt(nick, seqno):
 
     blocksz = clients[nick]["mss"] - SUMIHDRSZ
 
+    print "Sending to ",nick,"#",seqno,blocksz
     #print "I AM GOING TO SEEK TO ",blocksz*(seqno-1)
 
     #if (blocksz * (seqno - 1)) > clients[nick]["size"]:
@@ -747,8 +778,8 @@ def sendto_raw(s, data, dst):
     global raw_proxy
     try:
         if raw_proxy == None:
-            #print "RET=", 
-            s.sendto(data, dst)
+            r=s.sendto(data, dst)
+            print "RET=",r
         else:
             #print "USING RAW PROXY"
             raw_proxy.send("RP" + struct.pack("!H", len(data)) + data)
@@ -1235,6 +1266,7 @@ def main(argv):
         server.connect(cfg["irc_server"], cfg["irc_port"], cfg["irc_nick"])
     except:
         print "couldn't connect to server"
+        main(argv)
         sys.exit(4)
     print "OK."
     join_lock.acquire()   #  will be released when channels are joined
@@ -1244,6 +1276,7 @@ def main(argv):
         irc.process_forever()
     except KeyboardInterrupt, SystemExit:
         on_exit()
+    main(argv)
     #while(1):
     #    irc.process_once()
 

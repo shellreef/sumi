@@ -150,12 +150,13 @@ class Client:
         for x in self.senders:
             if self.senders[x].has_key("prefix") and \
                self.senders[x]["prefix"] == prefix:
-                print "DATA:Prefix=%02x%02x%02x its %s" %\
-                    (tuple(map(ord, prefix)) + (x, ))
+                #xprint "DATA:Prefix=%02x%02x%02x its %s" %\
+                #    (tuple(map(ord, prefix)) + (x, ))
                 nick = x
                 break
         if nick == None:
             p = "%02x%02x%02x" % (tuple(map(ord, prefix)))
+            # On Win32 this takes up a lot of time
             print "DATA:UNKNOWN PREFIX!",p,len(data),\
                   "bytes from",addr
             return
@@ -165,10 +166,16 @@ class Client:
  
         self.senders[nick]["last_msg"] = time.time()
 
-        # XXX: Resuming sometimes asks for packets more than once, fix it.
-        #     Maybe the dupe could be compared to see if any errors?
         # Last most recently received packet, for resuming
         self.senders[nick]["at"] = seqno 
+
+        # First packet received
+        if not self.senders[nick].has_key("start_seqno") and seqno != 0:
+            self.senders[nick]["start_seqno"] = seqno
+            print "FIRST PACKET: ",seqno
+
+        print "PACKET: ",seqno
+
         # Sequence number is 3 bytes in the SUMI header in network order
         # (so a null can easily be prepended for conversion to a long),
         # this used to be partially stored in the source port, but PAT--
@@ -198,7 +205,11 @@ class Client:
             if len(new_prefix) != 3:
                 print "Missing new_prefix in auth packet!"
                 sys.exit(1)
-            filename=data[SUMIHDRSZ+7:data[SUMIHDRSZ+7:].find("\0")+SUMIHDRSZ+7]
+            flags = ord(data[SUMIHDRSZ + 4 + 3:SUMIHDRSZ + 4 + 3 + 1])
+            print "FLAGS: ",flags 
+            self.senders[nick]["mcast"] = flags & 1
+
+            filename=data[SUMIHDRSZ+8:data[SUMIHDRSZ+8:].find("\0")+SUMIHDRSZ+8]
 
             self.senders[nick]["fn"] = filename
             print "Filename: <%s>" % filename   
@@ -259,7 +270,7 @@ class Client:
 
                 # Need at least an offset to resume...
                 if (len(lostdata) <= 1): is_resuming = 0
-                print "LEN LOSTDATA=",len(lostdata),"and lostdata=",lostdata
+                print "LEN LOSTDATA=",len(lostdata)#,"and lostdata=",lostdata
 
                 #is_resuming=0#FORCE
  
@@ -398,10 +409,13 @@ class Client:
                     else:
                         #print "ITS THERE!"
                         break  # this one wasn't lost, so already checked
-    
+
+                if self.senders[nick]["mcast"]:
+                    print "using mcast, so not re-request these lost pkts"
+                    # we'll get these packets next time around 
                 if self.senders[nick]["lost"].has_key(seqno):
                     self.senders[nick]["lost"].pop(seqno)
-                    print "Recovered packet ", seqno, self.senders[nick]["lost"]
+                    print "Recovered packet ", seqno, len(self.senders[nick]["lost"])
                     self.senders[nick]["rexmits"] += 1
                     print "(rexmits = ", self.senders[nick]["rexmits"]
                     self.callback(nick, "rexmits", self.senders[nick]["rexmits"])
@@ -471,17 +485,30 @@ class Client:
 
             try:
                 # Some missing packets, finish it up
+    
                 if len(self.senders[x]["lost"]) > 100:
                     print self.senders[x]["lost"]
                     print "Excessive amount of packet loss!"
                     print "could be a programming error. quitting"
-                    sys.exit(-7)
 
-                lost = ",".join(map(str, self.senders[x]["lost"].keys()))
+                # Join by commas, only lost packets after start_seqno
+                alost = self.senders[x]["lost"].keys()
+                print "ALOST1: ",len(alost)
+                if self.senders[x].has_key("start_seqno"):
+                    ss = self.senders[x]["start_seqno"]
+                else:
+                    print "WARING: NO START_SEQO SET!"
+                    ss = 0
+                # NOTE: _y isn't localized here! Don't use x!
+                # won't request any lost packets with seqno's below start_seqno
+                alost = [ _y for _y in alost if _y >= ss ]
+
+                print "ALOST2 (ss=",ss,"): ",len(alost)
+                lost = ",".join(map(str, alost))
                 # Compress by omitting redundant elements to ease bandwidth
-                if (self.rwinsz_old == self.rwinsz and lost == ""):
+                if self.rwinsz_old == self.rwinsz and lost == "":
                     self.sendmsg(x, "n")
-                elif (lost == ""):
+                elif lost == "":
                     self.sendmsg(x, "n%d" % self.rwinsz)
                 else:
                     self.sendmsg(x, ("n%d," % self.rwinsz) + lost)
@@ -661,9 +688,15 @@ class Client:
         if self.config.has_key("myip"):
             if self.config["myip"] != "":
                 self.myip = self.config["myip"]
+                try:
+                    self.myip = socket.gethostbyname(self.myip)
+                except:
+                    print "Couldn't resolve", self.myip
+                    sys.exit(3)
+                print "Resolved hostname to:", self.myip
             else:
                 self.myip = get_default_ip()
-                print "Using IP: ", self.myip
+                print "Using IP:", self.myip
         else:
             print "IP not specified, getting network interface list..."
 
@@ -735,8 +768,9 @@ class Client:
             sys.exit(5)
 
         # More validation, prompted by SJ
-        if is_nonroutable_ip(self.myip):
-            return "Your IP address, " + self.myip + " (" + self.config["myip"] + "), is nonroutable. Please choose\n"+\
+        if not self.config.has_key("allow_local") and \
+           is_nonroutable_ip(self.myip):
+            return "Your IP address,"+self.myip+" ("+self.config["myip"] + "), is nonroutable. Please choose\n"+\
                    "a real, valid IP address. If you are not sure what your IP is, go to \n" +\
                    "http://whatismyip.com/. Your IP can be set in the Client tab of sumigetw." 
 

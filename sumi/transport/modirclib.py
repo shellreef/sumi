@@ -19,7 +19,7 @@ irc_lock = thread.allocate_lock()
 server = None
 irc_nick = "sumiget"
 (irc_chan, irc_chankey) = ("#sumi", "anon")
-irc_server, irc_port = "irc.zerolimit.net", 6667
+irc_server, irc_port = "irc2.liquidirc.net", 6667
 
 def on_msg(c, e):
     nick, msg = irclib.nm_to_n(e.source()), e.arguments()[0]
