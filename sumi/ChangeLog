@@ -1,5 +1,5 @@
 0.7 - Focus on getting things to work, cleanup for CVS
-20040723 jc import to SourceForge CVS
+20040723 jc import to SourceForge CVS, committed
 20040721 jc public-key encryption (RSA) added but not yet complete
 20040721 jc pre-authenticated encryption now works, at least with AES
 
