@@ -1,6 +1,5 @@
 Change Log for SUMI
 
-[CVS]
 
 0.8.3 (20040825) exe release only
 20040825 Jeff Connelly  fix dl_dir format string
