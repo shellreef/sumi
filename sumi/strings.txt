@@ -75,6 +75,9 @@ depend on the null. str.data() returns a const char* (so you can't change it)
 pointer to the internal buffer. This is similar to str.c_str(), but c_str()
 appends a null at the end. Make sure to use data() for arbitrary data.
 
-This is a minor point, but I'm writing it because I was personally bitten by
+MFC's CString has a similar constructor:
+CString( LPCTSTR lpch, int nLength)
+
+This is a minor point, but I'm writing it because I was personally bitten
 a bug from mixing null-terminated strings and std::string's. Hope this helps.
 
