@@ -29,26 +29,7 @@ using namespace std;
 
 
 inline void check_socket_fail(int errnum) {
-   switch(errnum) {
-    case EBADF:  
-      cout << "sockfd is not a valid descriptor." << endl;
-      break;
-      
-    case EINVAL: 
-      cout << "The socket is already bound to an address.  This may change in the future: see linux/unix/sock.c for details." << endl;
-      break;
-      
-    case EACCES: 
-      cout << "The address is protected, and the user is not the super-user." << endl;
-      break;
-      
-    case ENOTSOCK:
-      cout << "Argument is a descriptor for a file, not a socket." << endl;
-      break;
-    case EADDRNOTAVAIL:
-      cout << "Address Not Available" << endl;
-      break;
-   }
+   cout << strerror(errnum) << endl;
 }
 
 int main()
