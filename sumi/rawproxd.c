@@ -15,7 +15,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 
-#define PORT 7009
+#define PORT 7010
 #define MTU 1500
 
 int main()
