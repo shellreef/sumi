@@ -130,6 +130,10 @@ class Client:
 
     def handle_packet(self, data, addr):
         """Handle received packets."""
+        if len(data) < 6:
+            print "Short packet: ",len(data),"bytes from",addr
+            return
+
         prefix  = data[:3]
         (seqno, ) = struct.unpack("!L", "\0" + data[3:6])
  
@@ -462,8 +466,8 @@ class Client:
                     self.sendmsg(x, ("n%d," % self.rwinsz) + lost)
 
                 self.senders[x]["retries"] += 1
-                if (self.senders[x]["retries"] > 5):
-                    print x,"exceeded maximum retries (5), cancelling"
+                if (self.senders[x]["retries"] > 3):
+                    print x,"exceeded maximum retries (3), cancelling"
                     self.senders.pop(x)
                     self.callback(x, "timeout")
 

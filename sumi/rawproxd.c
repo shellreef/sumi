@@ -54,7 +54,7 @@ int main(int argc, char** argv)
 	socklen_t addr_len;
 	int on = 1;
 	char* pw;
-
+	struct in_addr local_addr;
 
 #ifdef _WIN32
 	WSADATA wsaData;
@@ -78,15 +78,42 @@ int main(int argc, char** argv)
 		exit(-2);
 	}
 
+
+	if (argc < 3)
+	{
+		printf("usage: %s <password> <localaddr>\n", argv[0]);
+		exit(-3);
+	}
+
+	memset(&local_addr, 0, sizeof(local_addr));
+	local_addr.s_addr = INADDR_ANY;
+
 	/* If password on command line, use it. */
 	if (argc >= 2) {
 		pw = argv[1];
 	} else {
 		pw = "";
 		printf("WARNING: Not using a password. Anyone can connect.\n");
-		printf("For better security, run %s <passoword\n", argv[0]);
+		printf("For better security, run %s <password>\n", argv[0]);
 	}
 
+	if (argc >= 3) {
+		if (inet_aton(argv[2], &local_addr) != 1) 
+		{
+			printf("Unparsable address: %s\n", argv[2]);
+			printf("Use a real address, for example 192.168.1.1\n");
+			exit(-8);
+		}
+		printf("Using local address: %s\n", 
+		       inet_ntoa(local_addr));
+	}
+
+	if (local_addr.s_addr == 0)
+	{
+		printf("WARNING: Not binding to a specific address!\n");
+		printf("You will be detected by outside portscans!\n");
+		printf("Fix this by specifying the internal interface address on the command line.\n");
+	}
 
 	srand(time(0));
  
@@ -106,7 +133,7 @@ int main(int argc, char** argv)
 	memset(&(server_addr), 0, sizeof(struct sockaddr));
 	server_addr.sin_family = AF_INET;
 	server_addr.sin_port = htons(PORT);
-	server_addr.sin_addr.s_addr = INADDR_ANY;
+	server_addr.sin_addr = local_addr;
 
 	if (bind(server, (struct sockaddr*)&server_addr, 
 	    sizeof(struct sockaddr)) != 0) 
@@ -154,6 +181,7 @@ int handle_client(int rs, int client, struct sockaddr_in client_addr,
 	char response[16];
 	md5_byte_t digest[16];
 	int i;
+	int on = 1;
 
 	if (client < 0)
 	{
@@ -226,8 +254,17 @@ int handle_client(int rs, int client, struct sockaddr_in client_addr,
 		/* Simple header--"RP" magic and packet length. */
 		recv(client, &magic, 2, MSG_WAITALL);
 		magic = ntohs(magic);
-		if (magic != 0x5250)
+		if (magic == 0x5242)          /* RB - raw set broadcast */
 		{
+			printf("Setting SO_BROADCAST...\n");
+			if (setsockopt(rs, SOL_SOCKET, SO_BROADCAST, &on,
+			               sizeof(on)) == -1) 
+			{
+				perror("setsockopt SO_BROADCAST failed");
+				exit(-3);
+			}
+			continue;
+		} else if (magic != 0x5250) {  /* RP - raw packet */
 			printf("invalid magic within stream: %.4x (not 0x5250)\n", magic);
 			return;
 		}

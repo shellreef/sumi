@@ -1,22 +1,11 @@
 TO DO  20040217JC
 
-$Id$
-
-* Realistically, the rawproxd model we are currently using will not work.
-  The program will close after one connection.  CPPSocket library has
-  implemented a TCPThreaded server.  It spawns a thread per connection and
-  is probably the end goal. 
-
+* Multicasting support
 * SOCKS proxy, to allow any TCP/UDP service to be used with SUMI
   (like tor - http://freehaven.net/tor/ - but without the onion routing)
 * Pause/Cancel transfers in sumiget
 * Two-way transport communication
 * sumiserv.py transport integration
-* FIX Resuming.When quitting, or crashes, or when each packet received, SAVE the
-  list of the missed packets before it, and the last packet received. From this
-  information, the gaps can be filled and the transfer complete for resuming.
-  XXX Currently, too many packets are missed, causing excess flood
-
 * Checksumming (each packet?) to verify integrity. CRC32, 16? MD5,SHA1 large.
   Just use UDP or ICMP checksums for each packet, and SHA-1 for overall.
 * Pre-auth encryption, so covert (optional) + data chan can be encrypted. This
@@ -25,15 +14,24 @@ $Id$
   the UDP stream cannot be associated with it easily.)
   pycrypto: http://www.amk.ca/python/code/crypto.html pycrypto.sf.net
    ezpycrypto, yawpycrypto.sf.net
-* DONE Fix file transfer progres; base it on packets /RECEIVED/, not last seqno
-* DONE Fix the xchat transport, somehow it crashes now? 
-* DONE Fix overlong transport messages, IRC xchat sends 452.
-* DONE Arbitrary ICMP packet data channel type, echo reply very promising 
 * Public key asymmetric crypto
 * One-time pad crypto
 * Secure the prefix? It reveals the streams, its not all random data.
 * For transfer to hosts without routers in between, Libpcap spoof MAC Ethernet
   address. Universities for example may have networks structured like this.
+
+* DONE Resuming.When quitting, or crashes, or when each packet received,SAVE the
+  list of the missed packets before it, and the last packet received. From this
+  information, the gaps can be filled and the transfer complete for resuming.
+* DONE Fix file transfer progres; base it on packets /RECEIVED/, not last seqno
+* DONE Fix the xchat transport, somehow it crashes now? 
+* DONE Fix overlong transport messages, IRC xchat sends 452.
+* DONE Arbitrary ICMP packet data channel type, echo reply very promising 
+* DONE Realistically, the rawproxd model we are currently using will not work.
+  The program will close after one connection.  CPPSocket library has
+  implemented a TCPThreaded server.  It spawns a thread per connection and
+  is probably the end goal.  -thebeta3
+  jc: Looping nonforking client in pure C implemented (rawproxd.c)
 
 * Multisourcing for faster transfers? Doesn't look too secure. Faster speeds
   are good, but for each source, the IP is revealed. Better to only d/l from
@@ -116,3 +114,5 @@ Another option is to have a middleman receive the file and give it to the user. 
 > I don't think thats such a good idea; too much bandwidth.
 
 I hope this transfer method helps optimize MUTE. There are still questions that need to be answered before this theory is proven feasible. I have posted this message with the hope that other users will help resolve these issues and see this technology to fruition. Even if this method is never incorporated into MUTE, I hope it will help give new ideas to other developers. Once again, congratulations on a fantastic network design."
+>
+

@@ -46,6 +46,7 @@ load_cfg()
 # Initial values below shouldn't need to be configured
 resend_queue = Queue.Queue(0)
 clients = { }
+casts = { }
 SUMIHDRSZ = 6 
 IPHDRSZ = 20 
 ICMPHDRSZ = 8
@@ -226,7 +227,7 @@ def recvmsg(nick, msg, no_decrypt=0):
             #if args.has_key("K"): passwd = base64.decodestring(args["K"])
             if args.has_key("O"): otpfile = args["O"]
             if args.has_key("@"): otpfile = args["@"]
-        except None:# KeyError:
+        except KeyError:
              print "not enough fields/missing fields"
              return sendmsg_error(nick, "not enough fields/missing fields")
 
@@ -466,6 +467,22 @@ def recvmsg(nick, msg, no_decrypt=0):
         print nick,"is fully verified!"
         clients[nick]["authenticated"] = 2    # fully authenticated, let xfer
 
+        # When multicasting, the same address is sent by multiple clients.
+        # Only send to mcast address once. TODO: full multicast support
+        # TODO: Clients in a multicast stream have to have the same prefix,
+        # the same dchantype, our bandwidth is the same as well, and same MSS
+        # (or at least compatible). TODO: Have the server (us) pick the prefix,
+        # and the client reject it (not ack the auth packet, but redo sumi send
+        # again) if the prefix conflicts. This way the server can assign 
+        # multiple clients the same prefix, and they all can get it!
+        if casts.has_key(clients[nick]["addr"]):
+            casts[clients[nick]["addr"]].push(nick)
+            print "Multicast detected:", clients[nick]["addr"],":",\
+                  casts[clients[nick]["addr"]]
+            return    # Already sending to
+        else:
+            casts[clients[nick]["addr"]] = [ nick ]
+
         # In a separate thread to allow multiple transfers
         #thread.start_new_thread(xfer_thread, (nick,))
         thread.start_new_thread(make_thread, (xfer_thread, nick,))
@@ -508,10 +525,10 @@ def xfer_thread(nick):
         ## If haven't received ack from user since RWINSZ*2, pause
         # ^ now we stop instead
         d = time.time() - clients[nick]["ack_ts"]
-        if (float(d) >= float(clients[nick]["rwinsz"] * 2)):
+        if (float(d) >= float(clients[nick]["rwinsz"] * 3)):
             #clients[nick]["xfer_lock"].acquire() 
             print "Since we haven't heard from %s in %f (> %d), stopping" %  \
-                (nick, int(d), float(clients[nick]["rwinsz"] * 2))
+                (nick, int(d), float(clients[nick]["rwinsz"] * 3))
             clients[nick]["xfer_stop"] = 1
 
         # If transfer lock is locked (pause), then wait until unpaused
@@ -530,7 +547,7 @@ def xfer_thread(nick):
         # occur if file size is an exact multiple of MSS.
         if (not clients[nick].has_key("seqno")):
             print "Client %s has no seqno" % nick
-            # TODO: Allow multiple transfers per server?
+            # TODO: Allow multiple transfers per server? No, queue instead.
             print "Most likely client is trying to get >1 files at once."
             sys.exit(42)
         print "#%d, len=%d" % (clients[nick]["seqno"], blocklen)
@@ -730,7 +747,7 @@ def setup_raw(argv):
 
     global raw_socket, raw_proxy
 
-    set_hdrincl = 1
+    set_options = 1
 
     if (os.environ.has_key("RAWSOCKFD")):   # Launched from 'launch'
         raw_socket = socket.fromfd(int(os.environ["RAWSOCKFD"]), socket.AF_INET, socket.IPPROTO_UDP)
@@ -779,7 +796,12 @@ def setup_raw(argv):
             print "Raw proxy refused our password!"
             print "Make sure your password is correctly set in sumiserv.cfg. For example, 'raw_proxy': '192.168.1.1:7010 xyzzy'."
             sys.exit(-7) 
-        set_hdrincl = 0
+        if cfg["broadcast"]:
+            print "Enabling broadcast support (via rawproxd)"
+            raw_proxy.send("RB")  #  raw-socket, set broadcast 
+
+        set_options = 0
+        
         # sendto_raw() will use raw_proxy to send now 
     else:    # have to be root, create socket
         if (dir(os).__contains__("geteuid")):
@@ -802,11 +824,19 @@ def setup_raw(argv):
             print "Running with uid: ", os.getuid()
 
     # Include header option if needed
-    if set_hdrincl:
+    if set_options:
         err = raw_socket.setsockopt(socket.IPPROTO_IP, socket.IP_HDRINCL, 1)
         if err:
-            print "setsockopt: ",err
+            print "setsockopt IP_HDRINCL: ",err
             sys.exit(-1)
+
+        if cfg["broadcast"]:
+            print "Enabling broadcast support"
+            err = raw_socket.setsockopt(socket.SOL_SOCKET, 
+                                        socket.SO_BROADCAST, 1)
+            if err:
+                print "setsockopt SO_BROADCAST: ",err
+                sys.exit(-1)
 
     #print "Binding to address:", cfg["bind_address"]
     # XXX: why IPPROTO_UDP? and why even bind? Seems to work without it.
@@ -1182,7 +1212,7 @@ def make_thread(f, arg):
        pass
     except:
        x = sys.exc_info()
-       print "Unhandled exception in ",f,": ",x[0]," line",x[2].tb_lineno
+       print "Unhandled exception in ",f,": ",x[0]," line",x[2].tb_lineno,x[1]
  
 def on_exit():
     global config_file, cfg
