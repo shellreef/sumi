@@ -2,7 +2,7 @@
 # Please note - ALL COMMENTS IN THIS FILE WILL BE DESTROYED
 {'bandwidth': 1500000,
  'colwidths': [69, 135, 90, 55, 73, 69, 76, 97, 71, 49],
- 'crypto': 's',
+ 'crypto': '',
  'data_chan_type': 'u',
  'dl_dir': '/home/jeff/p2p/sumi/incoming/',
  'irc_nick': 'sumiget',
