@@ -13,6 +13,8 @@ TO DO  20040217JC
     and the entries a hash where the keys are the nicknames (values=1)
   - need to do IGMP commands, join group etc. in sumiget for mcast
   - test with bcast
+* Fill in UDP checksum! Invalid UDP checksums should be tossed, act as if
+  never received them and they will be resent.
 * SOCKS proxy, to allow any TCP/UDP service to be used with SUMI
   (like tor - http://freehaven.net/tor/ - but without the onion routing)
 * Pause/Cancel transfers in sumiget
