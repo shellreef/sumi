@@ -268,8 +268,9 @@ def recvmsg(nick, msg, no_decrypt=0):
             return sendmsg_error(nick, "invalid IP address: %s" % ip)
 
         # TODO: make sure the filename/pack number is valid, and we have it
-        print"nick=%s,FILE=%s,OFFSET=%d,IP=%s:%d MSS=%d PREFIX=%s" % (
-              nick, file, offset, ip, port, mss, prefix.encode("hex"))
+        print"nick=%s,FILE=%s,OFFSET=%d,IP=%s:%d MSS=%d PREFIX=%02x%02x%02x" % (
+              nick, file, offset, ip, port, mss, ord(prefix[0]), \
+              ord(prefix[1]), ord(prefix[2]))
 
         # Build the authentication packet using the client-requested prefix
         key = "%s\0\0\0" % prefix       # 3-byte prefix, 3-byte seqno (0)
@@ -374,8 +375,10 @@ def recvmsg(nick, msg, no_decrypt=0):
             else:
                 casts[clients[nick]["addr"]][nick] = 1
 
-                print "    Using old prefix: %s" % \
-                    (clients[nick]["prefix"].encode("hex"))
+                print "    Using old prefix: %02x%02x%02x" % \
+                    (ord(clients[nick]["prefix"][0]), \
+                     ord(clients[nick]["prefix"][1]), \
+                     ord(clients[nick]["prefix"][2]))
                 mcast = 1
         else:
             # An array would do here, but a hash easily removes the possibility
@@ -416,7 +419,8 @@ def recvmsg(nick, msg, no_decrypt=0):
         print "Sending auth packet now."
         clients[nick]["send"](clients[nick]["asrc"], \
                               clients[nick]["dst_gen"](), key)
-        print " AUTH PREFIX=",key[0:3].encode("hex")
+        print " AUTH PREFIX=%02x%02x%02x" % (ord(key[0]), \
+            ord(key[1]), ord(key[2]))
         #send_packet(clients[nick]["asrc"], (ip, port), key)
  
     elif (msg.find("sumi auth ") == 0):
