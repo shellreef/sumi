@@ -1,0 +1,122 @@
+\input texinfo
+@settitle A Word About Strings   2003-08-02 JC
+@setfilename strings.info              
+@node Top, C strings, (dir), (dir)
+
+@copying
+This manual is for an explanation of C strings and it alternatives.
+
+Copyright @copyright{} 2004 Dan Weber
+
+Copyright @copyright{} 2003-2004 Jeff Connelly
+
+@quotation
+Permission is granted under the terms of the GNU GPL.
+@end quotation
+@end copying
+
+@menu
+* C strings::                   
+@end menu
+
+
+@node C strings,  , Top, Top
+@chapter Strings
+@section C strings
+
+@menu
+* Specifications::              
+* Disadvantages::               
+* Solutions::                   
+@end menu
+
+@node Specifications, Disadvantages, C strings, C strings
+@subsection Specifications
+In C, you have the char* data type, i.e., a pointer to a character. This is
+often used for strings. A C string is a contigious sequence of characters,
+terminated by a NUL character ('\0'). A char* variable points to the first
+character in the string. String manipulations thus know the beginning of the
+string, and can loop until a null character is encountered to find the end.
+
+@node Disadvantages, Solutions, Specifications, C strings
+@subsection Disadvantages
+The disadvantage of this approach, even though it allows strings of nearly
+unlimited size, is that nulls cannot exist within C strings. This is a serious
+problem when dealing with binary data, especially executables, as with many
+types of files, the null is often the most prevalent:
+
+@example
+$ perl -e'$/=\1; $freq[ord]++ while(<>); print join" ",@@freq' < /usr/X11R6/bin/Xfree86
+329635 51996 29456 17204 43940 9713 9327 6925 60727 6093 14167 4969 17274 5196 3578 28189 13721 3377 8929 2201 10731 3220 2090 1777 7558 2461 4676 5180 11425 1624 3085 7967 15545 1412 1573 1516 45526 3513 5203 3708 3857 3532 1236 1637 3455 1661 2578 1644 5901 2355 2650 1792 4151 1615 3644 1054 5484 4072 2318 4903 3594 2672 1066 1032 6394 6370 9539 14781 24410 26476 10416 6193 4826 3386 3324 2077 4592 7828 2502 2215 7551 1916 3554 8811 5406 15676 4246 3304 4613 1231 1215 3384 2978 11774 2806 4088 2795 11814 4174 8713 9087 26634 11171 3404 4370 13384 846 3688 10417 6254 12603 14554 7935 1220 13976 11434 31421 15998 5797 2495 7493 4404 1746 2407 3426 7517 2949 2003 5361 2648 2020 22915 4949 14284 1459 1328 9756 67359 817 56176 1676 20725 1001 885 13843 906 1164 956 1535 2529 1061 1488 2431 1376 1045 724 1628 1686 1267 963 2578 4510 1051 1544 1696 1030 956 703 1568 1034 780 906 1318 766 1046 1081 2762 730 821 686 3463 1080 12205 5220 6083 1921 2751 1987 4543 1911 3678 4357 9672 4074 3296 6814 3433 771 2930 19746 3195 1556 1309 950 2060 1065 736 909 5418 1478 2313 1217 1690 540 623 626 4160 2026 1014 2315 2868 3198 904 1254 6668 1263 1675 619 2479 4912 535 532 20128 4129 662 7598 9627 504 898 761 5924 1060 1307 1758 2504 719 3631 3335 6259 1395 2114 2252 5955 2157 3545 53089> 
+@end example
+
+As you can see, the \0 is by far the most common character, with 329,635 hits.
+
+Null-terminated C strings are unacceptable in many situations.
+@node Solutions,  , Disadvantages, C strings
+@subsection Solutions
+In ordinary C, arbitrary data can be passed around using a char* as well as
+a length variable. These must be kept together when dealing with binary data,
+which is not a lot of fun. Fortunately, C++ provides its own class for dealing
+with strings that is superior to C's.
+
+Its called "string", and you can get it by #include <string>. If your compiler
+is compliant, it'll be in the std namespace, so you can refer to it with
+std::string. (Actually, std::string isn't part of the STL; its part of some
+ANSI standard). For the most part, this class works transparently, not requiring
+any major changes or rethinking your application to use it.
+
+However, string literals are still null-terminated. Even when immediately
+casted to std::string:
+
+@code{std::cout << std::string("a\0b") << std::endl;}
+
+This will print "a". Very disappointing. But not all is lost. In fact, this
+problem is easy to overcome: specify the length:
+
+@code{std::cout << std::string("a\0b", 3) << std::endl;}
+Now string will know where to stop reading, and will include your null!
+
+std::string can be convenient for storing binary data, now. All you have to
+remember is that when dealing with binary data, you must include the length.
+Specifically, do not do this:
+
+@example
+char sz[3];
+sz[0] = 'a';
+sz[1] = '\0';   // assume this data came from somewhere
+sz[2] = 'b';    // such as a file or whatever
+
+
+std::string str;
+
+str = "here's your data: ";
+str += sz;
+
+std::cout << str << std::endl;
+@end example
+This is wrong, and it will print "here's your data: a". The problem is
+char[3] is being cast to string, and in doing so, string assumes the string is
+null-terminated. Fix it like this:
+
+str += std::string(sz, 3);
+
+Now it works as expected.
+
+Next, converting std::string's of binary data to char*s. This is easy:
+
+const char* sz = str.data();
+int len = str.length();
+
+str.length() will work correctly with binary data because std::string doesn't
+depend on the null. str.data() returns a const char* (so you can't change it)
+pointer to the internal buffer. This is similar to str.c_str(), but c_str()
+appends a null at the end. Make sure to use data() for arbitrary data.
+
+MFC's CString has a similar constructor:
+CString( LPCTSTR lpch, int nLength)
+
+This is a minor point, but I'm writing it because I was personally bitten
+a bug from mixing null-terminated strings and std::string's. Hope this helps.
+
+@bye
