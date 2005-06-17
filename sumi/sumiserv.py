@@ -33,6 +33,7 @@ from getifaces import get_default_ip, get_ifaces
 root = os.path.abspath(os.path.dirname(sys.argv[0])) + os.sep
 
 def load_cfg():
+    """Load configuration file."""
     global root, cfg, config_file
     config_file = root + "sumiserv.cfg"
 
@@ -54,11 +55,11 @@ UDPHDRSZ = 8
 raw_socket = 0
 raw_proxy = None
 
-# https://sourceforge.net/tracker/?func=detail&atid=105470&aid=860134&group_id=5
-470
+# https://sourceforge.net/tracker/?func=detail&atid=105470&aid=860134&group_id=5470
 # https://sf.net/tracker/?group_id=5470&atid=105470&func=detailed&aid=860134
 # PATCH: http://mail.python.org/pipermail/patches/2004-March/014218.html
 # audit trail: https://sourceforge.net/tracker/?func=detail&atid=305470&aid=908631&group_id=5470
+# -- Update 2004-09-18: seems to be fixed
 # After recompiling, copy the _socket.pyd to your C:\python23\DLLs directory
 # The old _socket.pyd should be 49KB, the new one 53KB
 
@@ -106,6 +107,7 @@ def set_src_allow(allow_cidr):
     print "Allowing: %s, mask=%.8x, allow=%.8x" % (allow_cidr, SRC_IP_MASK, SRC_IP_ALLOW)
 
 def recvmsg_secure(nick, msg):
+    """Receive an encrypted message."""
     if (clients[nick]["crypto"] == "s"):
         # TODO: Find out if we need to de-base64 it somehow more consistantly
         #print msg
@@ -540,7 +542,9 @@ def recvmsg(nick, msg, no_decrypt=0):
         #thread.start_new_thread(xfer_thread, (nick,))
         thread.start_new_thread(make_thread, (xfer_thread_loop, nick,))
         #make_thread(xfer_thread, nick)
-
+    elif (msg.find("sumi dir ") == 0):
+        # Directory list TODO
+        pass
     elif (msg.find("sumi done") == 0):
         # Possible thread concurrency issues here. Client can do sumi done at
         # any time, which will result in accessing nonexistant keys
@@ -557,6 +561,7 @@ def recvmsg(nick, msg, no_decrypt=0):
         destroy_client(nick)
 
 def xfer_thread_loop(nick):
+    """Transfer the file, possibly in a loop for multicast."""
     if 0 and clients[nick]["mcast"]: 
        i = 0
        while 1:
@@ -648,7 +653,7 @@ def destroy_client(nick):
         pass
 
 def transfer_control(nick, msg):
-    """Handle an in-transfer message"""
+    """Handle an in-transfer control message."""
     global resend_queue
     print "(authd)%s: %s" % (nick, msg)
     if (msg[0] == "k"):     # TFTP-style transfer, no longer supported here
@@ -700,7 +705,7 @@ def datapkt(nick, seqno):
         clients[nick] = []
         return sendmsg_error(nick, "file too large")
 
-    if (random.randint(0, 100) == 0):   # lose packet
+    if (random.randint(0, 100) == 0):   # lose packet (testing purposes)
         return 1466
 
     blocksz = clients[nick]["mss"] - SUMIHDRSZ
@@ -738,6 +743,7 @@ def datapkt(nick, seqno):
 
 # From http://mail.python.org/pipermail/python-list/2003-January/137366.html
 def in_cksum(str): 
+  """Calculate the Internet checksum of str."""
   sum=0
   countTo=(len(str)/2)*2
   count=0
@@ -782,6 +788,7 @@ def fixULPChecksum(packet):
 
 # Send data to raw socket, use this in place of sendto()
 def sendto_raw(s, data, dst):
+    """Send data to a (possibly proxied) raw socket."""
     global raw_proxy
     try:
         if raw_proxy == None:
@@ -975,7 +982,7 @@ def build_iphdr(totlen, src_ip, dst_ip, type):
     """Return an IP header with given parameters."""
     global cfg
 
-    # XXX: Major source of confusion. The IP length field has to be in
+    # A major source of confusion. The IP length field has to be in
     # host byte order for FreeBSD, network byte order for Linux.
     if (cfg["IP_TOTLEN_HOST_ORDER"]):
         totlen = socket.ntohs(totlen)
@@ -994,15 +1001,22 @@ def build_iphdr(totlen, src_ip, dst_ip, type):
         struct.unpack("!L", socket.inet_aton(dst_ip))[0], # Destination address
        );
 
-# def build_ethernet_hdr():
-# TODO: Build Ethernet header (for spoofing on the same network segment)
-# Routers replace the MAC with theirs when they route, but if there are no
-# routers between the source and destination, the identity will be revealed
-# in the source MAC address.
+def build_ethernet_hdr(dst_mac, src_mac, type_code):
+    # TODO: Build Ethernet header (for spoofing on the same network segment)
+    # Routers replace the MAC with theirs when they route, but if there are no
+    # routers between the source and destination, the identity will be revealed
+    # in the source MAC address.
+    # To send, might need to write a driver for Win32:
+    #   http://www.thecodeproject.com/csharp/SendRawPacket.asp
+    # Libnet on Unix?
+    # 6-byte addresses
+    return struct.pack("!Q", dst_mac)[2:] + \
+           struct.pack("!Q", src_mac)[2:] + \
+           struct.pack("!H", type_code)
 
 def send_packet_TCP(src, dst, payload):
     # TODO: TCP aggregates are efficient! So, offer an option to send
-    #       spoofed UDP packets, which form streams, so it looks real + valid.
+    #       spoofed TCP packets, which form streams, so it looks real + valid.
     #       UDP is often discarded more by routers, best of both worlds=TCP!
     #     However, receiving it would require pylibcap, and the extra TCP
     #     segments might confuse the OS TCP stack...
@@ -1018,6 +1032,7 @@ def send_packet_UDP_WINPCAP(src, dst, payload):
     # might be more secure, and spoofing data-link addresses may prove useful.
 
     # Pcapy: http://oss.coresecurity.com/projects/pcapy.html
+    #   (pcapy lacks pcap_sendpacket?)
 
     # If we do decide to implement this, note that the datalink headers
     # need to be included as well. Could perhaps spoof these to thwart
@@ -1025,7 +1040,38 @@ def send_packet_UDP_WINPCAP(src, dst, payload):
     
     # pcap_open_live()
     # pcap_send_packet()
-    pass
+    import pcapy
+    if not cfg.has_key("interface"):
+        print "The 'interface' configuration item is not set. "
+        select_if() 
+    p = pcapy.open_live(cfg["interface"], 1500, 1, 1)
+    # TODO: find actual MACs, don't spoof them (?), spoof UDP header
+    print p
+
+def send_packet_ETHER(src, dst, paload):
+    # TODO: Send raw Ethernet packets with spoofed source MAC address
+    # Several possible different layers of spoofing
+    # * Spoof Ethernet MAC address, send raw data following
+    #   - Useful if on local LAN segment and passes no routers
+    # * Spoof MAC + IP
+    #   - Useful if routers will pass spoofed source MACs, and the
+    #     destination lies beyond a router. Might become de-facto.
+    # * Spoof IP 
+    #   - No MAC spoofing, useful if routers drop faked MACs
+
+def select_if():
+    """List all network interfaces and tell user to choose one."""
+    import pcapy
+    #i = 0
+    print "Available network interfaces:"
+    for name in pcapy.findalldevs():
+        #i += 1
+        #print "%d. %s" % (i, name)
+        print name
+    print "Please set 'interface' to one of the values in sumiserv.cfg,"
+    print "then restart sumiserv."
+    # TODO: GUI to edit configuration file, within program
+    sys.exit(-2)
 
 # Send packet from given source.
 def send_packet_UDP_SOCKET(src, dst, payload):
