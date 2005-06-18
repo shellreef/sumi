@@ -560,6 +560,68 @@ def recvmsg(nick, msg, no_decrypt=0):
             print "Somehow lost filename"
         destroy_client(nick)
 
+# Load transport - similar to sumiget's load_transport
+def load_transport(transport, nick):
+    # Import the transport. This may fail, if, for example, there is
+    # no such transport module.
+    print sys.path
+    try:
+        sys.path.insert(0, os.path.dirname(sys.argv[0]))
+        t = __import__("transport.mod" + transport, None, None,
+                       ["transport_init", "sendmsg", "recvmsg"])
+    except ImportError:
+        # Anytime a transfer fails, or isn't in progress, should pop it
+        # So more transfers can come from the same users.
+        print "Loading transport failed: ", sys.exc_info()
+        clients.pop(nick)
+        # TODO: callback
+        #self.callback(nick, "t_fail", sys.exc_info())
+        return
+
+    import sumiget
+    # Export some useful functions to the transports
+    t.segment = sumiget.segment
+    t.cfg = cfg
+    t.capture = capture
+    t.get_tcp_data = get_tcp_data
+
+    clients[nick]["sendmsg"] = t.sendmsg
+    clients[nick]["recvmsg"] = t.recvmsg
+    clients[nick]["transport_init"] = t.transport_init
+
+# Generic function to capture packets (using pcapy), available to transports.
+# Useful to receive incoming messages without proxying.
+# Never returns.
+def capture(decoder, callback):
+    import pcapy
+    print "Receiving messages on ", cfg["interface"]
+    try:
+        p = pcapy.open_live(cfg["interface"], 1500, 0, 0)
+    except pcapy.PcapError:
+        import sys
+        print "pcapy error: ", sys.exc_info()
+        select_if()
+    while 1:
+        pkt = p.next()
+        pkt_data = pkt[1]
+        (user, msg) = decoder(pkt_data)
+        #(sn, msg) = decode_aim(get_tcp_data(pkt_data))
+        if user:
+            #print "<%s> %s" % (sn, msg)
+            callback(user, msg)
+
+# Returns the TCP data off an Ethernet frame, or None
+def get_tcp_data(pkt_data):
+    try:
+        # TODO: Other transport types besides Ethernet
+        eth_hdr = pkt_data[0:14]     # Dst MAC, src MAC, ethertype
+        ip_hdr = pkt_data[14:14+20]  # 20-byte IPv4 header (no opts)
+        tcp_hdr = pkt_data[14+20:14+20+20]  # 20-byte TCP header
+        tcp_data = pkt_data[14+20+20:]
+    except:
+        return None
+    return tcp_data
+
 def xfer_thread_loop(nick):
     """Transfer the file, possibly in a loop for multicast."""
     if 0 and clients[nick]["mcast"]: 
@@ -1001,7 +1063,7 @@ def build_iphdr(totlen, src_ip, dst_ip, type):
         struct.unpack("!L", socket.inet_aton(dst_ip))[0], # Destination address
        );
 
-def build_ethernet_hdr(dst_mac, src_mac, type_code):
+def build_ethernet_hdr(src_mac, dst_mac, type_code):
     # TODO: Build Ethernet header (for spoofing on the same network segment)
     # Routers replace the MAC with theirs when they route, but if there are no
     # routers between the source and destination, the identity will be revealed
@@ -1045,8 +1107,17 @@ def send_packet_UDP_WINPCAP(src, dst, payload):
         print "The 'interface' configuration item is not set. "
         select_if() 
     p = pcapy.open_live(cfg["interface"], 1500, 1, 1)
-    # TODO: find actual MACs, don't spoof them (?), spoof UDP header
     print p
+    # TODO: find correct dst_mac, optionally spoof src_map, spoof UDP header
+    # ARP cache? arp -a, of default gateway?
+    ethertype = 0x0800   # IPv4
+    pkt = build_ethernet_hdr(dst_mac, src_mac, ethertype)
+
+    if not hasattr(p, "sendpacket"):
+        print "pcapy is missing sendpacket - please use modified pcapy.pyd"
+        print "included with SUMI distribution."
+        sys.exit(-3)
+    p.sendpacket(pkt)
 
 def send_packet_ETHER(src, dst, paload):
     # TODO: Send raw Ethernet packets with spoofed source MAC address
@@ -1058,6 +1129,7 @@ def send_packet_ETHER(src, dst, paload):
     #     destination lies beyond a router. Might become de-facto.
     # * Spoof IP 
     #   - No MAC spoofing, useful if routers drop faked MACs
+    pass
 
 def select_if():
     """List all network interfaces and tell user to choose one."""

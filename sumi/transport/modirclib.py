@@ -64,3 +64,5 @@ def transport_init():
     irc_lock.acquire()
     thread.start_new_thread(irc_thread, ())
 
+def recvmsg(callback):
+    capture(decoder, callback)
