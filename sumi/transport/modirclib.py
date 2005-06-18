@@ -4,6 +4,7 @@
 
 # SUMI IRC transport program, based on stream/sumi-irc.py
 
+
 # This uses irclib (python-irclib.sourceforge.net) to establish
 # its own connection to an IRC server. Such a connection is often
 # undesirable to server administrators as it could be used for
@@ -16,44 +17,133 @@ import thread
 import sys
 
 irc_lock = thread.allocate_lock()
-server = None
-irc_nick = "sumiget"
-(irc_chan, irc_chankey) = ("#sumi", "anon")
-irc_server, irc_port = "irc2.liquidirc.net", 6667
-
-def on_msg(c, e):
-    nick, msg = irclib.nm_to_n(e.source()), e.arguments()[0]
-    print "MSG:%s:%s" % (nick, msg)  
 
 def on_nickinuse(c, e):
+    print "Nickname in use"
     c.nick(e.arguments()[0] + "_")
+    old_nick = e.arguments()[0]
+    #new_nick = old_nick + "_"
+    new_nick = old_nick[:-1] + chr(ord(old_nick[:1]) + 1)
+    print "%s nick in use, using %s" % (old_nick, new_nick)
+    cfg["irc_nick"] = new_nick
+    c.nick(new_nick)
+
+def on_notregistered(c, e):
+    print "We have not registered."
 
 def on_welcome(c, e):
-    c.mode(irc_nick, "+ix")
-    print "Joining %s..." % (irc_chan,),
-    c.join(irc_chan, irc_chankey)
-    irc_lock.release()
-    print "OK"
+    print "We're logged in"
+    c.mode(cfg["irc_nick"], "+ix")
 
-def irc_thread():
+    for chan in cfg["irc_chans"]:
+        key = cfg["irc_chans"][chan]
+        print "Joining channel %s..." % (chan,),
+        print c.join(chan, key)
+    irc_lock.release()
+
+def on_umodeis(c, e):
+    modes = e.arguments()
+    print "User modes: ", modes
+    
+def on_cantjoin(c, e):
+    (chan, errmsg) = e.arguments()
+    print "Can't join %s: %s" % (chan, errmsg)
+
+def on_quit(c, e):
+    nick, msg = irclib.nm_to_n(e.source()), e.arguments()[0]
+    print "User quit: <%s>%s" % (nick, msg)
+    import sumiserv
+    clients = sumiserv.clients
+    if (clients.has_key(nick)):
+        clients[nick]["xfer_stop"] = 1     # Terminate transfer thread
+
+def irc_thread(callback):
     global server
     irc = irclib.IRC()
+
+    def on_msg(c, e):
+        try:
+            callback(irclib.nm_to_n(e.source()), e.arguments()[0])
+        except None:   
+            # remove None in production use to not crash on exceptions
+            print "Unhandled exception caused by %s: " %  \
+                irclib.nm_to_n(e.source()), sys.exc_info()
+        #nick, msg = irclib.nm_to_n(e.source()), e.arguments()[0]
+        #print "MSG:%s:%s" % (nick, msg)  
+
     irc.add_global_handler("privmsg", on_msg)
     irc.add_global_handler("nicknameinuse", on_nickinuse)
+    irc.add_global_handler("notregistered", on_notregistered)
     irc.add_global_handler("welcome", on_welcome)
+    irc.add_global_handler("umodeis", on_umodeis)
+    irc.add_global_handler("umode", on_umodeis)
+    irc.add_global_handler("channelisfull", on_cantjoin)
+    irc.add_global_handler("inviteonlychan", on_cantjoin)
+    irc.add_global_handler("badchannelkey", on_cantjoin)
+    irc.add_global_handler("quit", on_quit)
+    server = irc.server()
+    print "Connecting to IRC server %s:%s as %s..." % (cfg["irc_server"], 
+        cfg["irc_port"], 
+        cfg["irc_nick"]),
     try:
-        server = irc.server()
-        print "Connecting to IRC server...",
-        server.connect(irc_server, irc_port, irc_nick)
+        server.connect(cfg["irc_server"], cfg["irc_port"], cfg["irc_nick"])
     except irclib.ServerConnectionError, e:
-        print "Error connecting to",irc_server,"port",irc_port
+        print "Error connecting to",cfg["irc_server"],"port",cfg["irc_port"]
         print e, dir(e)
         sys.exit(1)
     print "OK."
-    irc.process_forever() 
+    irc_lock.acquire()   #  will be released when channels are joined
+    #thread.start_new_thread(thread_notify, (None))
+    #import sumiserv
+    #thread.start_new_thread(sumiserv.make_thread, (thread_notify, None))
+    try:
+        print "irc.process_forever()"
+        irc.process_forever()
+    except KeyboardInterrupt, SystemExit:
+        sumiserv.on_exit()
+
+# List files to channels
+def thread_notify(ignored):
+    """List all files to joined channels."""
+    global server, cfg
+    #join_lock.acquire()
+    if (cfg["sleep_interval"] == 0):     # 0=no public listings
+        return
+
+    while 1:
+        chans = cfg["irc_chans"].keys()
+        # we're a lot like iroffer.org xdcc, so it makes sense to look similar
+        # and it may allow irc spiders to find us
+        to_all(chans, "** %d packs ** all slots open, Record: N/A" % \
+               len(cfg["filedb"]))
+        to_all(chans, "** Bandwidth Usage ** Current: N/A, Record: N/A")
+        to_all(chans, '** To request a file type: "/sumi get %s #x"' % \
+               cfg["irc_nick"])
+        total_offered = 0
+        total_xferred = 0
+        for n in range(len(cfg["filedb"])):
+            to_all(chans, "#%d %3dx [%4s] %s" % (n + 1, 
+                   cfg["filedb"][n]["gets"], \
+                   cfg["filedb"][n]["hsize"], cfg["filedb"][n]["desc"]))
+            total_offered += cfg["filedb"][n]["size"]
+            total_xferred += cfg["filedb"][n]["size"] * cfg["filedb"][n]["gets"]
+        to_all(chans, "** Offered by SUMI")
+        to_all(chans, "Total Offered: %4s  Total Transferred: %4s  Bandwidth Cap: %4s" % \
+            (human_readable_size(total_offered), 
+            human_readable_size(total_xferred),
+            "%d bps" % cfg["our_bandwidth"]))
+
+        time.sleep(cfg["sleep_interval"])
 
 def sendmsg(nick, msg):
     segment(nick, msg, 550, sendmsg_1)
+
+def to_all(chans, msg):
+    """Send a message to all channels."""
+    irc_lock.acquire()
+    for chan in chans:
+        server.privmsg(chan, msg)
+    irc_lock.release()
 
 def sendmsg_1(nick, msg):
     irc_lock.acquire()   # wait until server connects if not connected
@@ -61,8 +151,9 @@ def sendmsg_1(nick, msg):
     irc_lock.release()
 
 def transport_init():
-    irc_lock.acquire()
-    thread.start_new_thread(irc_thread, ())
+    #irc_lock.acquire()   # will be released when channels are joined
+    #thread.start_new_thread(irc_thread, ())
+    pass
 
 def recvmsg(callback):
-    capture(decoder, callback)
+    irc_thread(callback)

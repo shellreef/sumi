@@ -14,7 +14,7 @@ import thread
 import irclib
 # So many IRC libraries for Python...
 # Get this one: http://python-irclib.sourceforge.net/
-from irclib import nm_to_n
+#from irclib import nm_to_n
 import base64
 import random
 import socket
@@ -560,8 +560,10 @@ def recvmsg(nick, msg, no_decrypt=0):
             print "Somehow lost filename"
         destroy_client(nick)
 
-# Load transport - similar to sumiget's load_transport
-def load_transport(transport, nick):
+# Load transport - similar to sumiget's load_transport. The transport
+# is used for ALL transfers, not on a per-user basis as with sumiget.
+def load_transport(transport):
+    global sendmsg
     # Import the transport. This may fail, if, for example, there is
     # no such transport module.
     print sys.path
@@ -570,13 +572,9 @@ def load_transport(transport, nick):
         t = __import__("transport.mod" + transport, None, None,
                        ["transport_init", "sendmsg", "recvmsg"])
     except ImportError:
-        # Anytime a transfer fails, or isn't in progress, should pop it
-        # So more transfers can come from the same users.
-        print "Loading transport failed: ", sys.exc_info()
-        clients.pop(nick)
-        # TODO: callback
-        #self.callback(nick, "t_fail", sys.exc_info())
-        return
+        print "Loading transport " + transport + "failed: ", sys.exc_info()
+        print "Please specify 'transport' in sumiserv.cfg"
+        sys.exit(-4)
 
     import sumiget
     # Export some useful functions to the transports
@@ -585,9 +583,12 @@ def load_transport(transport, nick):
     t.capture = capture
     t.get_tcp_data = get_tcp_data
 
-    clients[nick]["sendmsg"] = t.sendmsg
-    clients[nick]["recvmsg"] = t.recvmsg
-    clients[nick]["transport_init"] = t.transport_init
+    #clients[nick]["sendmsg"] = t.sendmsg
+    #clients[nick]["recvmsg"] = t.recvmsg
+    #clients[nick]["transport_init"] = t.transport_init
+    t.transport_init()
+    sendmsg = t.sendmsg
+    t.recvmsg(recvmsg)
 
 # Generic function to capture packets (using pcapy), available to transports.
 # Useful to receive incoming messages without proxying.
@@ -596,7 +597,7 @@ def capture(decoder, callback):
     import pcapy
     print "Receiving messages on ", cfg["interface"]
     try:
-        p = pcapy.open_live(cfg["interface"], 1500, 0, 0)
+        p = pcapy.open_live(cfg["interface"], 1500, 1, 0)
     except pcapy.PcapError:
         import sys
         print "pcapy error: ", sys.exc_info()
@@ -794,7 +795,7 @@ def datapkt(nick, seqno):
         print "fatal: trying to send packet >MSS"
         sys.exit(4)
 
-    src = randip()
+    #src = randip()
     clients[nick]["send"](clients[nick]["src_gen"](), \
                           clients[nick]["dst_gen"](), pkt)
     #send_packet(src, clients[nick]["addr"], pkt, clients[nick]["dchanmode"])
@@ -1217,111 +1218,12 @@ def rand_pingable_host():
          "216.239.39.249", "216.239.39.252", "64.56.182.1", "64.56.182.6",
          "64.56.182.51", "64.56.182.52") 
     return (l[random.randint(0, len(l) - 1)], 0)
- 
-def on_msg(c, e):
-    try:
-        recvmsg(nm_to_n(e.source()), e.arguments()[0])
-    except None:   # remove None in production use to not crash on exceptions
-        print "Unhandled exception caused by %s: " % nm_to_n(e.source()), sys.exc_info()
-
-def on_nickinuse(c, e):
-    global cfg
-    old_nick = e.arguments()[0]
-    #new_nick = old_nick + "_"
-    new_nick = old_nick[:-1] + chr(ord(old_nick[:1]) + 1)
-    print "%s nick in use, using %s" % (old_nick, new_nick)
-    cfg["irc_nick"] = new_nick
-    c.nick(new_nick)
-
-def on_notregistered(c, e):
-    print "We have not registered."
-
-def on_welcome(c, e):
-    global cfg
-
-    print "We're logged in"
-    c.mode(cfg["irc_nick"], "+ix")
-
-    for chan in cfg["irc_chans"]:
-        key = cfg["irc_chans"][chan]
-        print "Joining channel %s..." % (chan,),
-        print c.join(chan, key)
-    join_lock.release()
- 
-def on_umodeis(c, e):
-    modes = e.arguments()
-    print "User modes: ", modes
- 
-def on_cantjoin(c, e):
-    (chan, errmsg) = e.arguments()
-    print "Can't join %s: %s" % (chan, errmsg)
-
-def on_quit(c, e):
-    nick, msg = nm_to_n(e.source()), e.arguments()[0]
-    print "User quit: <%s>%s" % (nick, msg)
-    if (clients.has_key(nick)):
-        clients[nick]["xfer_stop"] = 1     # Terminate transfer thread
 
 def sendmsg_error(nick, msg):
     """Report an error message, if not in stealth mode."""
     if (not cfg["stealth_mode"]):
         sendmsg(nick, "error: %s" % msg)
     print "%s -> error: %s" % (nick, msg)
-
-def sendmsg(nick, msg):
-    """Send a message over IRC."""
-    global server
-    print nick,"->",msg
-    #server.notice(nick, msg) 
-    server.privmsg(nick, msg)
-
-def to_all(chans, msg):
-    """Send a message to all channels."""
-    for chan in chans:
-        server.privmsg(chan, msg)
-
-# List files to channels
-def thread_notify(ignored):
-    """List all files to joined channels."""
-    global server, cfg
-    join_lock.acquire()
-    if (cfg["sleep_interval"] == 0):     # 0=no public listings
-        return
-
-    while 1:
-
-        chans = cfg["irc_chans"].keys()
-        # we're a lot like iroffer.org xdcc, so it makes sense to look similar
-        # and it may allow irc spoders to find us
-        to_all(chans, "** %d packs ** all slots open, Record: N/A" % \
-               len(cfg["filedb"]))
-        to_all(chans, "** Bandwidth Usage ** Current: N/A, Record: N/A")
-        to_all(chans, '** To request a file type: "/sumi get %s #x"' % \
-               cfg["irc_nick"])
-        total_offered = 0
-        total_xferred = 0
-        for n in range(len(cfg["filedb"])):
-            to_all(chans, "#%d %3dx [%4s] %s" % (n + 1, 
-                   cfg["filedb"][n]["gets"], \
-                   cfg["filedb"][n]["hsize"], cfg["filedb"][n]["desc"]))
-            total_offered += cfg["filedb"][n]["size"]
-            total_xferred += cfg["filedb"][n]["size"] * cfg["filedb"][n]["gets"]
-        to_all(chans, "** Offered by SUMI")
-        to_all(chans, "Total Offered: %4s  Total Transferred: %4s  Bandwidth Cap: %4s" % \
-            (human_readable_size(total_offered), 
-            human_readable_size(total_xferred),
-            "%d bps" % cfg["our_bandwidth"]))
-
-        time.sleep(cfg["sleep_interval"])
-
-_abbrevs = [
-    (1 << 50L, "P"),
-    (1 << 40L, "T"),
-    (1 << 30L, "G"),
-    (1 << 20L, "M"),
-    (1 << 10L, "k"),
-    (1, "")
-    ]
 
 def human_readable_size(size):
     """Convert a byte count to a human-readable size. From
@@ -1353,13 +1255,20 @@ def setup_config():
         offer["size"] = size
         offer["hsize"] = human_readable_size(size)   
 
+_abbrevs = [
+    (1 << 50L, "P"),
+    (1 << 40L, "T"),
+    (1 << 30L, "G"),
+    (1 << 20L, "M"),
+    (1 << 10L, "k"),
+    (1, "")
+    ]
+
 def sigusr2(a, b):
     print "Re-reading config file"
     load_cfg() 
  
 def main(argv):
-    global server, irc_server, irc_port, cfg, join_lock
-
     import signal
     if hasattr(signal, "SIGUSR2"):
         signal.signal(signal.SIGUSR2, sigusr2)
@@ -1371,50 +1280,24 @@ def main(argv):
 
     set_src_allow(cfg["src_allow"])
 
-    join_lock = thread.allocate_lock()
-    irc = irclib.IRC()
-    irc.add_global_handler("privmsg", on_msg)
-    irc.add_global_handler("nicknameinuse", on_nickinuse)
-    irc.add_global_handler("notregistered", on_notregistered)
-    irc.add_global_handler("welcome", on_welcome)
-    irc.add_global_handler("umodeis", on_umodeis)
-    irc.add_global_handler("umode", on_umodeis)
-    irc.add_global_handler("channelisfull", on_cantjoin)
-    irc.add_global_handler("inviteonlychan", on_cantjoin)
-    irc.add_global_handler("badchannelkey", on_cantjoin)
-    irc.add_global_handler("quit", on_quit)
-    server = irc.server()
-    print "Connecting to IRC server %s:%s as %s..." % (cfg["irc_server"], 
-        cfg["irc_port"], 
-        cfg["irc_nick"]),
-    try:
-        server.connect(cfg["irc_server"], cfg["irc_port"], cfg["irc_nick"])
-    except:
-        print "couldn't connect to server"
-        sys.exit(4)
-    print "OK."
-    join_lock.acquire()   #  will be released when channels are joined
-    #thread.start_new_thread(thread_notify, (None))
-    thread.start_new_thread(make_thread, (thread_notify, None))
-    try:
-        irc.process_forever()
-    except KeyboardInterrupt, SystemExit:
-        on_exit()
-    #while(1):
-    #    irc.process_once()
+    if not cfg.has_key("transport"):
+        print "Please specify 'transport'"
+        sys.exit(-5)
+    load_transport(cfg["transport"])
 
 def make_thread(f, arg):
     try:
-       f(arg)
+        f(arg)
     except KeyboardInterrupt, SystemExit:
-       on_exit()
+        on_exit()
     except KeyError:
-       # Client finished while we were trying to help it, oh well
-       print "Lost client"
-       pass
+        # Client finished while we were trying to help it, oh well
+        print "Lost client"
+        pass
     except:
-       x = sys.exc_info()
-       print "Unhandled exception in ",f,": ",x[0]," line",x[2].tb_lineno,x[1]
+        import sys
+        x = sys.exc_info()
+        print "Unhandled exception in ",f,": ",x[0]," line",x[2].tb_lineno,x[1]
  
 def on_exit():
     global config_file, cfg
