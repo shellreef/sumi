@@ -830,30 +830,6 @@ def in_cksum(str):
   if answer==0: return 0xffff
   return answer
 
-# Return IP headers with correct IP checksum. Do not pass payload.
-# this function was also taken from comp.lang.python, some modifications
-# subject: "ping multiple IPs with python", from Andrew McGregor
-# XXX XXX XXX This function seems to not be working correctly. TODO: Fix.
-def fixULPChecksum_BROKEN(packet):
-    # evil assumptions: no IP options, IPv4
-    pseudopkt = ''.join([packet[:IPHDRSZ][-8:],
-                         '\x00',
-                         packet[:IPHDRSZ][-11],
-                         struct.pack('!H', len(packet) - IPHDRSZ),
-                         packet[IPHDRSZ:IPHDRSZ+16],
-                         '\x00\x00',
-                         packet[IPHDRSZ+18:]]
-                        + [x for x in ['\x00'] if len(packet) & 1])
-    csum = reduce(operator.add,
-                  struct.unpack('!%dH' % (len(pseudopkt)>>1),
-                      pseudopkt))
-    csum = (csum>>16) + (csum&0xffff)
-    csum += (csum>>16)
-    csum = (csum&0xffff)^0xffff
-    return ''.join([packet[:IPHDRSZ+16],
-                    struct.pack('!H', csum),
-                    packet[IPHDRSZ+18:]])
-
 # Send data to raw socket, use this in place of sendto()
 def sendto_raw(s, data, dst):
     """Send data to a (possibly proxied) raw socket."""
@@ -1069,8 +1045,13 @@ def build_udphdr(src, dst, payload):
     hdr += payload  #  Checksum data as well
     # Fill in UDP checksum. This is actually optional (it can be 0), but
     # highly recommended. SUMI has no other way to ensure no corruption.
-    hdr = hdr[:6] + struct.pack("<H", 
-            in_cksum(pseudo + hdr[0:])-0x100*len(payload)) + hdr[8:]
+    cksum = int(in_cksum(pseudo + hdr))
+    if cfg["IP_TOTLEN_HOST_ORDER"] == 0:
+        # XXX TODO Find how checksum is being incorrectly computed on BSD
+        cksum = 0
+    else:
+        cksum -= 0x100*len(payload)
+    hdr = hdr[:6] + struct.pack("<H",  cksum) + hdr[8:]
     return hdr   # hdr + payload
 
     return hdr
