@@ -17,6 +17,7 @@ import thread
 import sys
 
 irc_lock = thread.allocate_lock()
+server = None
 
 def on_nickinuse(c, e):
     print "Nickname in use"
@@ -57,6 +58,9 @@ def on_quit(c, e):
     if (clients.has_key(nick)):
         clients[nick]["xfer_stop"] = 1     # Terminate transfer thread
 
+def generic_callback(user, msg):
+    print "<%s> %s" % (user, msg)
+
 def irc_thread(callback):
     global server
     irc = irclib.IRC()
@@ -92,18 +96,18 @@ def irc_thread(callback):
         print e, dir(e)
         sys.exit(1)
     print "OK."
-    irc_lock.acquire()   #  will be released when channels are joined
-    #thread.start_new_thread(thread_notify, (None))
+    if callback != generic_callback:
+        thread.start_new_thread(thread_notify, ())
     #import sumiserv
     #thread.start_new_thread(sumiserv.make_thread, (thread_notify, None))
     try:
         print "irc.process_forever()"
         irc.process_forever()
     except KeyboardInterrupt, SystemExit:
-        sumiserv.on_exit()
+        callback(None, "on_exit")
 
 # List files to channels
-def thread_notify(ignored):
+def thread_notify():
     """List all files to joined channels."""
     global server, cfg
     #join_lock.acquire()
@@ -133,9 +137,16 @@ def thread_notify(ignored):
             human_readable_size(total_xferred),
             "%d bps" % cfg["our_bandwidth"]))
 
+        import time
         time.sleep(cfg["sleep_interval"])
 
 def sendmsg(nick, msg):
+    if not server:
+        thread.start_new_thread(irc_thread, (generic_callback,))
+        print "Waiting to join channels..."
+        irc_lock.acquire()    # wait until channels joined
+        print "Acquired lock"
+        irc_lock.release()
     segment(nick, msg, 550, sendmsg_1)
 
 def to_all(chans, msg):
@@ -151,9 +162,10 @@ def sendmsg_1(nick, msg):
     irc_lock.release()
 
 def transport_init():
-    #irc_lock.acquire()   # will be released when channels are joined
+    irc_lock.acquire()   # will be released when channels are joined
     #thread.start_new_thread(irc_thread, ())
     pass
 
 def recvmsg(callback):
     irc_thread(callback)
+

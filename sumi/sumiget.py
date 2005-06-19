@@ -937,6 +937,7 @@ class Client:
             return
 
         t.segment = segment
+        t.cfg = self.config
 
         self.senders[nick]["sendmsg"] = t.sendmsg
         #sendmsg = t.sendmsg

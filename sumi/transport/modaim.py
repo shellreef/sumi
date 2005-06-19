@@ -154,10 +154,17 @@ def sendmsg_1(nick, msg):
 def recvmsg(callback):
     def decoder(pkt_data):
         return decode_aim(get_tcp_data(pkt_data))
+    # Capture only incoming OSCAR IM's. Exclude packets with options
+    # because tcp[20:2] and tcp[26:4] won't refer to the payload if there
+    # are options. Filter it here instead of in Python for efficiency.
+    filter = ("tcp and (tcp[12] & 0xf0) <= 0x50 " +   # TCP & no options
+             "and tcp[20:2] = 0x2a02 " +    # OSCAR magic & channel 2
+             "and tcp[26:4] = 0x00040007") # Family 4,subtype 7=incoming IM
     # pcapy capture - never returns
-    capture(decoder, callback)
+    capture(decoder, filter, callback)
 
 # Decode an AIM packet, from Ethernet to OSCAR
+# TODO: Use dpkt http://monkey.org/~dugsong/dpkt/pydoc/index.html
 def decode_aim(oscar_data):
     if len(oscar_data) < 1+1+2+2 or oscar_data[0] != chr(0x2a):  # OSCAR magic
         return (None, "Not OSCAR")

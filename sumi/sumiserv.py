@@ -3,18 +3,11 @@
 # By Jeff Connelly
 
 # SUMI server
-# Communicates with client via IRC, sends data via UDP
-
-# TODO: This needs to be generalized to use transports like sumiget.
-# However, transports must be made 2-way and more informative before this
-# happens.
+# Now uses transports/ to communicate with client, and can
+# send data using UDP, ICMP, or raw Ethernet
 
 import string
 import thread
-import irclib
-# So many IRC libraries for Python...
-# Get this one: http://python-irclib.sourceforge.net/
-#from irclib import nm_to_n
 import base64
 import random
 import socket
@@ -138,6 +131,9 @@ def recvmsg_secure(nick, msg):
 
 def recvmsg(nick, msg, no_decrypt=0):
     """Handle an incoming message."""
+    if nick == None and msg == "on_exit":
+        on_exit()
+
     print "<%s>%s" % (nick, msg) 
 
     if not clients.has_key(nick):
@@ -299,6 +295,7 @@ def recvmsg(nick, msg, no_decrypt=0):
         if (dchantype == "u"):
             # The normal, spoofed UDP transfer
             clients[nick]["send"] = send_packet_UDP_SOCKET
+            #clients[nick]["send"] = send_packet_UDP_WINPCAP # XXX NEW
             clients[nick]["src_gen"] = randip
             clients[nick]["dst_gen"] = lambda : clients[nick]["addr"]
         elif (dchantype == "e"):
@@ -582,6 +579,7 @@ def load_transport(transport):
     t.cfg = cfg
     t.capture = capture
     t.get_tcp_data = get_tcp_data
+    t.human_readable_size = human_readable_size
 
     #clients[nick]["sendmsg"] = t.sendmsg
     #clients[nick]["recvmsg"] = t.recvmsg
@@ -593,7 +591,7 @@ def load_transport(transport):
 # Generic function to capture packets (using pcapy), available to transports.
 # Useful to receive incoming messages without proxying.
 # Never returns.
-def capture(decoder, callback):
+def capture(decoder, filter, callback):
     import pcapy
     print "Receiving messages on ", cfg["interface"]
     try:
@@ -602,6 +600,8 @@ def capture(decoder, callback):
         import sys
         print "pcapy error: ", sys.exc_info()
         select_if()
+    if filter:
+        p.setfilter(filter)
     while 1:
         pkt = p.next()
         pkt_data = pkt[1]
@@ -804,9 +804,10 @@ def datapkt(nick, seqno):
 
     return len(block)
 
-# From http://mail.python.org/pipermail/python-list/2003-January/137366.html
+# From http://mail.python.org/pipermail/python-list/2003-January/137366.html.
 def in_cksum(str): 
-  """Calculate the Internet checksum of str."""
+  """Calculate the Internet checksum of str. (Note, when packing for
+     a packet, use the <H format specifier.)"""
   sum=0
   countTo=(len(str)/2)*2
   count=0
@@ -824,12 +825,16 @@ def in_cksum(str):
   sum=sum+(sum >> 16)
   answer=~sum
   answer=answer & 0xffff
-
+  # 0x0000 and 0xffff are equivalent in 1's complement arithmetic,
+  # but the latter must be used for UDP checksums as 0 indicates no checksum.
+  if answer==0: return 0xffff
   return answer
 
+# Return IP headers with correct IP checksum. Do not pass payload.
 # this function was also taken from comp.lang.python, some modifications
 # subject: "ping multiple IPs with python", from Andrew McGregor
-def fixULPChecksum(packet):
+# XXX XXX XXX This function seems to not be working correctly. TODO: Fix.
+def fixULPChecksum_BROKEN(packet):
     # evil assumptions: no IP options, IPv4
     pseudopkt = ''.join([packet[:IPHDRSZ][-8:],
                          '\x00',
@@ -841,7 +846,7 @@ def fixULPChecksum(packet):
                         + [x for x in ['\x00'] if len(packet) & 1])
     csum = reduce(operator.add,
                   struct.unpack('!%dH' % (len(pseudopkt)>>1),
-                         pseudopkt))
+                      pseudopkt))
     csum = (csum>>16) + (csum&0xffff)
     csum += (csum>>16)
     csum = (csum&0xffff)^0xffff
@@ -1031,9 +1036,9 @@ def send_packet_ICMP(src, dst, payload, type, code):
     # (Verified with Ethereal on laptop). 
 
     checksum = in_cksum(icmphdr + payload)
-    # Checksum is in host order
+    # Checksum is little-endian
     icmphdr = struct.pack("!BB", type, code) +  \
-              struct.pack("H", checksum) + \
+              struct.pack("<H", checksum) + \
               struct.pack("!HH", 0, 0)
 
     packet += icmphdr
@@ -1041,16 +1046,46 @@ def send_packet_ICMP(src, dst, payload, type, code):
     #raw_socket.sendto(packet, dst) 
     sendto_raw(raw_socket, packet, dst)
 
+def build_udphdr(src, dst, payload):
+    """Build a UDP header followed by the payload, given the source and
+    destination as (IP, port) tuples. The UDP checksum will be calculated."""
+    # Pseudoheader for checksum
+    pseudo = struct.pack("!LLBBH", 
+        struct.unpack("!L", socket.inet_aton(src[0]))[0],
+        struct.unpack("!L", socket.inet_aton(dst[0]))[0],
+        0, 17, UDPHDRSZ)
+
+    # Build UDP header
+    hdr = struct.pack("!HHHH",
+        src[1],                              # Source port
+        dst[1],                              # Destination port
+        UDPHDRSZ + len(payload),
+        0,     # Checksum - must set by fixULPChecksum after this call
+       )
+    if len(hdr) != UDPHDRSZ:
+        print "internal error: build_udphdr is broken, ",len(hdr),UDPHDRSZ
+        sys.exit(-5)
+
+    hdr += payload  #  Checksum data as well
+    # Fill in UDP checksum. This is actually optional (it can be 0), but
+    # highly recommended. SUMI has no other way to ensure no corruption.
+    hdr = hdr[:6] + struct.pack("<H", 
+            in_cksum(pseudo + hdr[0:])-0x100*len(payload)) + hdr[8:]
+    return hdr   # hdr + payload
+
+    return hdr
+
+# TODO: Look into using dpkt http://monkey.org/~dugsong/dpkt/ !
 def build_iphdr(totlen, src_ip, dst_ip, type):
     """Return an IP header with given parameters."""
     global cfg
 
     # A major source of confusion. The IP length field has to be in
-    # host byte order for FreeBSD, network byte order for Linux.
-    if (cfg["IP_TOTLEN_HOST_ORDER"]):
-        totlen = socket.ntohs(totlen)
+    # host byte order for FreeBSD & Windows, network byte order for Linux.
+    if (not cfg["IP_TOTLEN_HOST_ORDER"]):
+        totlen = socket.htons(totlen)
   
-    return struct.pack("!BBHHHBBHLL",
+    hdr = struct.pack("!BBHHHBBHLL",
         0x40 | IPHDRSZ >> 2,                   # version+IHL little endian
         #payload = ((IPHDRSZ >> 2) << 4) | 4,  # big endian
         0,                                     # DSCP/TOS
@@ -1059,10 +1094,18 @@ def build_iphdr(totlen, src_ip, dst_ip, type):
         0,                                     # Frag offset & flags=none
         128,                                   # Time to live
         type,                                  # UDP=User datagram protocol,etc
-        0,                                     # Checksum (let kernel)
+        0,                                     # Checksum (fill in below)
         struct.unpack("!L", socket.inet_aton(src_ip))[0], # Source address
         struct.unpack("!L", socket.inet_aton(dst_ip))[0], # Destination address
        );
+    # Fill in IP checksum. The kernel will do this for raw sockets,
+    # but not for data-link sockets, so just always do it.
+    hdr = hdr[:10] + struct.pack("<H", in_cksum(hdr)) + hdr[12:]
+
+    if len(hdr) != IPHDRSZ:
+        print "internal error: build_iphdr is broken, ",len(hdr),IPHDRSZ
+        sys.exit(-6)
+    return hdr
 
 def build_ethernet_hdr(src_mac, dst_mac, type_code):
     # TODO: Build Ethernet header (for spoofing on the same network segment)
@@ -1086,17 +1129,37 @@ def send_packet_TCP(src, dst, payload):
     print "TODO: implement"
 
 def send_packet_UDP_WINPCAP(src, dst, payload):
-    # TODO: Use pcap_sendpacket from WinPcap. See
-    # http://winpcap.polito.it/docs/docs31beta3/html/group__wpcapfunc.html#a41
+    """Send a UDP packet using WinPcap's pcap_sendpacket."""
     # Regular socket() calls work fine on Win2K/XP, but WinPcap's will work
     # on 95, 98, Me... provided that the winpcap library is installed.
-    # Implementing this isn't a very high priority because the older OS's
-    # are, well, old. However, being able to run sumiserv as a non-admin user
-    # might be more secure, and spoofing data-link addresses may prove useful.
+    # Also, sumiserv could run as a non-admin user (more secure), and 
+    # WinPcap can spoof data-link addresses.
+    src_mac = cfg["src_mac"]
+    dst_mac = cfg["dst_mac"]
+    #src_mac = 0x112233445566
+    #dst_mac = 0xFFFFFFFFFFFF    # Broadcast (for now) (TODO: SendARP)
 
-    # Pcapy: http://oss.coresecurity.com/projects/pcapy.html
-    #   (pcapy lacks pcap_sendpacket?)
+    totlen = IPHDRSZ + UDPHDRSZ + len(payload)
+    pkt = build_iphdr(totlen, src[0], dst[0], 17)
 
+    pkt += build_udphdr(src, dst, payload)
+
+    send_frame_ETHER(src_mac, dst_mac, pkt)
+
+def send_frame_ETHER(src_mac, dst_mac, payload, ethertype=0x0800): # IPv4
+    """Send a raw Ethernet frame with the given source and destination
+    MAC address, payload, and type (defaults to 0x0800, IPv4)."""
+    # Send raw Ethernet frames with spoofed source MAC address,
+    # Several possible different layers of spoofing:
+    # * Spoof Ethernet MAC address, send raw data following
+    #   - Useful if on local LAN segment and passes no routers
+    # * Spoof MAC + IP
+    #   - Useful if routers will pass spoofed source MACs, and the
+    #     destination lies beyond a router. Might become de-facto.
+    #     Or is it dangerous, as router could fwd IP and change MACs?
+    # * Spoof IP 
+    #   - No MAC spoofing, useful if routers drop faked MACs - not here
+    #
     # If we do decide to implement this, note that the datalink headers
     # need to be included as well. Could perhaps spoof these to thwart
     # detection on a totally switched network? (See build_ethernet_hdr #'s)
@@ -1108,29 +1171,25 @@ def send_packet_UDP_WINPCAP(src, dst, payload):
         print "The 'interface' configuration item is not set. "
         select_if() 
     p = pcapy.open_live(cfg["interface"], 1500, 1, 1)
-    print p
-    # TODO: find correct dst_mac, optionally spoof src_map, spoof UDP header
-    # ARP cache? arp -a, of default gateway?
-    ethertype = 0x0800   # IPv4
-    pkt = build_ethernet_hdr(dst_mac, src_mac, ethertype)
 
     if not hasattr(p, "sendpacket"):
+        # A NOTE ON THE MODIFIED PCAPY
+        # The original pcapy at http://oss.coresecurity.com/projects/pcapy.html
+        # does not wrap pcap_sendpacket. Use the modified distribution in
+        # pcapy-0.10.3-sendpacket.tar.gz, or the patch pcapy-sendpacket.patch,
+        # to build the new pcapy from source. Alternatively, copy pcapy.pyd
+        # to C:\Python23\lib\site-packages (or equivalent).
         print "pcapy is missing sendpacket - please use modified pcapy.pyd"
         print "included with SUMI distribution."
+        # XXX: WinPcap includess pcap_sendpacket, Unix users may need to
+        # apply the patch at
+        # http://www.tcpdump.org/lists/workers/2004/03/msg00055.html 
+        # if pcap 1.0 hasn't been released yet.
         sys.exit(-3)
+    # TODO: find correct dst_mac, optionally spoof src_map, spoof UDP header
+    # ARP cache? arp -a, of default gateway?
+    pkt = build_ethernet_hdr(src_mac, dst_mac, ethertype) + payload
     p.sendpacket(pkt)
-
-def send_packet_ETHER(src, dst, paload):
-    # TODO: Send raw Ethernet packets with spoofed source MAC address
-    # Several possible different layers of spoofing
-    # * Spoof Ethernet MAC address, send raw data following
-    #   - Useful if on local LAN segment and passes no routers
-    # * Spoof MAC + IP
-    #   - Useful if routers will pass spoofed source MACs, and the
-    #     destination lies beyond a router. Might become de-facto.
-    # * Spoof IP 
-    #   - No MAC spoofing, useful if routers drop faked MACs
-    pass
 
 def select_if():
     """List all network interfaces and tell user to choose one."""
@@ -1152,30 +1211,13 @@ def send_packet_UDP_SOCKET(src, dst, payload):
        This uses the standard socket() functions, and is recommended."""
     global raw_socket
 
-    #src = ("10.0.0.27", 11111)
     #print "Sending UDP",src,dst,payload
     totlen = IPHDRSZ + UDPHDRSZ + len(payload)
-
+    
+    # Leave the IP checksum 0 -- the kernel will fill it in
     packet = build_iphdr(totlen, src[0], dst[0], 17)
- 
-    # Pseudoheader for checksum
-    pseudo = struct.pack("!LLBBH", 
-        struct.unpack("!L", socket.inet_aton(src[0]))[0],
-        struct.unpack("!L", socket.inet_aton(dst[0]))[0],
-        0, 17, UDPHDRSZ)
+    packet += build_udphdr(src, dst, payload)
 
-    # Build UDP header
-    packet += struct.pack("!HHHH",
-        src[1],                              # Source port
-        dst[1],                              # Destination port
-        UDPHDRSZ + len(payload),
-        0,     # Checksum - not set (TODO: fix it)
-       )
-    packet += payload
-    fixULPChecksum(packet)
-
-    #raw_socket.connect(dst)
-    #raw_socket.send(packet)
     #print packet
     # Win32: socket.error (10049, "Can't assign requested address")
     # ^ If you get that error message, use _socket.pyd (ws2_32 vs. wsock32)
@@ -1208,15 +1250,14 @@ def randip():
     return (str_ip, random.randint(0, 65535))
 
 def rand_pingable_host():
-    """Return a random host that can be pinged."""
+    """Return a random host that can be pinged, from 'icmp_proxies'."""
     # List of pingable hosts. Some hosts limit their bytes of the payload to
     # 56 or other small values. To check, use:
     #   sudo ping -s `expr X - 8` google.com
     # where X is the number of bytes to send (payload+ICMP header), default
     # being 64 (this is the limit of google.com). 1466 is good.
-    l = ("216.239.39.4", "216.239.39.5", "216.239.39.248", "216.239.39.234",
-         "216.239.39.249", "216.239.39.252", "64.56.182.1", "64.56.182.6",
-         "64.56.182.51", "64.56.182.52") 
+    # UPDATE: google.com 216.239.57.99 can take ping -s 1472 (1480 bytes)!
+    l = cfg["icmp_proxies"]
     return (l[random.randint(0, len(l) - 1)], 0)
 
 def sendmsg_error(nick, msg):

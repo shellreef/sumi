@@ -617,31 +617,43 @@ class TransferPanel(wxPanel, wxColumnSorterMixin):
 
         # only do this part the first time so the events are only bound once
         if not hasattr(self, "popupID1"):
-            self.popupID0 = wxNewId()
-            self.popupID1 = wxNewId()
-            self.popupID2 = wxNewId()
-            self.popupID3 = wxNewId()
-            self.popupID4 = wxNewId()
-            self.popupID5 = wxNewId()
-            self.popupID6 = wxNewId()
-            EVT_MENU(self, self.popupID0, self.OnOpen)
-            EVT_MENU(self, self.popupID1, self.OnPopupOne)
-            EVT_MENU(self, self.popupID2, self.OnPopupAbort)
-            EVT_MENU(self, self.popupID3, self.OnPopupThree)
-            EVT_MENU(self, self.popupID4, self.OnPopupFour)
-            EVT_MENU(self, self.popupID5, self.OnPopupFive)
-            EVT_MENU(self, self.popupID6, self.OnPopupSix)
+            self.popup_open = wxNewId()
+            self.popup_opendir = wxNewId()
+            self.popup_abort = wxNewId()
+            self.popup_resume = wxNewId()
+            self.popup_rename = wxNewId()
+            #self.popupID1 = wxNewId()
+            #self.popupID2 = wxNewId()
+            #self.popupID3 = wxNewId()
+            #self.popupID4 = wxNewId()
+            #self.popupID5 = wxNewId()
+            #self.popupID6 = wxNewId()
+            EVT_MENU(self, self.popup_open, self.OnOpen)
+            EVT_MENU(self, self.popup_opendir, self.OnOpenDir)
+            EVT_MENU(self, self.popup_abort, self.OnAbort)
+            EVT_MENU(self, self.popup_resume, self.OnResume)
+            EVT_MENU(self, self.popup_rename, self.OnRename)
+            #EVT_MENU(self, self.popupID1, self.OnPopupOne)
+            #EVT_MENU(self, self.popupID2, self.OnPopupAbort)
+            #EVT_MENU(self, self.popupID3, self.OnPopupThree)
+            #EVT_MENU(self, self.popupID4, self.OnPopupFour)
+            #EVT_MENU(self, self.popupID5, self.OnPopupFive)
+            #EVT_MENU(self, self.popupID6, self.OnPopupSix)
 
         # make a menu
         menu = wxMenu()
         # add some items
-        menu.Append(self.popupID0, "Open")
-        menu.Append(self.popupID1, "FindItem tests")
-        menu.Append(self.popupID2, "Abort Selected")
-        menu.Append(self.popupID3, "ClearAll and repopulate")
-        menu.Append(self.popupID4, "DeleteAllItems")
-        menu.Append(self.popupID5, "GetItem")
-        menu.Append(self.popupID6, "Edit")
+        menu.Append(self.popup_open, "Open")
+        menu.Append(self.popup_opendir, "Open Folder")
+        menu.Append(self.popup_abort, "Abort")
+        menu.Append(self.popup_resume, "Resume")
+        menu.Append(self.popup_rename, "Rename")
+        #menu.Append(self.popupID1, "FindItem tests")
+        #menu.Append(self.popupID2, "Abort Selected")
+        #menu.Append(self.popupID3, "ClearAll and repopulate")
+        #menu.Append(self.popupID4, "DeleteAllItems")
+        #menu.Append(self.popupID5, "GetItem")
+        #menu.Append(self.popupID6, "Edit")
 
         # Popup the menu.  If an item is selected then its handler
         # will be called before PopupMenu returns.
@@ -649,16 +661,19 @@ class TransferPanel(wxPanel, wxColumnSorterMixin):
         menu.Destroy()
 
     def OnOpen(self, event):
-        print "TODO: Open selected file(s)"
+        print "Opening selected file..."
         f = self.list.GetItemText(self.currentItem)
+        import os
+        import os.path
         print f
+        # TODO: OS-independen
+        os.startfile(self.app.client.config["dl_dir"] + os.path.sep + f)
 
-    def OnPopupOne(self, event):
-        print "Popup one\n"
-        print "FindItem:", self.list.FindItem(-1, "Roxette")
-        print "FindItemData:", self.list.FindItemData(-1, 11)
+    def OnOpenDir(self, event):
+        print "TODO: Open containing directory"
+        os.startfile(self.app.client.config["dl_dir"])
 
-    def OnPopupAbort(self, event):
+    def OnAbort(self, event):
         print "Selected items:\n"
         index = self.list.GetFirstSelected()
         while index != -1:
@@ -671,6 +686,20 @@ class TransferPanel(wxPanel, wxColumnSorterMixin):
                 continue
             self.app.client.abort(snick)
             index = self.list.GetNextSelected(index)
+    
+    def OnResume(self, event): 
+        #self.app.client.resume...
+        print "TODO: Resume"
+
+    def OnRename(self, event):
+        self.list.EditLabel(self.currentItem)
+        print "TODO: Rename file"
+
+    # Examples
+    def OnPopupOne(self, event):
+        print "Popup one\n"
+        print "FindItem:", self.list.FindItem(-1, "Roxette")
+        print "FindItemData:", self.list.FindItemData(-1, 11)
 
     def OnPopupThree(self, event):
         print "Popup three\n"

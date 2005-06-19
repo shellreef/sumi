@@ -1,3 +1,15 @@
+2005-06-18 Jeff Connelly <jeffconnelly@users.sourceforge.net>
+	* sumiserv uses transports (irclib and aim currently functional)
+	  now instead of relying on IRC
+	* all IRC-specific code in sumiserv moved to irclib transport
+	* aim transport can receive messages, thanks to pcapy
+	* a modified pcapy can send raw link-layer frames using WinPcap
+	* send_packet_UDP_WINPCAP is an alternate way to send UDP packets;
+	  it can also spoof the Ethernet addresses--this method may allow
+	  sumiserv to serve via UDP on Windows 95/98/Me (not tested)
+	* send_frame_ETHER added
+	* UDP checksums finally added; should reduce possibily of corruption
+
 2004-09-09 Jeff Connelly <jeffconnelly@users.sourceforge.net>
 	* "string".encode("hex") replaced with format strings instead--
 	  sumiserv should now run compiled on Win32
