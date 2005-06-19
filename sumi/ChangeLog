@@ -1,3 +1,6 @@
+2005-06-19 Jeff Connelly <jeffconnelly@users.sourceforge.net>
+	* fixed UDP checksum; now works on BSD, Windows, raw & data-link
+
 2005-06-18 Jeff Connelly <jeffconnelly@users.sourceforge.net>
 	* sumiserv uses transports (irclib and aim currently functional)
 	  now instead of relying on IRC

@@ -33,7 +33,7 @@ def load_cfg():
     print "Using config file: ", config_file
     #eval(compile(open(config_file).read(), "", "exec"))
 
-    cfg = eval("".join(open(config_file, "r").read()))
+    cfg = eval("".join(open(config_file, "rU").read()))
 
 load_cfg()
 
@@ -1029,7 +1029,7 @@ def build_udphdr(src, dst, payload):
     pseudo = struct.pack("!LLBBH", 
         struct.unpack("!L", socket.inet_aton(src[0]))[0],
         struct.unpack("!L", socket.inet_aton(dst[0]))[0],
-        0, 17, UDPHDRSZ)
+        0, 17, UDPHDRSZ + len(payload))
 
     # Build UDP header
     hdr = struct.pack("!HHHH",
@@ -1046,11 +1046,6 @@ def build_udphdr(src, dst, payload):
     # Fill in UDP checksum. This is actually optional (it can be 0), but
     # highly recommended. SUMI has no other way to ensure no corruption.
     cksum = int(in_cksum(pseudo + hdr))
-    if cfg["IP_TOTLEN_HOST_ORDER"] == 0:
-        # XXX TODO Find how checksum is being incorrectly computed on BSD
-        cksum = 0
-    else:
-        cksum -= 0x100*len(payload)
     hdr = hdr[:6] + struct.pack("<H",  cksum) + hdr[8:]
     return hdr   # hdr + payload
 
