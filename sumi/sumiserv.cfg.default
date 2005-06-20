@@ -4,17 +4,25 @@
 {
 
 "global_mss": 5000,           # Allow no MSS larger than this
-"irc_nick": "sumixyz",        # Your IRC nickname for serving
 "IP_TOTLEN_HOST_ORDER": 1,    # 1 for FreeBSD, 0 for Linux (on little-endian)
 "stealth_mode":0,            # 1 for no client error messages, 0 for
 "our_bandwidth":128000,      # Upload bandwidth speed limit
 "sleep_interval":300,#sec    # time to sleep before channel notifications,0=stop
 "src_allow":"4/24",          # src IPs to allow in CIDR notation
 #bind_address = get_default_ip()    # address to bind raw socket to
-"bind_address": "",
+"bind_address": "",          #   (if blank, gets default IP)
 
-# Channels and keys
-"irc_chans": {"#sumi": "riaa", "#sumi2": ""},
+# Transport, used for receiving commands from clients. This cannot change
+# during runtime, as with the client. Only some transports support sumiserv:
+#  irclib   irclib, see irc_ below
+#  aim      capture AIM packets, requires libpcap
+"transport": "irclib",
+
+# irclib transport options
+"irc_nick": "sumi-99",           # Your IRC nickname for serving
+"irc_chans": {"#sumi": "anon" }, # Official channel
+"irc_server": "irc.xtc-dreams.com",
+"irc_port": 6667,
 
 # Directory to read one-time pad files from. A CD-ROM is a good location if
 # you're constantly using a large OTP.
@@ -24,8 +32,26 @@
 # You share packages of files more commonly, not your whole drive, etc. The
 # variable "root" is available to specify where this program is run from.
 "filedb":[{"fn": root + "lptest", "desc":"lptest", "gets":0},
-        {"fn": root + "1mb", "desc":"ONE MEG TEST", "gets":0},
-        {"fn": root + "5mb","desc":"Five Megabytes","gets":0},
-        {"fn": root + "chernobyl.zip","desc":"Chernoybl 18 Years Later (w/pictures)","gets":0},
-       ]
+       ],
+
+# Destination Ethernet MAC address when sending raw frames. By default, it is
+# the Ethernet broadcast address. Source Ethernet address can be anything--
+# after all, it is spoofed.
+"dst_mac": 0xffffffffffff,
+"src_mac": 0x112233445566,
+
+# Network interface to use for packet capturing. Varies, so there is no
+# default. If needed, sumiserv will list possible interfaces. aim transport.
+#"interface": "\\Device\\NPF_{3530F223-8959-4928-88A5-1672C094D6A8}",
+
+# Data channel mode: (currently only effects UDP 'u' data channel type)
+#  debug  Use ordinary unspoofed socket() calls, DO NOT USE IN PRODUCTION
+#  raw    Use raw sockets, works well on Unix (w/ root or launch), XP/2K
+#  pcap   Use pcap_sendpacket, requires WinPcap on Win32, or modified libpcap
+#  libnet Use libnet (BROKEN)
+"dchanmode": "pcap",
+
+# Allow clients to request sending to broadcast addresses? Only enable if you
+# need it. Useful if you want to allow multiple users to get the same file.
+"broadcast": False,
 }

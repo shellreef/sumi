@@ -25,7 +25,8 @@ your sysadmin is kind enough to set the setuid bit on "launch" and change
 ownership to root, you should be able to run SUMI by typing this command as
 a normal user: <tt>launch ./sumiserv</tt>. This is recommended for security
 purposes, as the actual sumiserv will not be run as root; rather launch will
-create a raw socket, and pass it to sumiserv.
+create a raw socket, and pass it to sumiserv. (launch is unavailable on
+Win32 because of the lack of socket.fromfd.)
 
 <h2>Why does SUMI use UDP by default, instead of another protocol such as ICMP?</h2>
 <p>ICMP offers a distinct advantage over all other protocols: an ICMP echo
@@ -61,6 +62,11 @@ with the server's data in it.
 <p>However, ICMP echo mode is often slow and inefficient. An extraordinarly
 small MSS may have to be used, and the extra host introduces more latency and
 packet losses.
+
+<h2>What does SUMI use to ensure file transfers are not corrupted?</h2>
+<p>As of 0.8.9, all UDP packets SUMI sends include a UDP checksum. If the
+data is corrupted, the checksums won't match, the packet will be discarded
+by the OS, and the SUMI transfer protocol will request resending it.
 
 <h2>How does SUMI differ from TCP?</h2>
 <p>SUMI's file transfer protocol and TCP have much the same goal:
@@ -127,7 +133,7 @@ help obfuscate your source. (Note that this RFC is directed towards preventing
 IP spoofing <i>attacks</i>. SUMI is not an attack.)
 
 <p>ICMP proxying can help obfuscate your source further in face of egress
-filtering, although it is currently unimplemented.
+filtering, although it is can be inefficient.
 
 <p>Another filter ISPs may impose is blocking internal address they own 
 coming in to their network. The server can easily circumvent this by not
@@ -180,13 +186,14 @@ block out quick on tun0 from any to 224.0.0.0/3
 <p>127/8 is the loopback, 0/8 is used to refer to "this" network,
 169.254/16 is the link-local block, 192.0.2/24 is "TEST-NET", 204.152.64/23
 is reserved for private Sun servers, and 224/3 is Class D and Class E. SUMI
-has the is_nonroutable function to test for these addresses.
+has the is_nonroutable function to test for these addresses and discards them.
 
 <h2>Are there any file size limits?</h2>
 <p>Yes. The maximum file size depends on your MTU. It can be calculated as
 follows: (MTU - 32) * 16777216. It varies from 8GB to 12GB depending on
 your MTU; this should be enough for anybody. If its not, you can always split
-the file.
+the file. (Note: if the file size limitation becomes too much of a problem,
+I'd be willing to consider changing the protocol to allow for larger files.)
 
 <h2>How can I be anonymous on my covert channel?</h2>
 <p>For IRC, you have several options:

@@ -15,16 +15,11 @@ TO DO  20040217JC
     and the entries a hash where the keys are the nicknames (values=1)
   - need to do IGMP commands, join group etc. in sumiget for mcast
   - test with bcast
-* Fill in UDP checksum! Invalid UDP checksums should be tossed, act as if
-  never received them and they will be resent.
 * Adjust requested bandwidth based on actual bandwidth
 * SOCKS proxy, to allow any TCP/UDP service to be used with SUMI
   (like tor - http://freehaven.net/tor/ - but without the onion routing)
-* Pause/Cancel transfers in sumiget
-* Two-way transport communication
-* sumiserv.py transport integration
-* Checksumming (each packet?) to verify integrity. CRC32, 16? MD5,SHA1 large.
-  Just use UDP or ICMP checksums for each packet, and SHA-1 for overall.
+* Resume transfer in sumiget (context menu option)
+* Checksumming ofer whole file, not just each packet.
 * Pre-auth encryption, so covert (optional) + data chan can be encrypted. This
   way the IP can be encrypted, so IRC net doesn't need to encrypt and IRC 
   admins can't track; only UDP spoofers can. (Also it will encrypt prefix, so
@@ -37,6 +32,11 @@ TO DO  20040217JC
 * For transfer to hosts without routers in between, Libpcap spoof MAC Ethernet
   address. Universities for example may have networks structured like this.
 
+* DONE Fill in UDP checksum! Invalid UDP checksums should be tossed, act as if
+  never received them and they will be resent. (The stack discards them.)
+* DONE Pause/Cancel transfers in sumiget (Abort)
+* DONE Two-way transport communication. (recvmsg)
+* DONE sumiserv.py transport integration (irclib & aim)
 * DONE Resuming.When quitting, or crashes, or when each packet received,SAVE the
   list of the missed packets before it, and the last packet received. From this
   information, the gaps can be filled and the transfer complete for resuming.

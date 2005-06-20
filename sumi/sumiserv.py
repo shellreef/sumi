@@ -294,8 +294,7 @@ def recvmsg(nick, msg, no_decrypt=0):
         # of the sent packets
         if (dchantype == "u"):
             # The normal, spoofed UDP transfer
-            clients[nick]["send"] = send_packet_UDP_SOCKET
-            #clients[nick]["send"] = send_packet_UDP_WINPCAP # XXX NEW
+            clients[nick]["send"] = send_packet_UDP
             clients[nick]["src_gen"] = randip
             clients[nick]["dst_gen"] = lambda : clients[nick]["addr"]
         elif (dchantype == "e"):
@@ -845,6 +844,16 @@ def sendto_raw(s, data, dst):
         print "Couldn't send raw data: ", e[0], e[1]
         sys.exit(-6)
 
+def send_packet_UDP(src, dst, payload):
+    if cfg["dchanmode"] == "debug":    # For debugging, no spoofing
+        return send_packet_UDP_DEBUG(src, dst, payload)
+    elif cfg["dchanmode"] == "raw":    # Raw sockets
+        return send_packet_UDP_SOCKET(src, dst, payload)
+    elif cfg["dchanmode"] == "pcap":   # Link-layer frames
+        return send_packet_UDP_PCAP(src, dst, payload)
+    elif cfg["dchanmode"] == "libnet":
+        return send_packet_UDP_LIBNET(src, dst, payload)
+
 # Send non-spoofed packet. For debugging purposes ONLY.
 # This uses the high(er)-level socket routines; its useful because you
 # don't need to run as root when testing it.
@@ -885,6 +894,8 @@ def setup_raw(argv):
     set_options = 1
 
     if (os.environ.has_key("RAWSOCKFD")):   # Launched from 'launch'
+        # fromfd unavailable on Win32. FastCGI for Perl has an ugly hack
+        # to use fromfd on Windows, but for now 'launch' is Unix-only.
         raw_socket = socket.fromfd(int(os.environ["RAWSOCKFD"]), socket.AF_INET, socket.IPPROTO_UDP)
     elif cfg.has_key("raw_proxy"):          # Remote raw proxy server
         raw_proxy_addr_pw = cfg["raw_proxy"].split(" ")
@@ -1104,8 +1115,10 @@ def send_packet_TCP(src, dst, payload):
     #     segments might confuse the OS TCP stack...
     print "TODO: implement"
 
-def send_packet_UDP_WINPCAP(src, dst, payload):
-    """Send a UDP packet using WinPcap's pcap_sendpacket."""
+def send_packet_UDP_PCAP(src, dst, payload):
+    """Send a UDP packet using pcap's pcap_sendpacket.
+    This call originated in WinPcap, but newer TcpDump versions of libpcap
+    include pcap_sendpacket (and also pcap_inject from OpenBSD)."""
     # Regular socket() calls work fine on Win2K/XP, but WinPcap's will work
     # on 95, 98, Me... provided that the winpcap library is installed.
     # Also, sumiserv could run as a non-admin user (more secure), and 
@@ -1292,8 +1305,12 @@ def main(argv):
     else:
         print "No SIGUSR2, not setting up handler"
 
-    setup_raw(argv)
     setup_config()
+
+    print "cfgdchanmode: ", cfg["dchanmode"]
+    if cfg["dchanmode"] == "raw":
+        print "IS RAW: ", cfg["dchanmode"]
+        setup_raw(argv)
 
     set_src_allow(cfg["src_allow"])
 
@@ -1330,7 +1347,4 @@ def on_exit():
     raise KeyboardInterrupt
  
 if __name__ == "__main__":
-    #setup_raw(sys.argv)
-    #send_packet_ICMP(("1.2.3.4", 0), ("4.46.200.132", 1), "hi", 0, 0)
-    #sys.exit(0)
     main(sys.argv)

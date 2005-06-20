@@ -497,7 +497,7 @@ class Client:
                 if self.senders[x].has_key("start_seqno"):
                     ss = self.senders[x]["start_seqno"]
                 else:
-                    print "WARING: NO START_SEQO SET!"
+                    print "WARNING: NO START_SEQO SET!"
                     ss = 0
                 # NOTE: _y isn't localized here! Don't use x!
                 # won't request any lost packets with seqno's below start_seqno

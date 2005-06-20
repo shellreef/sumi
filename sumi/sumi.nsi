@@ -15,10 +15,9 @@ UninstPage instfiles
 Section "SUMI (required)"
  SectionIn RO
  SetOutPath $INSTDIR
- File /r "distsumigetw\*"
- File /r "distsumiserv\*"
- File /oname=sumiserv.cfg "sumiserv.cfg.sample"
- File /oname=config.py "config.py.sample" 
+ File /r "dist\*"
+ File /oname=sumiserv.cfg "sumiserv.cfg.default"
+ File /oname=config.py "config.py.default" 
  File "rawproxd"
  File "share\lptest"
  File /r "transport"
@@ -26,7 +25,7 @@ Section "SUMI (required)"
  File /r "doc"
 
  ; This is for Windows uninstall
- WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\SUMI" "DisplayName" "SUMI 0.8.8 beta"
+ WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\SUMI" "DisplayName" "SUMI 0.8.9 beta"
  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\SUMI" "UninstallString" '"$INSTDIR\uninstall.exe"'
  WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\SUMI" "NoModify" 1
  WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\SUMI" "NoRepair" 1

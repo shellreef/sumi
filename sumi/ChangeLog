@@ -1,3 +1,5 @@
+2005-06-20 Jeff Connelly <jeffconnelly@users.sourceforge.net> - 0.8.9
+
 2005-06-19 Jeff Connelly <jeffconnelly@users.sourceforge.net>
 	* fixed UDP checksum; now works on BSD, Windows, raw & data-link
 
@@ -13,7 +15,7 @@
 	* send_frame_ETHER added
 	* UDP checksums finally added; should reduce possibily of corruption
 
-2004-09-09 Jeff Connelly <jeffconnelly@users.sourceforge.net>
+2004-09-09 Jeff Connelly <jeffconnelly@users.sourceforge.net> - 0.8.8
 	* "string".encode("hex") replaced with format strings instead--
 	  sumiserv should now run compiled on Win32
 	* updated docs about Windows XP SP2
