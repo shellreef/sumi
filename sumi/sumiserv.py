@@ -48,7 +48,11 @@ UDPHDRSZ = 8
 raw_socket = 0
 raw_proxy = None
 
-# https://sourceforge.net/tracker/?func=detail&atid=105470&aid=860134&group_id=5470
+def fatal(code, msg):
+    print "Fatal error #%.2d: %s" % (code, msg)
+    sys.exit(code)
+
+# https://sourceforge.net/tracker/?func=detail&atid=105470&aid=860134&group_id=547
 # https://sf.net/tracker/?group_id=5470&atid=105470&func=detailed&aid=860134
 # PATCH: http://mail.python.org/pipermail/patches/2004-March/014218.html
 # audit trail: https://sourceforge.net/tracker/?func=detail&atid=305470&aid=908631&group_id=5470
@@ -58,22 +62,26 @@ raw_proxy = None
 
 # This is for Win32
 if (not hasattr(socket, "IP_HDRINCL")):
-    print "Your Python is missing IP_HDRINCL in its socket library."
-    print "Most likely, you are on Windows and need to use a patched _socket.pyd that links with ws2_32.lib instead of wsock32.lib. Please open sumiserv.py in a text editor and read the comments for more information."   
+    fatal(1, 
+"""Your Python is missing IP_HDRINCL in its socket library.
+Most likely, you are on Windows and need to use a patched _socket.pyd that 
+links with ws2_32.lib instead of wsock32.lib. Please open sumiserv.py in a 
+text editor and read the comments for more information.""")
     # 2.3.2 - no Winsock2
     # 2.3.4 - no Winsock2
     # 2.4a2 - has an IP_HDRINCL, but actually links to wsock32.lib...
     #  (see pcbuild\_socket.vcproj)
     # 
-    sys.exit(-1)
 
 if sys.platform == 'win32':
     # Test if using patched _socket.pyd with Winsock2
     import _socket
     if hasattr(_socket, "AI_ALL"):
-        print "You are on Windows and your Python socket library has AI_ALL. "
-        print "Most likely, you need to use the patched _socket.pyd that uses Winsock2 instead of Winsock1. Please see sumiserv.py for more information. If you did that and this error still occurs, please contact the author."
-        sys.exit(-2)
+        fatal(2, 
+"""You are on Windows and your Python socket library has AI_ALL. 
+Most likely, you need to use the patched _socket.pyd that uses Winsock2 instead
+of Winsock1. Please see sumiserv.py for more information. If you did that and 
+this error still occurs, please contact the author.""")
 
 
 # set_src_allow("4.0.0.0/24") -> allow 4.0.0.0 - 4.255.255.255
@@ -568,9 +576,9 @@ def load_transport(transport):
         t = __import__("transport.mod" + transport, None, None,
                        ["transport_init", "sendmsg", "recvmsg"])
     except ImportError:
-        print "Loading transport " + transport + "failed: ", sys.exc_info()
-        print "Please specify 'transport' in sumiserv.cfg"
-        sys.exit(-4)
+        fatal(3, 
+"""Loading transport " + transport + "failed: " + sys.exc_info() + 
+"\nPlease specify 'transport' in sumiserv.cfg""")
 
     import sumiget
     # Export some useful functions to the transports
@@ -593,12 +601,7 @@ def load_transport(transport):
 def capture(decoder, filter, callback):
     import pcapy
     print "Receiving messages on ", cfg["interface"]
-    try:
-        p = pcapy.open_live(cfg["interface"], 1500, 1, 0)
-    except pcapy.PcapError:
-        import sys
-        print "pcapy error: ", sys.exc_info()
-        select_if()
+    p = pcapy.open_live(cfg["interface"], 1500, 1, 0)
     if filter:
         p.setfilter(filter)
     while 1:
@@ -682,10 +685,9 @@ def xfer_thread(nick):
         # End of file if short block. Second case is redundant but will
         # occur if file size is an exact multiple of MSS.
         if (not clients[nick].has_key("seqno")):
-            print "Client %s has no seqno" % nick
             # TODO: Allow multiple transfers per server? No, queue instead.
-            print "Most likely client is trying to get >1 files at once."
-            sys.exit(42)
+            fatal(4, ("Client %s has no seqno" % nick) +
+                "\nMost likely client is trying to get >1 files at once.")
         #print "#%d, len=%d" % (clients[nick]["seqno"], blocklen)
         if (blocklen < clients[nick]["mss"] - SUMIHDRSZ or blocklen == 0):
             clients[nick]["seqno"] = None  # no more sending, but can resend
@@ -787,12 +789,10 @@ def datapkt(nick, seqno):
     pkt = clients[nick]["prefix"]        # 3-byte prefix
     pkt += struct.pack("!L", seqno)[1:]  # 3-byte seq no
     if (len(pkt) != SUMIHDRSZ):
-        print "internal failure: header not expected size"
-        sys.exit(3)
+        fatal(5, "internal failure: header not expected size")
     pkt += block
     if (len(pkt) > clients[nick]["mss"]):
-        print "fatal: trying to send packet >MSS"
-        sys.exit(4)
+        fatal(6, "internal: trying to send packet >MSS, should not happen")
 
     #src = randip()
     clients[nick]["send"](clients[nick]["src_gen"](), \
@@ -841,8 +841,7 @@ def sendto_raw(s, data, dst):
             #print "USING RAW PROXY"
             raw_proxy.send("RP" + struct.pack("!H", len(data)) + data)
     except socket.error, e:
-        print "Couldn't send raw data: ", e[0], e[1]
-        sys.exit(-6)
+        fatal(7, "Couldn't send raw data: %s %s " % (e[0], e[1]))
 
 def send_packet_UDP(src, dst, payload):
     if cfg["dchanmode"] == "debug":    # For debugging, no spoofing
@@ -881,6 +880,28 @@ def send_packet_UDP_LIBNET(src, dst, payload):
     pkt.do_checksum(libnet.IPPROTO_IP, libnet.IP_H + libnet.UDP_H + len(payload))
     ifc.write(pkt)
 
+def setup_pcap():
+    """Verify pcap is available and working."""
+    try:
+        import pcapy
+    except:
+        fatal(8, "Couldn't import pcapy. You need to install either " +
+        "WinPcap (for Win32) or libpcap from tcpdump (for Unix).")
+
+    try:
+        p = pcapy.open_live(cfg["interface"], 1500, 1, 0)
+    except pcapy.PcapError:
+        select_if()
+        fatal(9, "pcapy error opening interface: %s" % pcapy.PcapError)
+
+    if not hasattr(p, "sendpacket"):
+        fatal(10, """Your pcapy is lacking sendpacket, please use modified
+pcapy.pyd with SUMI distribution if latest pcapy fails.
+On Unix, you may also need a new libpcap that has the
+pcap_sendpacket API (see tcpdump.org).""")
+
+    print "pcapy loaded successfully"
+
 def setup_raw(argv):
     """Setup the raw socket. Only one raw socket is needed to send any number
     of packets, so it can be created at startup and root can be dropped; 
@@ -906,8 +927,7 @@ def setup_raw(argv):
         elif len(raw_proxy_addr_pw) == 2:
             (raw_proxy_ipport, pw) = raw_proxy_addr_pw
         else:
-            print "Invalid raw proxy format: " + cfg["raw_proxy"]
-            sys.exit(-4)
+            fatal(11, "Invalid raw proxy format: " + cfg["raw_proxy"])
 
         raw_proxy_list = raw_proxy_ipport.split(":")
         if len(raw_proxy_list) == 1:
@@ -917,15 +937,13 @@ def setup_raw(argv):
             (raw_proxy_ip, raw_proxy_port) = raw_proxy_list
             raw_proxy_port = int(raw_proxy_port)
         else:
-           print "Invalid raw proxy format2: " + cfg["raw_proxy"]
-           sys.exit(-4)
+           fatal(12, "Invalid raw proxy format2: " + cfg["raw_proxy"])
         print "Using raw proxy server at",raw_proxy_ip,"on port",raw_proxy_port
         try:
             raw_proxy = socket.socket(socket.AF_INET, socket.SOCK_STREAM, socket.IPPROTO_TCP)
             raw_proxy.connect((raw_proxy_ip, raw_proxy_port))
         except socket.error, e:
-            print "Raw proxy connection error:", e[0], e[1]
-            sys.exit(-5)
+            fatal(13, "Raw proxy connection error: %s %s" % (e[0], e[1]))
 
         # Authenticate
         challenge = raw_proxy.recv(32)
@@ -939,9 +957,9 @@ def setup_raw(argv):
 	print "Logging into raw proxy...";
         raw_proxy.send(ctx.digest())
         if len(raw_proxy.recv(1)) != 1:
-            print "Raw proxy refused our password!"
-            print "Make sure your password is correctly set in sumiserv.cfg. For example, 'raw_proxy': '192.168.1.1:7010 xyzzy'."
-            sys.exit(-7) 
+            fatal(14, """Raw proxy refused our password!
+Make sure your password is correctly set in sumiserv.cfg. For example,
+'raw_proxy': '192.168.1.1:7010 xyzzy'.""")
         if cfg["broadcast"]:
             print "Enabling broadcast support (via rawproxd)"
             raw_proxy.send("RB")  #  raw-socket, set broadcast 
@@ -963,7 +981,7 @@ def setup_raw(argv):
                 else:
                     print "Running as root, but error...?"
                 os.system("sudo python %s" % argv[0])
-                sys.exit(1)
+                sys.exit(-1)
         # Drop privs-this needs to be worked on
         if (dir(os).__contains__("setuid")):
             os.setuid(os.getuid()) 
@@ -973,16 +991,14 @@ def setup_raw(argv):
     if set_options:
         err = raw_socket.setsockopt(socket.IPPROTO_IP, socket.IP_HDRINCL, 1)
         if err:
-            print "setsockopt IP_HDRINCL: ",err
-            sys.exit(-1)
+            fatal(15, "setsockopt IP_HDRINCL: ",err)
 
         if cfg["broadcast"]:
             print "Enabling broadcast support"
             err = raw_socket.setsockopt(socket.SOL_SOCKET, 
                                         socket.SO_BROADCAST, 1)
             if err:
-                print "setsockopt SO_BROADCAST: ",err
-                sys.exit(-1)
+                fatal(16, "setsockopt SO_BROADCAST: ",err)
 
     #print "Binding to address:", cfg["bind_address"]
     # XXX: why IPPROTO_UDP? and why even bind? Seems to work without it.
@@ -1050,8 +1066,8 @@ def build_udphdr(src, dst, payload):
         0,     # Checksum - must set by fixULPChecksum after this call
        )
     if len(hdr) != UDPHDRSZ:
-        print "internal error: build_udphdr is broken, ",len(hdr),UDPHDRSZ
-        sys.exit(-5)
+        fatal(17, "internal error: build_udphdr is broken, %d %d" %
+                (len(hdr),UDPHDRSZ))
 
     hdr += payload  #  Checksum data as well
     # Fill in UDP checksum. This is actually optional (it can be 0), but
@@ -1090,8 +1106,8 @@ def build_iphdr(totlen, src_ip, dst_ip, type):
     hdr = hdr[:10] + struct.pack("<H", in_cksum(hdr)) + hdr[12:]
 
     if len(hdr) != IPHDRSZ:
-        print "internal error: build_iphdr is broken, ",len(hdr),IPHDRSZ
-        sys.exit(-6)
+        fatal(18, "internal error: build_iphdr is broken, %d %d" \
+                % (len(hdr),IPHDRSZ))
     return hdr
 
 def build_ethernet_hdr(src_mac, dst_mac, type_code):
@@ -1168,13 +1184,13 @@ def send_frame_ETHER(src_mac, dst_mac, payload, ethertype=0x0800): # IPv4
         # pcapy-0.10.3-sendpacket.tar.gz, or the patch pcapy-sendpacket.patch,
         # to build the new pcapy from source. Alternatively, copy pcapy.pyd
         # to C:\Python23\lib\site-packages (or equivalent).
-        print "pcapy is missing sendpacket - please use modified pcapy.pyd"
-        print "included with SUMI distribution."
+        fatal(19,
+"""pcapy is missing sendpacket - please use modified pcapy.pyd
+included with SUMI distribution, or use modified winpcap (see sumiserv.py).""")
         # XXX: WinPcap includess pcap_sendpacket, Unix users may need to
         # apply the patch at
         # http://www.tcpdump.org/lists/workers/2004/03/msg00055.html 
         # if pcap 1.0 hasn't been released yet.
-        sys.exit(-3)
     # TODO: find correct dst_mac, optionally spoof src_map, spoof UDP header
     # ARP cache? arp -a, of default gateway?
     pkt = build_ethernet_hdr(src_mac, dst_mac, ethertype) + payload
@@ -1189,10 +1205,9 @@ def select_if():
         #i += 1
         #print "%d. %s" % (i, name)
         print name
-    print "Please set 'interface' to one of the values in sumiserv.cfg,"
-    print "then restart sumiserv."
+    fatal(20, "Please set 'interface' to one of the values in sumiserv.cfg,"+
+        "\nthen restart sumiserv.")
     # TODO: GUI to edit configuration file, within program
-    sys.exit(-2)
 
 # Send packet from given source.
 def send_packet_UDP_SOCKET(src, dst, payload):
@@ -1279,9 +1294,8 @@ def setup_config():
         try:
             size = os.path.getsize(fn)
         except OSError:
-            print "Exception occured while reading size of %s" % fn
-            print "Please check that the file exists and is readable."  
-            sys.exit(-1)
+            fatal(21, ("Exception occured while reading size of %s" % fn)+
+                "\nPlease check that the file exists and is readable.")
         offer["size"] = size
         offer["hsize"] = human_readable_size(size)   
 
@@ -1307,16 +1321,15 @@ def main(argv):
 
     setup_config()
 
-    print "cfgdchanmode: ", cfg["dchanmode"]
     if cfg["dchanmode"] == "raw":
-        print "IS RAW: ", cfg["dchanmode"]
         setup_raw(argv)
+    if cfg["dchanmode"] == "pcap" or cfg["transport"] == "aim":
+        setup_pcap()
 
     set_src_allow(cfg["src_allow"])
 
     if not cfg.has_key("transport"):
-        print "Please specify 'transport'"
-        sys.exit(-5)
+        fatal(22, "Please specify 'transport'")
     load_transport(cfg["transport"])
 
 def make_thread(f, arg):
