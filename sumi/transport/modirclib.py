@@ -21,10 +21,8 @@ server = None
 
 def on_nickinuse(c, e):
     print "Nickname in use"
-    c.nick(e.arguments()[0] + "_")
     old_nick = e.arguments()[0]
-    #new_nick = old_nick + "_"
-    new_nick = old_nick[:-1] + chr(ord(old_nick[:1]) + 1)
+    new_nick = old_nick[:-1] + chr(ord(old_nick[-1]) + 1)
     print "%s nick in use, using %s" % (old_nick, new_nick)
     cfg["irc_nick"] = new_nick
     c.nick(new_nick)
