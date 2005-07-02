@@ -890,6 +890,12 @@ WinPcap (for Win32) or libpcap from tcpdump (for Unix)?
 Error: %s: %s""" \
         % (sys.exc_info()[0], sys.exc_info()[1]))
 
+    if cfg["interface"] == "":
+        devs = pcapy.findalldevs()
+        if len(devs) == 1:
+            cfg["interface"] = devs[0]
+            print "Single network interface, auto-selected", cfg["interface"]
+
     try:
         p = pcapy.open_live(cfg["interface"], 1500, 1, 0)
     except pcapy.PcapError:

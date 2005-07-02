@@ -54,4 +54,8 @@
 # Allow clients to request sending to broadcast addresses? Only enable if you
 # need it. Useful if you want to allow multiple users to get the same file.
 "broadcast": False,
+
+# Network interface to use with pcap. "" to list all intefaces and quit,
+# or choose the first interface if there is only one.
+"interface": "",
 }
