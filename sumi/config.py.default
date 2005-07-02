@@ -66,13 +66,13 @@
 #"data_chan_type": "i0,0",   # Arbitrary ICMP; 0,0 is ICMP echo reply (fw's)
 #"data_chan_type": "e",     # ICMP echo mode, bounce off a gateway
 
-"crypto":"s",               # Encryption? o=OTP, s=symmetric (wait until pre)
+"crypto":"",               # Encryption? o=OTP, s=symmetric (wait until pre)
 "passwd":"1" * 32,          # Asymmetric encryption key
 "irc_nick": "sumiget", # This should be redelegated in transport-specific opt
 
 # Column widths for sumigetw
-"colwidths": [100,100,90,50,50,50,50,50,25,50],
+'colwidths': [160, 136, 107, 55, 73, 69, 76, 99, 71, 49],
 
 # Window size for sumigetw
-"winsize": (300, 600),
+"winsize": (858, 220),
 }

@@ -23,3 +23,17 @@ setup(windows=[
 	("transports", glob.glob("transports/*")),
 	(".", ["sumi.ico"])])
 setup(console=["sumiserv.py"])
+
+# While it may seem like a good idea to include these WinPcap DLLs, it is not.
+# Instead, let the user install (the correct version) of WinPcap for their OS
+# and use those DLLs. (XP version of WinPcap depends on mfc42u.dll, Me version
+# doesn't--and cannot use Unicode versions of MFC, resulting in cryptic error
+# about one of the DLLs missing when importing pcapy.)
+import os
+fs = ["NPPTools.dll", "packet.dll", "wpcap.dll", "WanPacket.dll"]
+for f in fs:
+    print "Removing ", f
+    try:
+        os.remove("dist" + os.path.sep + f)
+    except:
+        print "\tfailed"

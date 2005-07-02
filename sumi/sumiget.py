@@ -910,8 +910,8 @@ class Client:
 
     # The sole request. In a separate thread so it can wait for IRC.
     # NOTE, sumigetw doesn't use this, it makes its own thread & calls request
-    def thread_request(self, nick, file):
-         self.request(nick, file)
+    def thread_request(self, transport, nick, file):
+         self.request(transport, nick, file)
 
     def set_callback(self, f):
         """Set callback to be used for handling notifications."""
@@ -952,16 +952,17 @@ class Client:
    # moved to caller
 
     def main(self, transport, nick, file):
-
-        #load_transport(transport)
+        self.senders[nick] = {}
+        self.load_transport(transport, nick)
 
         thread.start_new_thread(self.thread_timer, ())
-        senders[nick]["transport_init"] = t.transport_init
-        thread.start_new_thread(self.thread_request, (nick, file))
+        #senders[nick]["transport_init"] = t.transport_init
+        thread.start_new_thread(self.thread_request, (transport, nick, file))
 
         # This thread will release() input_lock, letting thread_request to go
         #transport_init()
 
+        input_lock.acquire()
         print "RELEASED"
         input_lock.release()
 

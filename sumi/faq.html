@@ -28,6 +28,16 @@ purposes, as the actual sumiserv will not be run as root; rather launch will
 create a raw socket, and pass it to sumiserv. (launch is unavailable on
 Win32 because of the lack of socket.fromfd.)
 
+<p>Setting dchan_mode to "pcap" may work on Me, 98, and 95, but this is
+currently experimental. Currently it fails with <tt>ImportError: DLL load
+failed: One of the library files needed to run this application cannot
+be found</tt> because of a missing mfc42u.dll (Microsoft Foundation Works
+4.2 Unicode version), which is not available for non-NT OS's.
+Windows 95 users will need a
+<a
+href="http://www.microsoft.com/windows95/downloads/contents/WUAdminTools/S_WUNetworkingTools/W95Sockets2/Default.asp">WinSock
+95 WinSock 2 Update</a> from Microsoft.
+
 <h2>Why does SUMI use UDP by default, instead of another protocol such as ICMP?</h2>
 <p>ICMP offers a distinct advantage over all other protocols: an ICMP echo
 request can be sent with a spoofed source address to any pingable host on
@@ -252,4 +262,18 @@ covert channel but the public keys need to be exchanged. This is a good general
 method, as in theory the IP of the recipient, and all covert data, can be 
 encrypted before authenticating, revealing nothing to know one. However SUMI
 has NOT YET IMPLEMENTED this.
+
+<h2>On Windows 95/98/Me, I get the error <tt>ImportError: DLL load failed: One
+of the library files needed to run this application cannot be found.</tt>
+when running sumiserv using dchan_mode of "pcap", why?</h2>
+<p>This cryptic error most likely means sumiserv is using the wrong versions of
+one or more of npptools.dll, packet.dll, wpcap.dll, or wanpacket.dll (part
+of WinPcap), particularly, Unicode DLLs. NPPTools.dll depends on mfc42u.dll,
+which is not available for Windows Me. (Unicode is not supported.) 
+
+<p>To fix this problem, ensure npptools.dll, packet.dll, wpcap.dll, and 
+wanpacket.dll are not in C:\Program Files\SUMI. Try re-running sumiserv,
+and if the same error occurs, reinstall WinPcap.
+
+
 

@@ -885,14 +885,16 @@ def setup_pcap():
     try:
         import pcapy
     except:
-        fatal(8, "Couldn't import pcapy. You need to install either " +
-        "WinPcap (for Win32) or libpcap from tcpdump (for Unix).")
+        fatal(8, """Couldn't import pcapy. Have you installed either 
+WinPcap (for Win32) or libpcap from tcpdump (for Unix)?
+Error: %s: %s""" \
+        % (sys.exc_info()[0], sys.exc_info()[1]))
 
     try:
         p = pcapy.open_live(cfg["interface"], 1500, 1, 0)
     except pcapy.PcapError:
+        print "Error opening ", cfg["interface"]
         select_if()
-        fatal(9, "pcapy error opening interface: %s" % pcapy.PcapError)
 
     if not hasattr(p, "sendpacket"):
         fatal(10, """Your pcapy is lacking sendpacket, please use modified
@@ -1205,6 +1207,7 @@ def select_if():
         #i += 1
         #print "%d. %s" % (i, name)
         print name
+    print "pcapy error opening interface: %s" % pcapy.PcapError
     fatal(20, "Please set 'interface' to one of the values in sumiserv.cfg,"+
         "\nthen restart sumiserv.")
     # TODO: GUI to edit configuration file, within program
