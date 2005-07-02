@@ -1,3 +1,7 @@
+2005-07-02 Jeff Connelly <jeffconnelly@users.sourceforge.net>
+	* sumiserv send_packet_UDP_PCAP tested and now works on Windows Me
+	* WinPcap DLLs removed from distribution--install separately instead
+
 2005-06-20 Jeff Connelly <jeffconnelly@users.sourceforge.net> - 0.8.9
 
 2005-06-19 Jeff Connelly <jeffconnelly@users.sourceforge.net>

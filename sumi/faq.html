@@ -15,12 +15,49 @@ in the future to use other transmission mechanisms.
 <h2>What OS do I have to have to run SUMI?</h2>
 <p>For a client, any OS should be sufficient (see next question).
 
-<p>For a server, you need to have either: a) a Unix system with root
-access, or b) a Windows XP/2000 or better system. Either of these setups
-will allow raw sockets required for IP source address spoofing. In particular,
-Windows NT, Me, 98, 95, and 3.11 will not work with sumiserv. (Note to self:
-Winpcap has a pcap_send function that supposedly works on these OS's.)
-With Unix, if
+<p>For a server, 0.8.9 supports the following operating systems in the
+following data channel modes:
+<p><table border=1>
+<tr> 
+ <th align="center"><a href="config.html">dchanmode</a></th>
+ <th align="center">Unix</th>
+ <th align="center">Windows 95/98/Me</th>
+ <th align="center">Windows NT/XP/2K+</th>
+</tr><tr>
+ <th align="center"><tt>debug</tt></th>
+ <td align="center">supported<sup>0</sup></td>
+ <td align="center">supported<sup>0</sup></td>
+ <td align="center">supported<sup>0</sup></td>
+</tr><tr>
+ <th align="center"><tt>raw</tt></th>
+ <td align="center">supported<sup>1</sup></td>
+ <td align="center">-</td>
+ <td align="center">supported<sup>2</sup></td>
+</tr><tr>
+ <th align="center"><tt>pcap</tt></th>
+ <td align="center">supported<sup>3</sup></td>
+ <td align="center">supported<sup>4</sup></td>
+ <td align="center">supported<sup>4</sup></td>
+</tr><tr>
+ <th align="center"><tt>libnet</tt></th>
+ <td align="center">-</td>
+ <td align="center">-</td>
+ <td align="center">-</td>
+</tr>
+</table>
+
+<p>
+<br><sup>0</sup> Not anonymous--only intended for debugging.
+<br><sup>1</sup> Requires root access or setuid root bit on <tt>launch</tt>
+<br><sup>2</sup> May require administrator access if using SP2
+<br><sup>3</sup> Requires a <a href="http://tcpdump.org/">libpcap</a> with pcap_sendpacket
+<br><sup>4</sup> Requires <a href="http://www.winpcap.org/">WinPcap</a>, 
+Windows 95 requires <a href="http://www.microsoft.com/windows95/downloads/contents/WUAdminTools/S_WUNetworkingTools/W95Sockets2/Default.asp">WinSock 2 Update</a>
+
+<p>Raw sockets allow IP source address spoofing, and it is suited well for
+Unix or Windows XP/2000 platforms. However, raw sockets are not supported
+on Windows 95/98/Me.
+<p>With Unix, if
 your sysadmin is kind enough to set the setuid bit on "launch" and change 
 ownership to root, you should be able to run SUMI by typing this command as
 a normal user: <tt>launch ./sumiserv</tt>. This is recommended for security
@@ -28,15 +65,16 @@ purposes, as the actual sumiserv will not be run as root; rather launch will
 create a raw socket, and pass it to sumiserv. (launch is unavailable on
 Win32 because of the lack of socket.fromfd.)
 
-<p>Setting dchan_mode to "pcap" may work on Me, 98, and 95, but this is
-currently experimental. Currently it fails with <tt>ImportError: DLL load
-failed: One of the library files needed to run this application cannot
-be found</tt> because of a missing mfc42u.dll (Microsoft Foundation Works
-4.2 Unicode version), which is not available for non-NT OS's.
-Windows 95 users will need a
+<p>As of 0.8.10, 
+a data channel mode of <tt>pcap</tt> should work on Windows Me, 98, and 95
+(Windows 95 users will need a
 <a
 href="http://www.microsoft.com/windows95/downloads/contents/WUAdminTools/S_WUNetworkingTools/W95Sockets2/Default.asp">WinSock
-95 WinSock 2 Update</a> from Microsoft.
+95 WinSock 2 Update</a> from Microsoft), 2000, XP, and Unix's with
+pcap_sendpacket (if your Unix doesn't have this function in libpcap,
+upgrade to <a href="http://tcpdump.org/">tcpdump's libpcap</a>) 
+and allows both IP and MAC address spoofing. However, pcap mode is currently
+experimental and may require pcap on the recipient.
 
 <h2>Why does SUMI use UDP by default, instead of another protocol such as ICMP?</h2>
 <p>ICMP offers a distinct advantage over all other protocols: an ICMP echo

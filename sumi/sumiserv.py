@@ -26,7 +26,7 @@ from getifaces import get_default_ip, get_ifaces
 root = os.path.abspath(os.path.dirname(sys.argv[0])) + os.sep
 
 def load_cfg():
-    """Load configuration file."""
+    """Load configuration file (a Python script)."""
     global root, cfg, config_file
     config_file = root + "sumiserv.cfg"
 
@@ -564,9 +564,10 @@ def recvmsg(nick, msg, no_decrypt=0):
             print "Somehow lost filename"
         destroy_client(nick)
 
-# Load transport - similar to sumiget's load_transport. The transport
-# is used for ALL transfers, not on a per-user basis as with sumiget.
 def load_transport(transport):
+    """Load the transport module used for the backchannel. This is similar
+    to sumiget's load_transport, but the transport is used for ALL transfers;
+    not on a per-user basis as with sumiget."""
     global sendmsg
     # Import the transport. This may fail, if, for example, there is
     # no such transport module.
@@ -595,10 +596,11 @@ def load_transport(transport):
     sendmsg = t.sendmsg
     t.recvmsg(recvmsg)
 
-# Generic function to capture packets (using pcapy), available to transports.
-# Useful to receive incoming messages without proxying.
-# Never returns.
 def capture(decoder, filter, callback):
+    """Generic function to capture packets using pcapy, available to
+    transports. Useful to receive incoming messages without proxying. Never
+    returns."""
+
     import pcapy
     print "Receiving messages on ", cfg["interface"]
     p = pcapy.open_live(cfg["interface"], 1500, 1, 0)
@@ -613,8 +615,8 @@ def capture(decoder, filter, callback):
             #print "<%s> %s" % (sn, msg)
             callback(user, msg)
 
-# Returns the TCP data off an Ethernet frame, or None
 def get_tcp_data(pkt_data):
+    """ Returns the TCP data off an Ethernet frame, or None."""
     try:
         # TODO: Other transport types besides Ethernet
         eth_hdr = pkt_data[0:14]     # Dst MAC, src MAC, ethertype
@@ -1119,7 +1121,7 @@ def build_iphdr(totlen, src_ip, dst_ip, type):
     return hdr
 
 def build_ethernet_hdr(src_mac, dst_mac, type_code):
-    # TODO: Build Ethernet header (for spoofing on the same network segment)
+    # Build Ethernet header (for spoofing on the same network segment)
     # Routers replace the MAC with theirs when they route, but if there are no
     # routers between the source and destination, the identity will be revealed
     # in the source MAC address.
