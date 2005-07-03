@@ -603,6 +603,7 @@ def capture(decoder, filter, callback):
 
     import pcapy
     print "Receiving messages on ", cfg["interface"]
+    # 1500 bytes, promiscuous mode.
     p = pcapy.open_live(cfg["interface"], 1500, 1, 0)
     if filter:
         p.setfilter(filter)
@@ -616,16 +617,26 @@ def capture(decoder, filter, callback):
             callback(user, msg)
 
 def get_tcp_data(pkt_data):
-    """ Returns the TCP data off an Ethernet frame, or None."""
+    """Returns the TCP data of an Ethernet frame, or None."""
+    return get_transport_data(pkt_data, 20)
+
+def get_transport_data(pkt_data, transport_size):
+    """Returns the data inside a transport header of transport_size
+    encapsulated in IPv4 over Ethernet, or None."""
     try:
         # TODO: Other transport types besides Ethernet
         eth_hdr = pkt_data[0:14]     # Dst MAC, src MAC, ethertype
         ip_hdr = pkt_data[14:14+20]  # 20-byte IPv4 header (no opts)
-        tcp_hdr = pkt_data[14+20:14+20+20]  # 20-byte TCP header
-        tcp_data = pkt_data[14+20+20:]
+        t_hdr = pkt_data[14+20:14+20+transport_size]  # 20-byte TCP header
+        t_data = pkt_data[14+20+transport_size:]
     except:
         return None
-    return tcp_data
+    return t_data
+
+def get_udp_data(pkt_data):
+    """Return the UDP data of an Ethernet frame, or None."""
+    return get_transport_data(pkt_data, 8)
+
 
 def xfer_thread_loop(nick):
     """Transfer the file, possibly in a loop for multicast."""
@@ -1272,6 +1283,7 @@ def rand_pingable_host():
     # where X is the number of bytes to send (payload+ICMP header), default
     # being 64 (this is the limit of google.com). 1466 is good.
     # UPDATE: google.com 216.239.57.99 can take ping -s 1472 (1480 bytes)!
+    # UPDATE2: not anymore...
     l = cfg["icmp_proxies"]
     return (l[random.randint(0, len(l) - 1)], 0)
 

@@ -63,8 +63,11 @@
 "maxwait": 5,#seconds      # Maximum time to wait before timing out handshake
 
 "data_chan_type": "u",     # Data channel type, u is UDP
-#"data_chan_type": "i0,0",   # Arbitrary ICMP; 0,0 is ICMP echo reply (fw's)
+#"data_chan_type": "i",     # Arbitrary ICMP packets, set port to type,code
 #"data_chan_type": "e",     # ICMP echo mode, bounce off a gateway
+
+"dchanmode": "socket",     # Data channel mode, use regular sockets
+#"dchanmode": "pcap",      # Use pcap
 
 "crypto":"",               # Encryption? o=OTP, s=symmetric (wait until pre)
 "passwd":"1" * 32,          # Asymmetric encryption key

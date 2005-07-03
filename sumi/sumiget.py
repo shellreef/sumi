@@ -577,12 +577,25 @@ class Client:
     def thread_recv_packets(self):
         """Receive anonymous packets."""
         print "THREAD 1 - PACKET RECV"
-        if (self.config["data_chan_type"] == "u"):
-            self.server_udp()
-        elif (self.config["data_chan_type"] == "e"):
-            self.server_icmp()
-        elif (self.config["data_chan_type"] == "i"):
-            self.server_icmp()
+        if self.config["dchanmode"] == "socket":
+            if self.config["data_chan_type"] == "u":
+                self.server_udp()
+            elif self.config["data_chan_type"] == "e":
+                self.server_icmp()
+            elif self.config["data_chan_type"] == "i":
+                self.server_icmp()
+            else:
+                print "data_chan_type invalid, see config.html (dchanmode=socket)"
+                sys.exit(-2)
+        elif self.config["dchanmode"] == "pcap":
+            if self.config["data_chan_type"] == "u":
+                self.server_udp_PCAP()
+            else:
+                print "data_chan_type invalid, see config.html (dchanmode=pcap)"
+                sys.exit(-3)
+        else:
+            print "*** dchanmode invalid, set to socket or pcap"
+            sys.exit(-4)
 
     def server_icmp(self):
         """Receive ICMP packets. Requires raw sockets."""
@@ -600,7 +613,7 @@ class Client:
 
     def server_udp(self):
         """Receive UDP packets."""
-        print "UDP started."
+        print "UDP started (socket mode)"
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         while 1:
             try:
@@ -624,6 +637,33 @@ class Client:
                 # Reinvoke it
                 continue 
             self.handle_packet(data, addr)
+
+    def server_udp_PCAP(self):
+        print "UDP started (pcap mode)"
+        if self.config["interface"] == "":
+            import pcapy
+            devs = pcapy.findalldevs()
+            print "Network interfaces:", devs
+            if len(devs) == 1:
+                self.config["interface"] = devs[0]
+                print "Automatically setting to ", self.config["interface"]
+            else:
+                print "*** Please set 'interface' in config.py to one of "
+                print "*** the interfaces above and restart."
+                sys.exit(-5)
+        import sumiserv
+        sumiserv.cfg = {"interface": self.config["interface"]}
+        def callback(data, pkt):
+            #addr = ("0.0.0.0.","0.0.0.0") #?? TODO: find address from pkt IP header
+            import struct
+            addr = (".".join(map(str, struct.unpack("!4B", pkt[14+12:14+16]))),
+                   ".".join(map(str, struct.unpack("!4B", pkt[14+16:14+20]))))
+            self.handle_packet(data, addr)
+
+        def decode(pkt):
+            return (sumiserv.get_udp_data(pkt), pkt)
+
+        sumiserv.capture(decode, "udp", callback)
 
     def cli_user_input(self):
         """Client user input (not used anymore), belongs in separate program."""

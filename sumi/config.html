@@ -7,11 +7,16 @@
 <p>SUMI comes in two parts: server (sumiserv) and client (sumiget). This
 page will describe the configuration of both components.
 
+<p><b>Important: You must close sumigetw or sumiserv <i>before</i> making changes to the
+    config files. Both programs rewrite their config files after closing to
+    save their state, so any changes made when the programs are open will be
+    lost.</b>
+
 <h1>Configuring The SUMI Client (sumiget)</h1>
 <table width=100% border=1>
 <tr>
  <td><b>dl_dir</b></td>
- <td>Where to save downloaded files - must NOT end in a / (or \ for win32)</td>
+ <td>Where to save downloaded files - must end in a / (or \ for win32)</td>
 </tr><tr>
  <td><b>myip, myport</b></td>
  <td>Your IP and your port - these must be INTERNET ACCESSIBLE! That means
@@ -19,20 +24,21 @@ page will describe the configuration of both components.
  If data_chan_type is UDP, myport is a 16-bit UDP port; if ICMP, myport is
 a two packed 8-bit type and code values, equal to type*0x100+code,
 see <a href="http://www.iana.org/assignments/icmp-parameters">ICMP parameters</a>.
-<p>Note that SUMI downloaders are not anonymous, only uploaders. 
-<a href="http://news.zdnet.co.uk/business/legal/0,39020651,39118537,00.htm">
-Canada has ruled downloading copyrighted material legal.</a>.
+<p><b><i>Note that SUMI downloaders are not anonymous, only uploaders.
+</i></b>
 
-<p>
-         TODO: Make myport configurable, attempt to read myip from the
-          network interfaces. Local IPs are bad, as they indicate they will
-          be translated by a NAT most likely, so warn and offer to use real IP
-          but with EXTREME CAUTION.
-<p>       TODO: While we're at it, also get netmask and offer to use it
-        <a href="http://tgolden.sc.sabren.com/python/wmi_cookbook.html#ip_addresses">link</a>
-          has WMI to get IP and MACs of IP-enabled network devices, can
-          use ioctl for BSD. However, making a remote connection and using
-          the local sockname works better.</p>
+<p>If myip is set to '', sumiget will attempt to automatically determine it by
+connecting to Google. This won't work if you're behind a NAT, or care about
+Google not knowing when you run sumiget.
+
+<p>As of 0.8.7, DNS names can be used; for example "foo.dyndns.org". The client
+will resolve the FQDN to an IP and use it. (Note: the server never resolves
+names because a malicious attacker could control the DNS server, and find out
+the true identity of the server.)
+
+<p>You'll get a warning if you use a non-routable IP. Don't do that. 
+(Local IPs are a bad sign, as they indicate they will
+be translated by a NAT most likely, removing any anonymity.)
 </tr><tr>
  <td><b>mss</b></td>
  <td>    MSS = MTU - IP_header(20 bytes) - UDP header(8 bytes)<br>
@@ -56,39 +62,78 @@ Canada has ruled downloading copyrighted material legal.</a>.
 </pre></td>
 </tr><tr>
  <td><b>rwinsz</b></td></td>
- <td>         RWINSZ - Receive window size. This is the number of SECONDS
+ <td>         RWINSZ - Receive window size. This is the number of
+     <i>seconds</i>
          before acking. This value is also used as the number of seconds before
  updating the speed.</td>
 </tr><tr>
  <td><b>bandwidth</b></td>
- <td>Our DL bandwidth in bits/sec. From this value, the sender will calculate
+ <td>Our download bandwidth in bits/sec. 
+     From this value, the sender will calculate
          the packet send delay as to not overwhelm our bandwidth. If this
          is set to higher than your real bandwidth, packets may be lost and
          it will be slower. Note that sender may have less bandwidth.
          <ul><li>1500000 = 1.5Mbps</ul></td>
 </tr><tr>
- <td><b>data_chan_type,</b></td>
- <td>Data channel type. UDP is default. For ICMP, i with code=0 and type=0 is the echo
+ <td><b>data_chan_type</b></td>
+ <td>Data channel type. Determines how the server sends data.
+UDP is default. For ICMP, i with code=0 and type=0 is the echo
      reply and it will work best for passing through firewalls.
 <ul>
 <li>u is UDP
 <li>i is arbitrary ICMP
-<li>e is ICMP echo mode (bounce off a gateway)
+<li>e is ICMP echo mode (bounce off a gateway, one of <tt>icmp_proxies</tt>)
 </ul>
 </td>
 </tr><tr>
+ <td><b>dchanmode</b></td>
+ <td>Data channel mode, a subset of the data channel type. Determines how
+the data packets will be received.
+<ul>
+<li><tt>socket</tt> - use regular socket calls
+<li><tt>pcap</tt> - use packet capture library
+</ul>
+ <p><tt>socket</tt> has the advantage of being able to work properly without
+any special priviledges. As long as you are able to accept incoming
+connections, you can receive anonymous transfers. The only possible exception
+is that some Unixes require superuser access for ports under 1024, but this
+requirement can be turned off in some configurations, or higher ports can be
+used.
+
+ <p><tt>pcap</tt> requires libpcap (on Unix) or <a
+href="http://winpcap.org/">WinPcap</a> on Windows. Packets are captured
+passively using pcapy, without any need for opening ports (XXX: ICMP
+unreachable port responses?), currently this mode is only supported for
+data_chan_mode of "u".
+</td>
+</tr><tr>
+ <td><b>icmp_proxies</b></td>
+ <td>A list of hosts to bounce data off when using the "e" data_chan_type.
+     Preferably set to a large list of fast servers that allow a large ICMP
+     echo response. To find how many bytes are allowed in an ICMP echo
+     response, use <tt>sudo ping -s `expr X - 8` host</tt> on Unix, where X is
+     the number of bytes to send. Many hosts limit this to 64 bytes.</td>
+ 
+</tr><tr>
  <td><b>crypto</b></td>
- <td>Encryption? o=OTP, s=symmetic, a=asymmetric (wait until pre)</td>
+ <td>Encryption? o=OTP, s=symmetic, a=asymmetric (wait until
+     pre-authentication cryptography is implemented). Cryptography isn't yet
+     fully supported by SUMI.</td>
 </tr><tr>
  <td><b>passwd</b></td>
  <td>The key or password to use for encryption</td>
 </tr><tr>
- <td><B>irc_nick</b></td>
- <td>Nickname to use on IRC
+ <td><b>irc_nick</b></td>
+ <td>Nickname to use on IRC</td>
+</tr><tr>
+ <td><b>interface</b></td>
+ <td>Network interface to use for packet capturing/sending raw frames.</td>
 </tr>
 </table>
 
 <h1>Configuring The Server (sumiserv)</h1>
+<p><a href="sumiserv.cfg">example config (sumi-00)</a>
+
 <table border=1>
 <tr>
  <td>global_mss</td>
@@ -101,32 +146,73 @@ Canada has ruled downloading copyrighted material legal.</a>.
  <td>1 for FreeBSD, 0 for Linux (on little-endian)</td>
 </tr><tr>
  <td>stealth_mode</td>
- <td>1 for no client error messages, 0 for</td>
+ <td>1 for no client error messages, 0 for. Disable this if you want your
+     clients to know what they did wrong (default). Set stealth_mode to 1 and
+ sleep_interval to 0 if you want sumiserv to never send any IRC messages. It
+ can mostly be disguised as an ordinary IRC client this way. TODO: CTCP
+ VERSION.</td>
 </tr><tr>
  <td>our_bandwidth</td>
- <td>Upload bandwidth speed limit in bits/sec (128000=128Kbps)</td>
+ <td>Upload bandwidth speed limit in bits/sec (128000=128Kbps). To convert
+     from KB/s (kilobytes/sec) to Kbps (kilobytes/sec), multiply by 8.192. Set
+     this to the maximum speed to dedicate to the server. If the client speed
+     is slower, it will be used instead.
+ </td>
 </tr><tr>
  <td>sleep_interval</td>
  <td>Time to sleep before channel notifications in seconds, or 0 for none.</td>
 </tr><tr>
  <td>src_allow</td>
- <td>Source IP range to allow, in CIDR notation.</td>
+ <td>Source IP range to allow, in CIDR notation. This is one of the most
+     important settings, and the source of SUMI's flexibility in spoofing. The
+     most liberal src_allow is "0.0.0.0/32", meaning spoof from any IP
+     address. If your ISP implements egress filtering, you can use this
+     setting to restrict the range that will be spoofed. For example
+     "4.0.0.0/24" (or simply "4/24") would use addresses 4.0.0.0 to
+     4.255.255.255. To spoof from a single address only, use for example
+     "1.2.3.4/0". Recommended setting is your subnet range.
+ </td>
 </tr><tr>
  <td>bind_address</td>
  <td>Address to bind raw socket to. "" means use default outgoing address.</td>
 </tr><tr>
  <td>irc_chans</td>
- <td>Dictionary of channels to join and their keys.</td>
+ <td>   Dictionary of channels to join and their keys. Example: {"#sumi":
+     "anon"}. If no key, use "".
+ </td>
 </tr><tr>
  <td>otpdir</td>
  <td>Directory to read one-time pads from. A CD-ROM is a good location if
-     you're constantly using a large OTP.</td>
+     you're constantly using a large OTP. Don't worry about this if you are
+     not using one-time pad encryption, it needs to be redone anyway.
+ </td>
 </tr><tr>
  <td>filedb</td>
- <td>Files to share. This implementation is more like iroffer than, say,Napster.
-You share packages of files more commonly, not your whole drive, etc. The
-variable "root" is available to specify where this program is run from. A list
-of hashes, with keys: "fn", "desc", "gets".</td>
+ <td>
+Files to share. This implementation is more like iroffer than, say,Napster. You share packages of files more commonly, not your whole drive, etc. The variable "root" is available to specify where this program is run from. A list of hashes, with keys: "fn", "desc", "gets". For example:
+
+<pre>'filedb': [{'desc': '16000-byte Test',
+            'fn': 'lptest',
+            'gets': 0}],
+
+</pre>The server will fill in 'size' and 'hsize' automatically, you don't need to specify them.
+Files should either be located in the current directory, or anywhere if you add a full path.
+<p>TODO: GUI to edit this. 
+</td>
+</tr><tr>
+ <td>raw_proxy</td>
+ <td>Specifies the address, port, and password of a server running rawproxd, 
+in the format <tt>ip:port password</tt>. Useful if you have a NAT. Run 
+<tt>rawproxd</tt> on the NAT device (a binary for Linksys WRT54G(S) routers 
+is included) and enter its address here, and you'll be able to run sumiserv 
+from behind the NAT. If not set, packets will be sent directly. See the FAQ 
+for more information on using rawproxd.
+</tr><tr>
+ <td>broadcast</td>
+ <td>Set to 1 to allow sending to broadcast addresses, such as 255.255.255.255 or 192.168.0.255. Only enable if you need it.</td>
+</tr><tr> 
+ <td>interface</td>
+ <td>Network interface to use for packet capturing.
 </tr>
 </table>
 

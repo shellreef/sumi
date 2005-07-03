@@ -6,6 +6,11 @@
 
 import sys
 
+# While we're at it, also get netmask and offer to use it
+#        <a href="http://tgolden.sc.sabren.com/python/wmi_cookbook.html#ip_addresses">link</a>
+#          has WMI to get IP and MACs of IP-enabled network devices, can
+#          use ioctl for BSD. However, making a remote connection and using
+#          the local sockname works better.</p>
 # http://tgolden.sc.sabren.com/python/wmi_cookbook.html#ip_addresses
 def get_ifaces_win32():
     import wmi
