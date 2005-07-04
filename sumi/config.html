@@ -212,7 +212,10 @@ for more information on using rawproxd.
  <td>Set to 1 to allow sending to broadcast addresses, such as 255.255.255.255 or 192.168.0.255. Only enable if you need it.</td>
 </tr><tr> 
  <td>interface</td>
- <td>Network interface to use for packet capturing.
-</tr>
+ <td>Network interface to use for packet capturing and sending.
+</tr><tr>
+ <td>noise</td>
+ <td>Simulate a noisy network for testing purposes. Randomly lose
+     1:<var>noise</var> packets. None to disable.</td>
 </table>
 

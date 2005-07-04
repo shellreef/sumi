@@ -58,4 +58,7 @@
 # Network interface to use with pcap. "" to list all intefaces and quit,
 # or choose the first interface if there is only one.
 "interface": "",
+
+# Chance to lose packets
+"noise": 100,
 }
