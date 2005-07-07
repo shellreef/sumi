@@ -59,7 +59,7 @@ class MainNotebook(wxNotebook):
         self.xfpanel = TransferPanel(self, app)
         self.cfgc = ConfigPanel(self, app)
         self.nets = wxPanel(self, -1)
-        self.serv = wxPanel(self, -1)
+        self.serv = ServerPanel(self, -1)
         self.log  = LogPanel(self, app)
         self.exit = wxPanel(self, -1)
         self.AddPage(self.xfpanel, "Transfers")
@@ -116,6 +116,32 @@ class MainNotebook(wxNotebook):
                 pass
 
         event.Skip()   #  requires especially on Win32
+
+class ServerPanel(wxPanel):
+    def __init__(self, parent, app):
+        wxPanel.__init__(self, parent, -1)
+   
+        self.servlog = wxTextCtrl(self, 601, style=wxTE_MULTILINE | wxTE_READONLY)
+        box = wxBoxSizer(wxVERTICAL)
+        box.Add(self.servlog, 1, wxEXPAND)
+        self.SetAutoLayout(true)
+        self.SetSizer(box)
+        self.Layout()
+
+        # TODO: Start server once click to it, instead of at startup.
+        #return
+        self.Write("Starting sumiserv...\n")
+        import sumiserv
+
+        def log(msg):
+            self.Write(str(msg) + "\n")
+        sumiserv.log = log
+
+        thread.start_new_thread(sumiserv.main, ((),))
+        #sumiserv.make_thread(sumiserv.main, (()))
+
+    def Write(self, msg):
+        self.servlog.WriteText(msg)
 
 global real_stdout, log
 
@@ -397,6 +423,9 @@ class TransferPanel(wxPanel, wxColumnSorterMixin):
     def __init__(self, parent, app):
         wxPanel.__init__(self, parent, -1, style=wxWANTS_CHARS)
                                                  #wxTAB_TRAVERSAL)
+        # TODO: Column sorting is disabled now because nick2index loses
+        # its associations and starts writing to the wrong column.
+        #wxColumnSorterMixin.__init__(self, 3)
 
         tID = wxNewId()
 
@@ -419,9 +448,6 @@ class TransferPanel(wxPanel, wxColumnSorterMixin):
         self.itemDataMap = {}
 
         self.SetupList()
-        # TODO: Column sorting is disabled now because nick2index loses
-        # its associations and starts writing to the wrong column.
-        #wxColumnSorterMixin.__init__(self, 3)
 
 
         # XXX: These are left over from wxListCtrl demo. 
@@ -663,10 +689,7 @@ class TransferPanel(wxPanel, wxColumnSorterMixin):
     def OnOpen(self, event):
         print "Opening selected file..."
         f = self.list.GetItemText(self.currentItem)
-        import os
-        import os.path
         print f
-        # TODO: OS-independen
         os.startfile(self.app.client.config["dl_dir"] + os.path.sep + f)
 
     def OnOpenDir(self, event):
@@ -994,7 +1017,8 @@ class SUMIApp(wx.wxApp):
 def main(argv):
     if (len(sys.argv) < 4):
         print "Usage: %s transport nick fn" % sys.argv[0]
-        sys.argv = ['fake'] * 4
+        #sys.argv = ['fake'] * 4
+        sys.argv = ['sumigetw', 'fake', 'no_user', 'no_file']
         #return
 
     print "Loading app..."

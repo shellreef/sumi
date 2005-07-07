@@ -3,7 +3,7 @@
 # Created:20040117M
 # By Jeff Connelly
 
-# SUMI downloader, invoke: sumiget.py get <server> <file>
+# SUMI downloader, invoke: sumiget.py <transport> <server> <filename>
 # See also: sumigetw.py
 
 import thread
@@ -12,11 +12,11 @@ import random
 import socket
 import string
 import struct
+import signal
 import sys
 import os
 import md5
 import time
-import popen2
 from libsumi import *
 from nonroutable import is_nonroutable_ip
 
@@ -25,8 +25,6 @@ from getifaces import get_ifaces, get_default_ip
 # Modules used by transports. Imported here so they compile in.
 if sys.platform == 'win32':
     import win32api
-import mmap
-import irclib
 
 input_lock = thread.allocate_lock()
 #transport = "python -u transport/sumi-irc.py"
@@ -186,7 +184,7 @@ class Client:
             context.update(data)       # auth "key" is all of data, hash it
             #context.update("hi")#bad hash
             #hash = context.hexdigest() 
-            hash = base64.encodestring(context.digest())[:-1]
+            hashcode = base64.encodestring(context.digest())[:-1]
             print "PKT:Got auth packet from",addr," for ",nick,
   
             print "PKT:Verifying prefix (authenticity of server)..."
@@ -354,7 +352,7 @@ class Client:
             # Resume /after/ our current offset: at + 1
             print "Sending sumi auth"
             self.sendmsg(nick, "sumi auth " + pack_args({"m":self.mss,
-                "s":addr[0], "h":hash, "o":self.senders[nick]["at"] + 1}))
+                "s":addr[0], "h":hashcode, "o":self.senders[nick]["at"] + 1}))
 
             self.on_timer()    # instant update
 
@@ -599,10 +597,12 @@ class Client:
 
     def server_icmp(self):
         """Receive ICMP packets. Requires raw sockets."""
-        print "ICMP started."   # At the moment, needs to be ran as root
+
+        thread.start_new_thread(self.server_udp, (self,))
         #print "UID=", os.getuid()
         sock = socket.socket(socket.AF_INET, socket.SOCK_RAW, \
                              socket.IPPROTO_ICMP)
+        print "ICMP started."   # At the moment, needs to be ran as root
         # XXX: TODO: Fix ICMP. The server doesn't generate ICMP checksums,
         # so we won't be able to receive here!
         sock.bind((self.localaddr, 0))
@@ -655,7 +655,6 @@ class Client:
         sumiserv.cfg = {"interface": self.config["interface"]}
         def callback(data, pkt):
             #addr = ("0.0.0.0.","0.0.0.0") #?? TODO: find address from pkt IP header
-            import struct
             addr = (".".join(map(str, struct.unpack("!4B", pkt[14+12:14+16]))),
                    ".".join(map(str, struct.unpack("!4B", pkt[14+16:14+20]))))
             self.handle_packet(data, addr)
@@ -679,12 +678,12 @@ class Client:
             args = line.split()
             if (args[0] == "/get"):
                 try:
-                    self.request(args[1], args[2])
+                    self.request(*args)
                 except IndexError:
-                    print "Usage: get <server_nick> <file>"
+                    print "Usage: sumiget <transport> <server_nick> <file>"
             else:
                 self.sendmsg(irc_chan, line)
-    # DO SUMI SEC THEN ENCRYPT MSGS & PACKETS
+        # DO SUMI SEC THEN ENCRYPT MSGS & PACKETS
         # Pre-auth. aes'd sumi send > irc_maxlen
         # MAX IRC PRIVMSG IN XCHAT: 452 in #sumi, 454 in #a (??) 462 in #a*31
         # ON NGIRCD: COMMAND_LEN - 1, is 513-1 is 512. Room for PRIVMSG+nick.
@@ -701,7 +700,7 @@ class Client:
             # TODO: This key generation should be done elsewhere and better
             from Crypto.PublicKey import RSA
             from Crypto.Util.randpool import RandomPool
-            from Crypto.Util import number             
+            #from Crypto.Util import number             # (not used)
             self.pool = RandomPool(384)
             self.pool.stir()
             # Larger key needed to encrypt larger data, 768 too small
@@ -1034,10 +1033,10 @@ class Client:
 
 def on_sigusr1(signo, intsf):
     global base_path
-    print "Got SIGUSR1, calling"
-    (transport, nick, file) = open(base_path + "run", 
+    print "Got SIGUSR1 (",signo,intsf,"), calling"
+    (transport, nick, filename) = open(base_path + "run", 
         "rb").readline().split("\t")
-    print "-> ",transport,nick,file
+    print "-> ",transport,nick,filename
     # TODO: this needs to be more modualized; sendmsg into a server[]
     # and the servers should only be ran once!
     #Client().main(transport, nick, file)
@@ -1048,15 +1047,13 @@ def on_sigusr1(signo, intsf):
 
 # CLI uses this on-exit
 def on_exit(signo=0, intsf=0):
-    print "Cleaning up..."
+    print "Cleaning up...(signal ",signo,intsf,")"
     #os.unlink(base_path + "sumiget.pid") 
 
 def pre_main(invoke_req_handler):
     """Before creating the client, this function handles multiple instances."""
     global client
 
-    import signal
-    import sys
     # Multi-client support
     if sys.platform == 'win32':
         # win32gui.PumpWaitingMessages()?   # will be handled by wxWindows
@@ -1067,9 +1064,9 @@ def pre_main(invoke_req_handler):
 
     if (len(sys.argv) >= 3):
         transport = sys.argv[1] 
-        nick, file = sys.argv[2], sys.argv[3]
+        nick, filename = sys.argv[2], sys.argv[3]
     else:
-        print "Usage: sumiget <transport> <nick> <file>"
+        print "Usage: sumiget <transport> <nick> <filename>"
         sys.exit(-1)
 
     # 0=seperate program per transfer, 1=all in one (currently not working)
@@ -1084,7 +1081,7 @@ def pre_main(invoke_req_handler):
         master = open(base_path+"sumiget.pid","rb").read()
         if (len(master) != 0):   # If empty, be master
             open(base_path + "run", "wb").write("%s\t%s\t%s" % \
-                (transport, nick, file))
+                (transport, nick, filename))
             my_master = int(master)
             print "Passing to: ", my_master
             failed = 0 
@@ -1122,12 +1119,12 @@ if __name__ == "__main__":
 
     #save_pid(os.getpid())
 
-    transport, nick, file = sys.argv[1], sys.argv[2], sys.argv[3]
+    transport, nick, filename = sys.argv[1], sys.argv[2], sys.argv[3]
 
-    print "Getting <%s> from <%s> using <%s>..." % (file, nick, transport)
+    print "Getting <%s> from <%s> using <%s>..." % (filename, nick, transport)
 
     try:
         client = Client()
-        client.main(transport, nick, file)
-    except KeyboardInterrupt, SystemExit:
+        client.main(transport, nick, filename)
+    except (KeyboardInterrupt, SystemExit):
         on_exit(None, None)

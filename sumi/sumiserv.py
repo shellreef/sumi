@@ -24,12 +24,16 @@ from getifaces import get_default_ip, get_ifaces
 # Root is exposed here so the config file can use it
 root = os.path.abspath(os.path.dirname(sys.argv[0])) + os.sep
 
+# Log/print -- users of this module can replace this function
+def log(msg):
+    print msg
+
 def load_cfg():
     """Load configuration file (a Python script)."""
     global root, cfg, config_file
     config_file = root + "sumiserv.cfg"
 
-    print "Using config file: ", config_file
+    log("Using config file: " + config_file)
     #eval(compile(open(config_file).read(), "", "exec"))
 
     cfg = eval("".join(open(config_file, "rU").read()))
@@ -51,7 +55,7 @@ SRC_IP_MASK = None
 SRC_IP_ALLOW = None
 
 def fatal(code, msg):
-    print "Fatal error #%.2d: %s" % (code, msg)
+    log("Fatal error #%.2d: %s" % (code, msg))
     sys.exit(code)
 
 # https://sourceforge.net/tracker/?func=detail&atid=105470&aid=860134&group_id=547
@@ -105,7 +109,8 @@ def set_src_allow(allow_cidr):
     # For consistency. SRC_IP_ALLOW bits are only meaningful when the
     # corresponding bits are 1 in SRC_IP_MASK
     SRC_IP_ALLOW &= ~SRC_IP_MASK  
-    print "Allowing: %s, mask=%.8x, allow=%.8x" % (allow_cidr, SRC_IP_MASK, SRC_IP_ALLOW)
+    log("Allowing: %s, mask=%.8x, allow=%.8x" % (allow_cidr, SRC_IP_MASK,
+        SRC_IP_ALLOW))
 
 def recvmsg_secure(nick, msg):
     """Receive an encrypted message."""
@@ -126,13 +131,13 @@ def recvmsg_secure(nick, msg):
         msg = base64.decodestring(msg)
         import cPickle
 
-        print "pkey = ", clients[nick]["pkey"]
+        log("pkey = " + clients[nick]["pkey"])
 # bails with:
 #AttributeError: RSAobj instance has no attribute '__setitem__'
 
         key = cPickle.loads(clients[nick]["pkey"])
         if (key.has_private):
-            print "Good, key has private"
+            log("Good, key has private")
         msg = key.decrypt(msg)  
         # key.decrypt???
     return msg
@@ -150,19 +155,19 @@ def recv_multipart(nick, msg):
             clients[nick]["msg"] = msg[1:]
         else:
             clients[nick]["msg"] += msg[1:]
-        print "ACCUMULATED MSG: ", clients[nick]["msg"]
+        log("ACCUMULATED MSG: %s" % clients[nick]["msg"])
         return True
     else:
         if clients[nick].has_key("msg"):
             msg = clients[nick]["msg"] + msg
             clients[nick]["msg"] = ""
-        print "COMPLETE MSG: ", msg   # Now handle
+        log("COMPLETE MSG:  %s" % msg)   # Now handle
         return False
 
 def handle_sec(nick, msg):
     """Handle a sumi sec message, used for setting up security
        (encryption). Return whether successful."""
-    print nick, " is request security"   
+    log("%s is request security" % nick)
     args = msg[len("sumi sec "):]
     # This is sent in the clear, so it should be made uniform and
     # not suspicious. Instead of using pack_args(), go for something like
@@ -179,7 +184,7 @@ def handle_sec(nick, msg):
         clients[nick]["sec_acks"] = 1
     #print "sec_acks=",clients[nick]["sec_acks"] 
     try:
-        print "Decoding ",key_
+        log("Decoding %s" % key_)
         key_ = base64.decodestring(key_ + "=")
     except None: #base64.binascii.Error:
         clients[nick] = {}     # forget them, they dont know how to b64
@@ -187,25 +192,25 @@ def handle_sec(nick, msg):
     if (clients[nick]["crypto"] == "O" or clients[nick]["crypto"] == "o"):
         clients[nick]["otppos"] = struct.unpack("!L", key_[0:4])
         clients[nick]["otpid"] = key_[4:]
-        print "pos=",clients[nick]["otppos"]
-        print "otpid=",clients[nick]["otpid"]
+        log("pos=%s" % clients[nick]["otppos"])
+        log("otpid=%s" % clients[nick]["otpid"])
     else:
         clients[nick]["pkey"] = key_   # pre-auth key
-        print "Yeah the pw is",key_
+        log("Yeah the pw is %s" % key_)
         clients[nick]["passwd"] = clients[nick]["pkey"]  # backwards
     return True
 
 def handle_send(nick, msg):
     """Handle sumi send -- setup a new transfer."""
-    print nick, "is sumi sending"
+    log("%s is sumi sending" % nick)
     if (clients.has_key(nick) and not clients[nick].has_key("preauth")):
-        print "CLEARING LEFT OVERS"
+        log("CLEARING LEFT OVERS")
         clients[nick].clear()
     msg = msg[len("sumi send "):]
     try: 
         #(file, offset, ip, port, mss, b64prefix, speed)=msg.split("\t") 
         args = unpack_args(msg)
-        print "ARGS=",args
+        log("ARGS=%s" % args)
         filename = args["f"]
         offset   = int(args["o"])
         ip       = args["i"]
@@ -224,7 +229,7 @@ def handle_send(nick, msg):
         if args.has_key("O"): otpfile = args["O"]
         if args.has_key("@"): otpfile = args["@"]
     except KeyError:
-        print "not enough fields/missing fields"
+        log("not enough fields/missing fields")
         return sendmsg_error(nick, "not enough fields/missing fields")
 
     # Verify MSS. A packet is sent with size clients[nick]["mss"]
@@ -237,7 +242,7 @@ def handle_send(nick, msg):
     # This check is also repeated in the second stag            
     ##clients[nick]["last_winsz"] = winsz
     #     256 MSS has to be small enough for anybody.
-    print "Verifying MSS"
+    log("Verifying MSS")
     if (mss < 256):
         return sendmsg_error(nick, "MSS too small: %d" % (mss,))
     if (mss > cfg["global_mss"]):
@@ -247,7 +252,7 @@ def handle_send(nick, msg):
     # Note: There is no need to use Base85 - Base94 (RFC 1924) because
     # it can increase by a minimum of one byte. yEnc might work, but
     # its not worth it really. Base64 is perfect for encoding these 3 bytes
-    print "Decoding prefix"
+    log("Decoding prefix")
     prefix = base64.decodestring(b64prefix)
 
     # Prefix has to be 3 bytes, because if we allow larger, then clients
@@ -264,9 +269,9 @@ def handle_send(nick, msg):
         return sendmsg_error(nick, "invalid IP address: %s" % ip)
 
     # TODO: make sure the filename/pack number is valid, and we have it
-    print"nick=%s,FILE=%s,OFFSET=%d,IP=%s:%d MSS=%d PREFIX=%02x%02x%02x" % (
+    log("nick=%s,FILE=%s,OFFSET=%d,IP=%s:%d MSS=%d PREFIX=%02x%02x%02x" % (
           nick, filename, offset, ip, port, mss, ord(prefix[0]), \
-          ord(prefix[1]), ord(prefix[2]))
+          ord(prefix[1]), ord(prefix[2])))
 
     # Build the authentication packet using the client-requested prefix
     key = "%s\0\0\0" % prefix       # 3-byte prefix, 3-byte seqno (0)
@@ -309,7 +314,7 @@ def handle_send(nick, msg):
          #code = int(code)
          type = int(port / 0x100)
          code =     port % 0x100
-         print "type,code=",type,code
+         log("type,code=%s %s" % (type,code))
          clients[nick]["send"] = \
              lambda s,d,p: send_packet_ICMP(s, d, p, type, code)
          clients[nick]["src_gen"] = randip
@@ -341,7 +346,7 @@ def handle_send(nick, msg):
       # sending?
     elif (clients[nick]["crypto"] == "s"):   # symmetric
         #clients[nick]["passwd"] = passwd
-        print "SYMMETRIC"
+        log("SYMMETRIC")
     # TODO: put information about the file here. hash?
 
     try:
@@ -358,8 +363,8 @@ def handle_send(nick, msg):
 
     if casts.has_key(clients[nick]["addr"]):
         # Use prefix of client already sending to
-        print "Multicast detected:", clients[nick]["addr"],":",\
-              casts[clients[nick]["addr"]]
+        log("Multicast detected: %s:%s" % (clients[nick]["addr"],
+              casts[clients[nick]["addr"]]))
 
         cs = casts[clients[nick]["addr"]]
         found = 0
@@ -370,16 +375,16 @@ def handle_send(nick, msg):
                 break
 
         if found == 0:
-            print "No transferring clients found, assuming unicast"
+            log("No transferring clients found, assuming unicast")
             casts[clients[nick]["addr"]] = { nick: 1 }
             mcast = 0
         else:
             casts[clients[nick]["addr"]][nick] = 1
 
-            print "    Using old prefix: %02x%02x%02x" % \
+            log("    Using old prefix: %02x%02x%02x" % \
                 (ord(clients[nick]["prefix"][0]), \
                  ord(clients[nick]["prefix"][1]), \
-                 ord(clients[nick]["prefix"][2]))
+                 ord(clients[nick]["prefix"][2])))
             mcast = 1
     else:
         # An array would do here, but a hash easily removes the possibility
@@ -417,11 +422,11 @@ def handle_send(nick, msg):
     # with a) the server sending the packet b) the client receiving the
     # packet (in both cases, the authentication packet). Some ICMP codes
     # blocked/handled by kernel, for example, or src may be blocked.
-    print "Sending auth packet now."
+    log("Sending auth packet now.")
     clients[nick]["send"](clients[nick]["asrc"], \
                           clients[nick]["dst_gen"](), key)
-    print " AUTH PREFIX=%02x%02x%02x" % (ord(key[0]), \
-        ord(key[1]), ord(key[2]))
+    log(" AUTH PREFIX=%02x%02x%02x" % (ord(key[0]), \
+        ord(key[1]), ord(key[2])))
     #send_packet(clients[nick]["asrc"], (ip, port), key)
 
     return True
@@ -431,11 +436,11 @@ def handle_auth(nick, msg):
     if (not clients.has_key(nick) or clients[nick]["authenticated"] != 1):
         return sendmsg_error(nick, "step 1 not complete")
 
-    print "message: ", msg
+    log("message: %s" % msg)
     msg = msg[len("sumi auth "):]
     #(their_mss, asrc, hash) = msg.split("\t")
     args = unpack_args(msg)
-    print "args: ", args
+    log("args: %s" % args)
     their_mss = int(args["m"])
     asrc      = args["s"]
     hashcode  = args["h"]
@@ -455,7 +460,8 @@ def handle_auth(nick, msg):
             return sendmsg_error(nick, "MSS too high (%d>%d)!" % (their_mss, clients[nick]["mss"]))
         # Client might have received less than full packet; this says they
         # require a smaller packet size
-        print "Downgrading MSS of %s: %d->%d" % (nick, clients[nick]["mss"], their_mss)
+        log("Downgrading MSS of %s: %d->%d" % (nick, clients[nick]["mss"],
+            their_mss))
         clients[nick]["mss"] = their_mss
 
     # Now we know MSS, so calculate send delay (in seconds)
@@ -468,17 +474,18 @@ def handle_auth(nick, msg):
         (clients[nick]["mss"] + 28.) / \
         (min(clients[nick]["speed"], cfg["our_bandwidth"])/8)  
          # ^^^  whichever slower
-    print "Using send delay: ",clients[nick]["delay"]
+    log("Using send delay: %s" % clients[nick]["delay"])
        
-    print "Verifying spoofing capabilities..."
+    log("Verifying spoofing capabilities...")
     if (clients[nick]["asrc"][0] != asrc):
-        print "*** Warning: Possible spoof failure! We sent from %s,\n"\
+        log("*** Warning: Possible spoof failure! We sent from %s,\n"\
               "but client says we sent from %s. If this happens often,"\
               "either its a problem with your ISP, or the work of\n"\
-              "mischevious clients. Dropping connection." % (clients[nick]["asrc"][0], asrc)
+              "mischevious clients. Dropping connection." %
+              (clients[nick]["asrc"][0], asrc))
         #return sendmsg_error(nick, "srcip")
     
-    print "Verifying authenticity of client..."
+    log("Verifying authenticity of client...")
     # The hash has to be calculated AFTER the auth string is received so
     # we know how much of it to hash (number of bytes: the MSS)
     if (their_mss > len(clients[nick]["key"])):   # trying to overflow, eh..
@@ -499,7 +506,7 @@ def handle_auth(nick, msg):
     if clients[nick]["crypto"] == "s":
         from aes.aes import aes
         aes_crypt = aes()
-        print "PW=",clients[nick]["passwd"]
+        log("PW=%s" % clients[nick]["passwd"])
         aes_crypt.setKey(clients[nick]["passwd"])
         ciphered = open(cfg["filedb"][clients[nick]["file"]]["fn"] + ".aes", "wb+")
         ciphered.write(aes_crypt.encrypt(   \
@@ -517,11 +524,11 @@ def handle_auth(nick, msg):
     clients[nick]["size"] = clients[nick]["fh"].tell()
     clients[nick]["fh"].seek(0, 0)   # SEEK_SET
 
-    print "Starting transfer to %s..." % nick
-    print "Sending: ", cfg["filedb"][clients[nick]["file"]]["fn"]
+    log("Starting transfer to %s..." % nick)
+    log("Sending: %s" % cfg["filedb"][clients[nick]["file"]]["fn"])
     ##
 
-    print nick,"is fully verified!"
+    log("%s is fully verified!" % nick)
     clients[nick]["authenticated"] = 2    # fully authenticated, let xfer
 
     # When multicasting, the same address is sent by multiple clients.
@@ -533,10 +540,10 @@ def handle_auth(nick, msg):
     # again) if the prefix conflicts. This way the server can assign 
     # multiple clients the same prefix, and they all can get it!
     if clients[nick]["mcast"]:
-        print "Since multicast, not starting another transfer"
+        log("Since multicast, not starting another transfer")
         return
     else:
-        print "Unicast - starting transfer"
+        log("Unicast - starting transfer")
 
     # In a separate thread to allow multiple transfers
     #thread.start_new_thread(xfer_thread, (nick,))
@@ -549,16 +556,17 @@ def handle_done(nick, msg):
     """Handle sumi done -- graceful ending of transfer."""
     # Possible thread concurrency issues here. Client can do sumi done at
     # any time, which will result in accessing nonexistant keys
-    print "Transfer to %s complete\n" % nick
+    log("Transfer to %s complete\n" % nick)
     try:
         casts[clients[nick]["addr"]].remove(nick)
     except:
         pass
     if (clients[nick].has_key("file")):
         cfg["filedb"][clients[nick]["file"]]["gets"] += 1
-        print "NUMBER OF GETS: ", cfg["filedb"][clients[nick]["file"]]["gets"]
+        log("NUMBER OF GETS: %s" %
+                cfg["filedb"][clients[nick]["file"]]["gets"])
     else:
-        print "Somehow lost filename"
+        log("Somehow lost filename")
     destroy_client(nick)
 
 def recvmsg(nick, msg, no_decrypt=0):
@@ -570,7 +578,7 @@ def recvmsg(nick, msg, no_decrypt=0):
     if nick == None and msg == "on_exit":
         on_exit()
 
-    print "<%s>%s" % (nick, msg) 
+    log("<%s>%s" % (nick, msg))
 
     if not clients.has_key(nick):
         clients[nick] = {}
@@ -583,7 +591,7 @@ def recvmsg(nick, msg, no_decrypt=0):
         and not no_decrypt:       # its encrypted
         #print nick,"IS SECURED"
         msg = recvmsg_secure(nick, msg)
-        print "(*%s): %s" % (nick, msg)
+        log("(*%s): %s" % (nick, msg))
 
     # If transfer in progress, allowed to use abbreviated protocol
     if (clients.has_key(nick) and clients[nick].has_key("authenticated") and \
@@ -611,7 +619,7 @@ def load_transport(transport):
     global sendmsg
     # Import the transport. This may fail, if, for example, there is
     # no such transport module.
-    print sys.path
+    log(sys.path)
     try:
         sys.path.insert(0, os.path.dirname(sys.argv[0]))
         t = __import__("transport.mod" + transport, None, None,
@@ -642,7 +650,7 @@ def capture(decoder, filter, callback):
     returns."""
 
     import pcapy
-    print "Receiving messages on ", cfg["interface"]
+    log("Receiving messages on %s" % cfg["interface"])
     # 1500 bytes, promiscuous mode.
     p = pcapy.open_live(cfg["interface"], 1500, 1, 0)
     if filter:
@@ -683,7 +691,7 @@ def xfer_thread_loop(nick):
     if clients[nick]["mcast"]: 
        i = 0
        while 1:
-           print "Multicast detected - loop #%d" % i  # "data carousel"
+           log("Multicast detected - loop #%d" % i)  # "data carousel"
            i += 1
            xfer_thread(nick)
     else:
@@ -693,7 +701,7 @@ def xfer_thread_loop(nick):
 # * If peer QUITs, kill transfer
 def xfer_thread(nick):
     """File transfer thread, called for each file transfer."""
-    print "clients[nick][seqno] exists?", clients[nick].has_key("seqno")
+    log("clients[nick][seqno] exists? %s" % clients[nick].has_key("seqno"))
 
     # Not actually used here.
     #blocksz = clients[nick]["mss"] - SUMIHDRSZ
@@ -702,10 +710,10 @@ def xfer_thread(nick):
         try:
             while 1:
                 resend = resend_queue.get_nowait()   # TODO: multiple users!
-                print "Q: ",nick,resend
+                log("Q: %s %s" % (nick,resend))
                 datapkt(nick, resend)
         except Queue.Empty:
-            print "Q: empty"
+            log("Q: empty")
             pass
 
         if (clients[nick]["seqno"]):
@@ -727,19 +735,21 @@ def xfer_thread(nick):
         # If haven't received ack from user since RWINSZ*5, stop.
         if (float(d) >= float(clients[nick]["rwinsz"] * 5)):
             #clients[nick]["xfer_lock"].acquire() 
-            print "Since we haven't heard from %s in %f (> %d), stopping" %  \
-                (nick, int(d), float(clients[nick]["rwinsz"] * 5))
+            log("Since we haven't heard from %s in %f (> %d), stopping" %  \
+                (nick, int(d), float(clients[nick]["rwinsz"] * 5)))
             clients[nick]["xfer_stop"] = 1
 
         # If transfer lock is locked (pause), then wait until unpaused
         #  might be better for us to stop transfer in 2*RWINSZ, but be polite
         if (clients[nick]["xfer_lock"].locked()):
-            print "TRANSFER TO",nick,"PAUSED"
+            log("TRANSFER TO %s PAUSED" % nick)
             clients[nick]["xfer_lock"].acquire()
-            print "TRANSFER TO",nick,"RESUMED"
+            log("TRANSFER TO %s RESUMED" % nick)
 
         if (clients[nick].has_key("xfer_stop")):
-            print "TRANSFER TO",nick,"STOPPED:",clients[nick]["xfer_stop"]
+            #print "TRANSFER TO",nick,"STOPPED:",clients[nick]["xfer_stop"]
+            log("TRANSFER TO %s STOPPED: %s" % (nick,
+                clients[nick]["xfer_stop"]))
             clients[nick] = {}
             return
 
@@ -763,15 +773,16 @@ def xfer_thread(nick):
         except Queue.Empty:
             break 
 
-    print "Transfer complete."
+    log("Transfer complete.")
 
 def destroy_client(nick):
     """Clear all information about a client."""
-    print "Severing all ties to",nick
+    log("Severing all ties to %s" % nick)
     try:
         casts[clients[nick]["addr"]].pop(nick)
         if len(casts[clients[nick]["addr"]]) == 0:
-            print "Last client for",clients[nick]["addr"],"exited:",nick
+            log("Last client for %s exited: %s" %
+                (clients[nick]["addr"], nick))
             # TODO: stop all transfers to this address
             casts.pop(clients[nick]["addr"])
         clients.pop(nick)
@@ -797,7 +808,7 @@ def handle_nak(nick, msg):
     clients[nick]["ack_ts"] = time.time()   # got ack within timeframe
     if (clients[nick]["xfer_lock"].locked()):
         clients[nick]["xfer_lock"].release()
-        print "Lock released by control message."
+        log("Lock released by control message.")
 
     # TODO: Slow bandwidth (increase delay) based on lost packets. The
     # lost packets can tell us what bandwidth and thus delay we should use.
@@ -815,9 +826,9 @@ def handle_nak(nick, msg):
         try:
             resend = int(resend)
         except ValueError:
-            print "Invalid packet number: %s" % resend;
+            log("Invalid packet number: %s" % resend)
             continue
-        print "Queueing resend of %d" % (resend)
+        log("Queueing resend of %d" % resend)
         resend_queue.put(resend)
 
 def transfer_control(nick, msg):
@@ -825,13 +836,13 @@ def transfer_control(nick, msg):
     
     In-transfer messages use an abbreviated protocol."""
     global resend_queue
-    print "(authd)%s: %s" % (nick, msg)
+    log("(authd)%s: %s" % (nick, msg))
     if msg[0] == "k":     # TFTP-style transfer, no longer supported here
         pass 
     elif msg[0] == "n":          
         handle_nak(nick, msg)
     elif msg[0] == '!':        # abort transfer
-        print "Aborting transfer to ", nick
+        log("Aborting transfer to %s" % nick)
         destroy_client(nick)
 
 def datapkt(nick, seqno):
@@ -850,7 +861,7 @@ def datapkt(nick, seqno):
 
     blocksz = clients[nick]["mss"] - SUMIHDRSZ
 
-    print "Sending to ",nick,"#",seqno,blocksz
+    log("Sending to %s #%s %s" % (nick, seqno, blocksz))
     #print "I AM GOING TO SEEK TO ",blocksz*(seqno-1)
 
     #if (blocksz * (seqno - 1)) > clients[nick]["size"]:
@@ -916,7 +927,7 @@ def sendto_raw(s, data, dst):
     try:
         if raw_proxy == None:
             r=s.sendto(data, dst)
-            print "RET=",r
+            log("RET=%s" % r)
         else:
             #print "USING RAW PROXY"
             raw_proxy.send("RP" + struct.pack("!H", len(data)) + data)
@@ -949,7 +960,7 @@ def send_packet_UDP_DEBUG(src, dst, payload):
     
     Utilizes the high(er)-level socket routines; useful because you
     don't need to run as root when testing."""
-    print "ns",
+    log("ns")
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     s.connect(dst)
     s.send(payload)
@@ -985,12 +996,13 @@ Error: %s: %s""" \
         devs = pcapy.findalldevs()
         if len(devs) == 1:
             cfg["interface"] = devs[0]
-            print "Single network interface, auto-selected", cfg["interface"]
+            log("Single network interface, auto-selected %s" %
+                    cfg["interface"])
 
     try:
         p = pcapy.open_live(cfg["interface"], 1500, 1, 0)
     except pcapy.PcapError:
-        print "Error opening ", cfg["interface"]
+        log("Error opening %s" % cfg["interface"])
         select_if()
 
     if not hasattr(p, "sendpacket"):
@@ -999,7 +1011,7 @@ pcapy.pyd with SUMI distribution if latest pcapy fails.
 On Unix, you may also need a new libpcap that has the
 pcap_sendpacket API (see tcpdump.org).""")
 
-    print "pcapy loaded successfully"
+    log("pcapy loaded successfully")
 
 def setup_rawproxd():
     """Login to a rawproxd (raw proxy daemon)."""
@@ -1024,7 +1036,8 @@ def setup_rawproxd():
         raw_proxy_port = int(raw_proxy_port)
     else:
        fatal(12, "Invalid raw proxy format2: " + cfg["raw_proxy"])
-    print "Using raw proxy server at",raw_proxy_ip,"on port",raw_proxy_port
+    log("Using raw proxy server at %s on port %s" %
+        (raw_proxy_ip, raw_proxy_port))
     try:
         raw_proxy = socket.socket(socket.AF_INET, socket.SOCK_STREAM, socket.IPPROTO_TCP)
         raw_proxy.connect((raw_proxy_ip, raw_proxy_port))
@@ -1034,20 +1047,21 @@ def setup_rawproxd():
     # Authenticate
     challenge = raw_proxy.recv(32)
     if len(challenge) != 32:
-       print "Couldn't read challenge from raw proxy server: ", len(challenge)
+       log("Couldn't read challenge from raw proxy server: %s" %
+               len(challenge))
        sys.exit(-6)
 
     ctx = md5.md5()
     ctx.update(challenge)
     ctx.update(pw)
-    print "Logging into raw proxy...";
+    log("Logging into raw proxy...")
     raw_proxy.send(ctx.digest())
     if len(raw_proxy.recv(1)) != 1:
         fatal(14, """Raw proxy refused our password!
 Make sure your password is correctly set in sumiserv.cfg. For example,
 'raw_proxy': '192.168.1.1:7010 xyzzy'.""")
     if cfg["broadcast"]:
-        print "Enabling broadcast support (via rawproxd)"
+        log("Enabling broadcast support (via rawproxd)")
         raw_proxy.send("RB")  #  raw-socket, set broadcast 
 
     # sendto_raw() will use raw_proxy to send now 
@@ -1076,23 +1090,23 @@ on your system. Sorry, you cannot use 'launch'. Consider using 'rawproxd'.""")
         set_options = False
     else:    # have to be root, create socket
         if hasattr(os, "geteuid") and hasattr(os, "getuid"):
-            print "EUID=", os.geteuid(), "UID=", os.getuid()
+            log("EUID=%s, UID=%s" % (os.geteuid(), os.getuid()))
         try:
             # IPPROTO_UDP? does it matter?
             raw_socket = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_UDP)
         except socket.error, e:
-            print "Raw socket error:", e[1]
+            log("Raw socket error: %s" % e[1])
             if (e[0] == 1):
                 if (os.getuid() != 0):
-                    print "Tip: run as root, not",os.getuid()
+                    log("Tip: run as root, not %s" % os.getuid())
                 else:
-                    print "Running as root, but error...?"
+                    log("Running as root, but error...?")
                 os.system("sudo python %s" % argv[0])
                 sys.exit(-1)
         # Drop privs-this needs to be worked on
         if hasattr(os, "setuid"):
             os.setuid(os.getuid()) 
-            print "Running with uid: ", os.getuid()
+            log("Running with uid: %s" % os.getuid())
 
     # Include header option if needed
     if set_options:
@@ -1101,7 +1115,7 @@ on your system. Sorry, you cannot use 'launch'. Consider using 'rawproxd'.""")
             fatal(15, "setsockopt IP_HDRINCL: %s" % err)
 
         if cfg["broadcast"]:
-            print "Enabling broadcast support"
+            log("Enabling broadcast support")
             err = raw_socket.setsockopt(socket.SOL_SOCKET, 
                                         socket.SO_BROADCAST, 1)
             if err:
@@ -1234,7 +1248,7 @@ def send_packet_TCP(src, dst, payload):
     #       UDP is often discarded more by routers, best of both worlds=TCP!
     #     However, receiving it would require pylibcap, and the extra TCP
     #     segments might confuse the OS TCP stack...
-    print "TODO: implement"
+    log("TODO: implement")
 
 def send_packet_UDP_PCAP(src, dst, payload):
     """Send a UDP packet using pcap's pcap_sendpacket.
@@ -1281,7 +1295,7 @@ def send_frame_ETHER(src_mac, dst_mac, payload, ethertype=0x0800): # IPv4
     
     import pcapy
     if not cfg.has_key("interface"):
-        print "The 'interface' configuration item is not set. "
+        log("The 'interface' configuration item is not set. ")
         select_if() 
     p = pcapy.open_live(cfg["interface"], 1500, 1, 1)
 
@@ -1311,12 +1325,12 @@ def select_if():
     """List all network interfaces and tell user to choose one."""
     import pcapy
     #i = 0
-    print "Available network interfaces:"
+    log("Available network interfaces:")
     for name in pcapy.findalldevs():
         #i += 1
         #print "%d. %s" % (i, name)
-        print name
-    print "pcapy error opening interface: %s" % pcapy.PcapError
+        log(name)
+    log("pcapy error opening interface: %s" % pcapy.PcapError)
     fatal(20, "Please set 'interface' to one of the values in sumiserv.cfg,"+
         "\nthen restart sumiserv.")
     # TODO: GUI to edit configuration file, within program
@@ -1383,7 +1397,7 @@ def sendmsg_error(nick, msg):
     """Report an error message, if not in stealth mode. Returns False."""
     if (not cfg["stealth_mode"]):
         sendmsg(nick, "error: %s" % msg)
-    print "%s -> error: %s" % (nick, msg)
+    log("%s -> error: %s" % (nick, msg))
     return False
 
 def human_readable_size(size):
@@ -1428,16 +1442,16 @@ def sigusr2(a, b):
     # Doesn't work--can't reload __main__
     #for m in sys.modules.values():
     #    reload(m)
-    print "Re-reading config file (got: ", a, b, ")"
+    log("Re-reading config file")
     load_cfg() 
  
 def main(argv):
     import signal
     if hasattr(signal, "SIGUSR2"):
         signal.signal(signal.SIGUSR2, sigusr2)
-        print "Use kill -USR2", os.getpid(), " to reload"
+        log("Use kill -USR2 %s to reload" % os.getpid())
     else:
-        print "No SIGUSR2, not setting up handler"
+        log("No SIGUSR2, not setting up handler")
 
     setup_config()
 
@@ -1459,16 +1473,17 @@ def make_thread(f, arg):
         on_exit()
     except KeyError:
         # Client finished while we were trying to help it, oh well
-        print "Lost client"
+        log("Lost client")
         pass
     except:
         x = sys.exc_info()
-        print "Unhandled exception in ",f,": ",x[0]," line",x[2].tb_lineno,x[1]
+        log("Unhandled exception in %s: %s line %s %s" 
+                % (f, x[0], x[2].tb_lineno, x[1]))
  
 def on_exit():
     global config_file, cfg
 
-    print "Cleaning up..."
+    log("Cleaning up...")
     import pprint      # pretty print instead of ugly print repr
     pprint.pprint(cfg, open(config_file, "w"))
 
