@@ -78,4 +78,9 @@
 
 # Window size for sumigetw
 "winsize": (858, 220),
+
+# If True, sumigetw will load and run sumiserv to enable sharing. 
+# Otherwise, sumigetw will only run sumiget. (Does not affect standalone
+# sumiget or sumiserv.)
+"share": True,
 }

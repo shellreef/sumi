@@ -22,6 +22,9 @@ from nonroutable import is_nonroutable_ip
 
 from getifaces import get_ifaces, get_default_ip
 
+def log(msg):
+    print msg
+
 # Modules used by transports. Imported here so they compile in.
 if sys.platform == 'win32':
     import win32api
@@ -33,7 +36,7 @@ input_lock = thread.allocate_lock()
 
 base_path = os.path.abspath(os.path.dirname(sys.argv[0])) + os.sep
 config_file = base_path + "config.py"
-print "Using config file: ", config_file
+log("Using config file: %s" % config_file)
 
 # Setup run-time path for loading transports
 sys.path.append(os.path.realpath(os.path.dirname(sys.argv[0])))
@@ -77,18 +80,19 @@ def segment(nick, msg, max, callback):
 class Client:
 
     def __init__(self):
-        print "Loading config...",
+        log("Loading config...")
         # Mode "U" for universal newlines, so \r\n is okay
         self.config = eval("".join(open(config_file, "rU").read()))
-        print "OK"
+        log("OK")
 
         self.validate_config()
+        self.senders = {}
 
         self.set_callback(self.default_cb)   # override me please
 
     def on_msg(self, nick, msg):
         """Handle incoming messages."""
-        print "<%s> %s" % (nick, msg)
+        log("<%s> %s" % (nick, msg))
         # This isn't used anymore - its in the auth packet instead
         if (msg.find("sumi start ") == 0):
             args = unpack_args(msg[len("sumi start "):])
@@ -100,14 +104,14 @@ class Client:
             if (self.senders.has_key(nick)):
                 self.sendmsg(nick, "n%d" % self.rwinsz)
                 self.rwinsz_old = self.rwinsz
-                print "Starting n%d %s for %s,%d,%d" % (self.rwinsz, nick,
-                    filename, offset, size)
+                log("Starting n%d %s for %s,%d,%d" % (self.rwinsz, nick,
+                    filename, offset, size))
             else:
-                print "ERROR: user not known, stranger trying to sumi start!"
-                print "Senders: ", self.senders
+                log("ERROR: user not known, stranger trying to sumi start!")
+                log("Senders: %s" % self.senders)
         elif (msg.find("error: ") == 0):
             errmsg = msg[len("error: "):]
-            print "*** Error: ", errmsg
+            log("*** Error: " % errmsg)
 
     # Write the resume file for transfer from nick
     def save_lost(self, x, finished=0):
@@ -135,7 +139,7 @@ class Client:
     def handle_packet(self, data, addr):
         """Handle received packets."""
         if len(data) < 6:
-            print "Short packet: ",len(data),"bytes from",addr
+            log("Short packet: %s bytes from %s" % (len(data), addr))
             return
 
         prefix  = data[:3]
@@ -155,8 +159,8 @@ class Client:
         if nick == None:
             p = "%02x%02x%02x" % (tuple(map(ord, prefix)))
             # On Win32 this takes up a lot of time
-            print "DATA:UNKNOWN PREFIX!",p,len(data),\
-                  "bytes from",addr
+            log("DATA:UNKNOWN PREFIX! %s %s bytes from %s"
+                    % (p,len(data),addr))
             return
         #print "Incoming:",len(data),"bytes from",addr,"=",nick," #",seqno
 
@@ -170,9 +174,9 @@ class Client:
         # First packet received
         if not self.senders[nick].has_key("start_seqno") and seqno != 0:
             self.senders[nick]["start_seqno"] = seqno
-            print "FIRST PACKET: ",seqno
+            log("FIRST PACKET: %s" % seqno)
 
-        print "PACKET: ",seqno
+        log("PACKET: %s" % seqno)
 
         # Sequence number is 3 bytes in the SUMI header in network order
         # (so a null can easily be prepended for conversion to a long),
@@ -185,37 +189,39 @@ class Client:
             #context.update("hi")#bad hash
             #hash = context.hexdigest() 
             hashcode = base64.encodestring(context.digest())[:-1]
-            print "PKT:Got auth packet from",addr," for ",nick,
+            log("PKT:Got auth packet from %s for %s" % (addr,nick))
   
-            print "PKT:Verifying prefix (authenticity of server)..."
+            log("PKT:Verifying prefix (authenticity of server)...")
 
             # XXX: Does this ever fail?
             if (data[0:3] == prefix and len(data) > len(prefix)):
-                print "OK\n"
+                log("OK")
             else:
-                print "failed!"
+                log("failed!")
 
             # file metadata should be here (file length)
             (self.senders[nick]["size"], ) = struct.unpack("!L", 
                 data[SUMIHDRSZ:SUMIHDRSZ + SUMIAUTHHDRSZ])
-            print "SIZE:%d" % (self.senders[nick]["size"],)
+            log("SIZE:%d" % self.senders[nick]["size"])
             new_prefix = data[SUMIHDRSZ + 4:SUMIHDRSZ + 4 + 3]
             if len(new_prefix) != 3:
-                print "Missing new_prefix in auth packet!"
+                log("Missing new_prefix in auth packet!")
                 sys.exit(1)
             flags = ord(data[SUMIHDRSZ + 4 + 3:SUMIHDRSZ + 4 + 3 + 1])
-            print "FLAGS: ",flags 
+            log("FLAGS: %s" % flags)
             self.senders[nick]["mcast"] = flags & 1
 
             filename=data[SUMIHDRSZ+8:data[SUMIHDRSZ+8:].find("\0")+SUMIHDRSZ+8]
 
             self.senders[nick]["fn"] = filename
-            print "Filename: <%s>" % filename   
+            log("Filename: <%s>" % filename)
 
-            print "OLD PREFIX: %02x%02x%02x", (tuple(map(ord, self.senders[nick]["prefix"])))
-            print "NEW PREFIX: %02x%02x%02x", (tuple(map(ord, new_prefix)))
+            log("OLD PREFIX: %02x%02x%02x" % 
+                (tuple(map(ord, self.senders[nick]["prefix"]))))
+            log("NEW PREFIX: %02x%02x%02x" % 
+                (tuple(map(ord, new_prefix))))
             if new_prefix != self.senders[nick]["prefix"]:
-                print "Switching to a new prefix!"
+                log("Switching to a new prefix!")
             self.senders[nick]["prefix"] = new_prefix
 
             self.callback(nick, "info", self.senders[nick]["size"], \
@@ -224,17 +230,18 @@ class Client:
                 self.config["data_chan_type"])
 
             if (self.mss != len(data)):
-                print "WARNING: Downgrading MSS %d->%d, maybe set it lower?" % (self.mss, len(data))
+                log("WARNING: Downgrading MSS %d->%d, maybe set it lower?" 
+                    % (self.mss, len(data)))
                 self.mss = len(data)
                 if (self.mss < 256):
-                    print "MSS is extremely low (%d), quitting" % self.mss
+                    log("MSS is extremely low (%d), quitting" % self.mss)
                     sys.exit(-1)
 
             # Open the file and set it up
             if not self.senders[nick].has_key("fh"):  #  file not open yet
                 fn = self.config["dl_dir"] + os.path.sep + \
                     self.senders[nick]["fn"]
-                print "Opening %s for %s..." % (fn, nick)
+                log("Opening %s for %s..." % (fn, nick))
                 self.senders[nick]["start"] = time.time()
 
                 # These try/except blocks try to open the file rb+, but if
@@ -245,7 +252,7 @@ class Client:
                 except IOError:
                     open(fn, "wb+").close()
                     self.senders[nick]["fh"] = open(fn, "rb+")
-                print "open"
+                log("open")
 
                 # Open a new resuming file (create if needed)
                 try:
@@ -268,7 +275,7 @@ class Client:
 
                 # Need at least an offset to resume...
                 if (len(lostdata) <= 1): is_resuming = 0
-                print "LEN LOSTDATA=",len(lostdata)#,"and lostdata=",lostdata
+                log("LEN LOSTDATA=%s" % len(lostdata))#,"and lostdata=",lostdata
 
                 #is_resuming=0#FORCE
  
@@ -276,15 +283,15 @@ class Client:
                 if (is_resuming):   # this works
                     self.senders[nick]["at"] = int(lostdata.pop())
  
-                    print "RESUMING AT ", self.senders[nick]["at"]
-                    print "IS_RESUMING: LOST: ",lostdata
+                    log("RESUMING AT %s" % self.senders[nick]["at"])
+                    log("IS_RESUMING: LOST: %s" % lostdata)
                     self.senders[nick]["lost"] = {}
                     for x in lostdata:
                         try:
                             self.senders[nick]["lost"][int(x)] = 1
                         except ValueError:
                             pass    # don't add non-ints
-                    print "LOADED LOSTS:",self.senders[nick]["lost"]
+                    log("LOADED LOSTS: %s" % self.senders[nick]["lost"])
 
                     # Initialize the rwin with empty hashes, mark off missings
                     self.senders[nick]["rwin"] = {}
@@ -350,7 +357,7 @@ class Client:
 
             # Tell the sender to start sending, we're ok
             # Resume /after/ our current offset: at + 1
-            print "Sending sumi auth"
+            log("Sending sumi auth")
             self.sendmsg(nick, "sumi auth " + pack_args({"m":self.mss,
                 "s":addr[0], "h":hashcode, "o":self.senders[nick]["at"] + 1}))
 
@@ -381,7 +388,7 @@ class Client:
                 self.senders[nick]["rwin"][seqno] = 1    # create
  
             if (self.senders[nick]["rwin"][seqno] >= 2):
-                print "(DUPLICATE PACKET %d, IGNORED)" % seqno
+                log("(DUPLICATE PACKET %d, IGNORED)" % seqno)
                 return
 
             #print "THIS IS RWIN: ", self.senders[nick]["rwin"]
@@ -409,18 +416,20 @@ class Client:
                         break  # this one wasn't lost, so already checked
 
                 if self.senders[nick]["mcast"]:
-                    print "using mcast, so not re-request these lost pkts"
+                    log("using mcast, so not re-request these lost pkts")
                     # we'll get these packets next time around 
                 if self.senders[nick]["lost"].has_key(seqno):
                     self.senders[nick]["lost"].pop(seqno)
-                    print "Recovered packet ", seqno, len(self.senders[nick]["lost"])
+                    log("Recovered packet %s %s" 
+                            % (seqno, len(self.senders[nick]["lost"])))
                     self.senders[nick]["rexmits"] += 1
-                    print "(rexmits = ", self.senders[nick]["rexmits"]
+                    log("(rexmits = %s" % self.senders[nick]["rexmits"])
                     self.callback(nick, "rexmits", self.senders[nick]["rexmits"])
                     #on_timer()   # Maybe its all we need
                 # Less than full sized packet = last
                 if (len(data) != self.mss - SUMIHDRSZ):
-                    print "NON-FULLSIZED: %d != %d" % (len(data), self.mss - SUMIHDRSZ)
+                    log("NON-FULLSIZED: %d != %d" 
+                            % (len(data), self.mss - SUMIHDRSZ))
                     self.senders[nick]["gotlast"] = 1
                     # File size is now sent in auth packet so no need to calc it here
                     #self.senders[nick]["size"] = self.senders[nick]["fh"].tell()
@@ -443,7 +452,10 @@ class Client:
                 time.sleep(self.rwinsz)
                 self.on_timer()
         except:
-            print "thread_timer exception: ", sys.exc_info(), sys.exc_info()[1].args, " line=", sys.exc_info()[2].tb_lineno, "file=", sys.exc_info()[1].filename
+            log("thread_timer exception: %s %s line=%s file=%s" 
+                    % (sys.exc_info(), sys.exc_info()[1].args, 
+                       sys.exc_info()[2].tb_lineno,
+                       sys.exc_info()[1].filename))
 
     def on_timer(self):
         """Acknowledge to all senders and update bytes/second."""
@@ -485,23 +497,23 @@ class Client:
                 # Some missing packets, finish it up
     
                 if len(self.senders[x]["lost"]) > 100:
-                    print self.senders[x]["lost"]
-                    print "Excessive amount of packet loss!"
-                    print "could be a programming error. quitting"
+                    log(self.senders[x]["lost"])
+                    log("Excessive amount of packet loss!")
+                    log("could be a programming error. quitting")
 
                 # Join by commas, only lost packets after start_seqno
                 alost = self.senders[x]["lost"].keys()
-                print "ALOST1: ",len(alost)
+                log("ALOST1: %s" % len(alost))
                 if self.senders[x].has_key("start_seqno"):
                     ss = self.senders[x]["start_seqno"]
                 else:
-                    print "WARNING: NO START_SEQO SET!"
+                    log("WARNING: NO START_SEQO SET!")
                     ss = 0
                 # NOTE: _y isn't localized here! Don't use x!
                 # won't request any lost packets with seqno's below start_seqno
                 alost = [ _y for _y in alost if _y >= ss ]
 
-                print "ALOST2 (ss=",ss,"): ",len(alost)
+                log("ALOST2 (ss=%s): %s" % (ss, len(alost)))
                 lost = ",".join(map(str, alost))
                 # Compress by omitting redundant elements to ease bandwidth
                 if self.rwinsz_old == self.rwinsz and lost == "":
@@ -513,7 +525,7 @@ class Client:
 
                 self.senders[x]["retries"] += 1
                 if (self.senders[x]["retries"] > 3):
-                    print x,"exceeded maximum retries (3), cancelling"
+                    log("%s exceeded maximum retries (3), cancelling" % x)
                     self.senders.pop(x)
                     self.callback(x, "timeout")
 
@@ -527,7 +539,7 @@ class Client:
         """Finish the file transfer."""
 
         # Nothing lost anymore, update. Saved as ",X" where X = last packet.
-        print "DONE - UPDATING"
+        log("DONE - UPDATING")
         self.save_lost(nick, 1)
 
         # If was encrypted, decrypt
@@ -547,7 +559,7 @@ class Client:
             self.senders[nick]["fh"].seek(0)
             data = self.senders[nick]["fh"].read()
  
-            print "About to decrypt"+str(len(data))+"bytes" 
+            log("About to decrypt %s bytes" % len(data))
             data = aes_crypto.decrypt(data)
 
             out = open(self.config["dl_dir"] + os.path.sep + \
@@ -574,7 +586,7 @@ class Client:
 
     def thread_recv_packets(self):
         """Receive anonymous packets."""
-        print "THREAD 1 - PACKET RECV"
+        log("THREAD 1 - PACKET RECV")
         if self.config["dchanmode"] == "socket":
             if self.config["data_chan_type"] == "u":
                 self.server_udp()
@@ -583,16 +595,18 @@ class Client:
             elif self.config["data_chan_type"] == "i":
                 self.server_icmp()
             else:
-                print "data_chan_type invalid, see config.html (dchanmode=socket)"
+                log("data_chan_type invalid, see config.html" + \
+                    "(dchanmode=socket)")
                 sys.exit(-2)
         elif self.config["dchanmode"] == "pcap":
             if self.config["data_chan_type"] == "u":
                 self.server_udp_PCAP()
             else:
-                print "data_chan_type invalid, see config.html (dchanmode=pcap)"
+                log("data_chan_type invalid, see config.html" + \
+                        "(dchanmode=pcap)")
                 sys.exit(-3)
         else:
-            print "*** dchanmode invalid, set to socket or pcap"
+            log("*** dchanmode invalid, set to socket or pcap")
             sys.exit(-4)
 
     def server_icmp(self):
@@ -602,9 +616,7 @@ class Client:
         #print "UID=", os.getuid()
         sock = socket.socket(socket.AF_INET, socket.SOCK_RAW, \
                              socket.IPPROTO_ICMP)
-        print "ICMP started."   # At the moment, needs to be ran as root
-        # XXX: TODO: Fix ICMP. The server doesn't generate ICMP checksums,
-        # so we won't be able to receive here!
+        log("ICMP started.")   # At the moment, needs to be ran as root
         sock.bind((self.localaddr, 0))
         while 1:
             (data, addr) = sock.recvfrom(65535)
@@ -613,7 +625,7 @@ class Client:
 
     def server_udp(self):
         """Receive UDP packets."""
-        print "UDP started (socket mode)"
+        log("UDP started (socket mode)")
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         while 1:
             try:
@@ -621,11 +633,11 @@ class Client:
             except socket.error:
                 failed = 0
                 if (sys.exc_info()[1].args[0] == 48):
-                    print "Port",self.myport,"in use, trying next"
+                    log("Port %s in use, trying next" % self.myport)
                     self.myport += 1
                     failed = 1
                 if not failed: break
-        print "Bound to ", self.myport
+        log("Bound to %s" % self.myport)
  
         while 1:
             # This is interrupted...?
@@ -639,17 +651,17 @@ class Client:
             self.handle_packet(data, addr)
 
     def server_udp_PCAP(self):
-        print "UDP started (pcap mode)"
+        log("UDP started (pcap mode)")
         if self.config["interface"] == "":
             import pcapy
             devs = pcapy.findalldevs()
-            print "Network interfaces:", devs
+            log("Network interfaces: %s" % devs)
             if len(devs) == 1:
                 self.config["interface"] = devs[0]
-                print "Automatically setting to ", self.config["interface"]
+                log("Automatically setting to %s" % self.config["interface"])
             else:
-                print "*** Please set 'interface' in config.py to one of "
-                print "*** the interfaces above and restart."
+                log("*** Please set 'interface' in config.py to one of ")
+                log("*** the interfaces above and restart.")
                 sys.exit(-5)
         import sumiserv
         sumiserv.cfg = {"interface": self.config["interface"]}
@@ -667,11 +679,11 @@ class Client:
     def cli_user_input(self):
         """Client user input (not used anymore), belongs in separate program."""
         input_lock.acquire()   # wait for messaging program to be connected
-        print "Started user input thread... you may now type"
+        log("Started user input thread... you may now type")
         while 1:
             line = sys.stdin.readline()
             if line == "":    # EOF, exit
-                return 0
+                return
             line = line[:-1]  # Strip \n
             if line == "":    # blank line (\n), ignore
                 continue
@@ -680,7 +692,7 @@ class Client:
                 try:
                     self.request(*args)
                 except IndexError:
-                    print "Usage: sumiget <transport> <server_nick> <file>"
+                    log("Usage: sumiget <transport> <server_nick> <file>")
             else:
                 self.sendmsg(irc_chan, line)
         # DO SUMI SEC THEN ENCRYPT MSGS & PACKETS
@@ -704,7 +716,7 @@ class Client:
             self.pool = RandomPool(384)
             self.pool.stir()
             # Larger key needed to encrypt larger data, 768 too small
-            print "Generating key..."
+            log("Generating key...")
             import cPickle
             # Only send public key, not private key
             # TODO: this needs to be fixed, its not seamless
@@ -723,21 +735,25 @@ class Client:
         self.senders[server_nick]["passwd"] = self.config["passwd"]
 
     def validate_config(self):
-        """Return None if configuration is valid, or an error message if not."""
+        """Validate configuration after loading it, possibly modifying it
+           by filling in defaults.
+
+           Return None if configurationi s valid, or an error message if
+           not."""
         if self.config.has_key("myip"):
             if self.config["myip"] != "":
                 self.myip = self.config["myip"]
                 try:
                     self.myip = socket.gethostbyname(self.myip)
                 except:
-                    print "Couldn't resolve", self.myip
+                    log("Couldn't resolve %s" % self.myip)
                     sys.exit(3)
-                print "Resolved hostname to:", self.myip
+                log("Resolved hostname to: %s" % self.myip)
             else:
                 self.myip = get_default_ip()
-                print "Using IP:", self.myip
+                log("Using IP: %s" % self.myip)
         else:
-            print "IP not specified, getting network interface list..."
+            log("IP not specified, getting network interface list...")
 
             # Look for an up interface. Use get_ifaces instead of just the
             # IP so we can also get the netmask, too
@@ -749,12 +765,12 @@ class Client:
                     continue
                 if not ifaces[name]["inet"]: continue
 
-                print name,ifaces[name]["inet"],ifaces[name]["netmask"]
-            # XXX: This is a problem for wxfer.py! It needs input! This is
-            # how it should be, though. Chuck popen into the trash.
-            print "Which interface? ",
+                log("%s %s %s" 
+                        % (name,ifaces[name]["inet"],ifaces[name]["netmask"]))
+            # XXX: This is a problem for the GUI! It needs input!
+            log("Which interface? ")
             i = sys.stdin.readline()[:-1]
-            print "Using IP ", ifaces[i]["inet"]
+            log("Using IP %s" % ifaces[i]["inet"])
             self.myip = ifaces[i]["inet"]
             self.netmask = ifaces[i]["netmask"]   # save for later
             self.netmask = int(ifaces[i]["mtu"]) - 28
@@ -762,7 +778,7 @@ class Client:
         if self.config.has_key("myport"):
             self.myport = self.config["myport"]
         else:
-            print "defaulting to port 41170"
+            log("defaulting to port 41170")
             self.myport = 41170
 
         # Your local IP to bind to. This can be your private IP if you're behind
@@ -770,13 +786,11 @@ class Client:
         # all ifaces
         self.localaddr = ""
 
-        self.senders = {}
-
         # Not used in all transports
         if self.config.has_key("irc_nick"):
             self.irc_nick = self.config["irc_nick"]
         else:
-            print "No IRC nick specified. What to use? "
+            log("No IRC nick specified. What to use? ")
             self.irc_nick = sys.stdin.readline()[:-1]
        
         if self.config.has_key("irc_name"):
@@ -835,7 +849,7 @@ class Client:
     def sendmsg(self, server_nick, msg):
         is_enc = 0
         #print "===", self.senders[server_nick]
-        print ">>%s>%s" % (server_nick, msg)
+        log(">>%s>%s" % (server_nick, msg))
         if (self.senders.has_key(server_nick) and \
             self.senders[server_nick]["crypto"] == "s"):
             from Crypto.Cipher import AES
@@ -885,7 +899,7 @@ class Client:
         if (self.senders.has_key(server_nick)):
             # TODO: Index senders based on unique key..instead of server_nick
             # Then we could have multiple transfers from same user, same time!
-            print "Already have an in-progress transfer from",server_nick
+            log("Already have an in-progress transfer from %s" % server_nick)
             self.callback(server_nick, "1xferonly")
             #print "Senders: ", self.senders
             return -1
@@ -897,16 +911,16 @@ class Client:
         self.load_transport(transport, server_nick)
         if (transports.has_key(transport) and transports[transport]):
             pass    # already initialized
-            print "Not initing ",transport
+            log("Not initing %s" % transport)
         else:
             self.senders[server_nick]["transport_init"]()
             transports[transport] = 1   # Initialize only once
-            print "Just inited",transport
+            log("Just inited %s" % transport)
 
         # Setup cryptology
         self.secure_chan(server_nick)
 
-        print "You want %s from %s" % (server_nick, file)
+        log("You want %s from %s" % (server_nick, file))
 
         offset = 0
 
@@ -927,7 +941,7 @@ class Client:
 
         self.sendmsg(server_nick, msg) 
         #self.sendmsg(server_nick, msg)
-        print "Sent"
+        log("Sent")
         self.callback(server_nick, "req_sent") # request sent (handshaking)
 
         # Countdown. This provides a timeout for handshaking with nonexistant
@@ -957,13 +971,13 @@ class Client:
         self.callback = f
 
     def default_cb(self, cmd, *args):
-        print "(CB)" + cmd + ":" + ",".join(list(map(str, args)))
+        log("(CB)%s: %s" % (cmd, ",".join(list(map(str, args)))))
 
     def load_transport(self, transport, nick):
         global input_lock, sendmsg, transport_init
         # Import the transport. This may fail, if, for example, there is
         # no such transport module.
-        print sys.path
+        log(sys.path)
         try:
             sys.path.insert(0, os.path.dirname(sys.argv[0]))
             t = __import__("transport.mod" + transport, None, None,
@@ -977,6 +991,7 @@ class Client:
 
         t.segment = segment
         t.cfg = self.config
+        t.log = log
 
         self.senders[nick]["sendmsg"] = t.sendmsg
         #sendmsg = t.sendmsg
@@ -1002,7 +1017,7 @@ class Client:
         #transport_init()
 
         input_lock.acquire()
-        print "RELEASED"
+        log("RELEASED")
         input_lock.release()
 
         # Main thread is UDP server. There is no transport thread, its sendmsg
@@ -1010,7 +1025,7 @@ class Client:
    # start waiting before requesting
 
     def on_exit(self):    # GUI uses this on_exit
-        print "Cleaning up..."
+        log("Cleaning up...")
         import pprint
 
         savefile = open(config_file, "w")
@@ -1026,19 +1041,17 @@ class Client:
         # will cause the server to time out after not receiving our acks, but
         # it takes a while to time out and wastes bandwidth.
         for x in self.senders.keys():
-            print "Aborting ",x
+            log("Aborting %s" % x)
             self.abort(x)
 
         sys.exit()
 
 def on_sigusr1(signo, intsf):
     global base_path
-    print "Got SIGUSR1 (",signo,intsf,"), calling"
+    log("Got SIGUSR1 (%s %s) calling" % (signo, intsf))
     (transport, nick, filename) = open(base_path + "run", 
         "rb").readline().split("\t")
-    print "-> ",transport,nick,filename
-    # TODO: this needs to be more modualized; sendmsg into a server[]
-    # and the servers should only be ran once!
+    log("-> %s %s %s " % (transport,nick,filename))
     #Client().main(transport, nick, file)
     # TODO: it needs to be possible to run multiple xfers per program, fix it
     #client.main(transport, nick, file)   # Runs servers twice (init_t + udp)
@@ -1047,7 +1060,7 @@ def on_sigusr1(signo, intsf):
 
 # CLI uses this on-exit
 def on_exit(signo=0, intsf=0):
-    print "Cleaning up...(signal ",signo,intsf,")"
+    log("Cleaning up...(signal %s %s)" % (signo, intsf))
     #os.unlink(base_path + "sumiget.pid") 
 
 def pre_main(invoke_req_handler):
@@ -1066,12 +1079,11 @@ def pre_main(invoke_req_handler):
         transport = sys.argv[1] 
         nick, filename = sys.argv[2], sys.argv[3]
     else:
-        print "Usage: sumiget <transport> <nick> <filename>"
+        log("Usage: sumiget <transport> <nick> <filename>")
         sys.exit(-1)
 
-    # 0=seperate program per transfer, 1=all in one (currently not working)
-   # =1 works in Unix using signals, but have to resize the frame.
-   # TODO: XXX: Get all-in-one working on Win32 with receive/send ing messages
+    # 0=seperate program per transfer, 1=all in one (current)
+    # =1 works in Unix using signals, but have to resize the frame.
     multiple_instances = 1
 
     if (multiple_instances and os.access(base_path + "sumiget.pid", os.F_OK)):
@@ -1083,7 +1095,7 @@ def pre_main(invoke_req_handler):
             open(base_path + "run", "wb").write("%s\t%s\t%s" % \
                 (transport, nick, filename))
             my_master = int(master)
-            print "Passing to: ", my_master
+            log("Passing to: %s" % my_master)
             failed = 0 
             try:
                 if (sys.platform == 'win32'):
@@ -1100,7 +1112,7 @@ def pre_main(invoke_req_handler):
             except OSError:
                 failed = 1
             if not failed: sys.exit(0)   # Otherwise, will be master
-            print "Failed to pass to ", my_master
+            log("Failed to pass to %s" % my_master)
             #sys.exit(-1)
         # File locking would be good; if locked then write cmdline, os.kill other
     # Moved to GUI
@@ -1121,7 +1133,7 @@ if __name__ == "__main__":
 
     transport, nick, filename = sys.argv[1], sys.argv[2], sys.argv[3]
 
-    print "Getting <%s> from <%s> using <%s>..." % (filename, nick, transport)
+    log("Getting <%s> from <%s> using <%s>..." % (filename, nick, transport))
 
     try:
         client = Client()

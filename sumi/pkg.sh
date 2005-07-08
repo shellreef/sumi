@@ -1,5 +1,5 @@
 #!/bin/sh
-RLS="0.8.10"
+RLS="0.8.11"
 
 rm *.pyc
 cd /home/jeff/p2p/

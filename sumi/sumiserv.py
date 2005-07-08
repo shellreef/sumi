@@ -26,6 +26,29 @@ root = os.path.abspath(os.path.dirname(sys.argv[0])) + os.sep
 
 # Log/print -- users of this module can replace this function
 def log(msg):
+    """Log a message 'msg', followed by a newline.
+
+    Within the module, use log() instead of print. Users of
+    the module can then redirect output to their own function.
+
+    Do not use the '+' to form 'msg', except with string literals.
+    For example: do NOT use: log("The user's name is: "+nick). If
+    nick is not a string, Python will raise a TypeError. Even if it
+    is None, you'll get the error. However, log("foo"+"bar") is okay.
+
+    Instead, use formatting strings. Always use the "%s" format
+    specifier, not any other specifiers (such as %d). For example,
+    this is correct: log("The user's name is: %s" % nick). %s will
+    work with any types that define a str() method, including strings,
+    None, integers, arrays, tuples, dictionaries, and more. Please
+    do NOt use, for example, log("Count: %d" % i), because if i is not
+    an integer, %d will raise a TypeError. %s should only raise a 
+    TypeError if the str() method isn't defined.
+
+    These rules may seem strict, but are important because logging
+    should NEVER cause an error. Some code paths involving log() may be
+    only executed in exceptional cases, and there is no room for error."""
+
     print msg
 
 def load_cfg():
@@ -636,6 +659,7 @@ def load_transport(transport):
     t.capture = capture
     t.get_tcp_data = get_tcp_data
     t.human_readable_size = human_readable_size
+    t.log = log
 
     #clients[nick]["sendmsg"] = t.sendmsg
     #clients[nick]["recvmsg"] = t.recvmsg

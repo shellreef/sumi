@@ -128,7 +128,11 @@ data_chan_mode of "u".
 </tr><tr>
  <td><b>interface</b></td>
  <td>Network interface to use for packet capturing/sending raw frames.</td>
-</tr>
+</tr><tr>
+ <td><b>share</b></td>
+ <td>If True, sumigetw will load and run sumiserv (see below) to enable 
+sharing. Otherwise, sumigetw will only run sumiget. Does not affect 
+standalone sumiget or sumiserv.</td>
 </table>
 
 <h1>Configuring The Server (sumiserv)</h1>

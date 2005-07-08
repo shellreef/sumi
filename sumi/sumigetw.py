@@ -59,14 +59,13 @@ class MainNotebook(wxNotebook):
         self.xfpanel = TransferPanel(self, app)
         self.cfgc = ConfigPanel(self, app)
         self.nets = wxPanel(self, -1)
-        self.serv = ServerPanel(self, -1)
+        self.serv = ServerPanel(self, app)
         self.log  = LogPanel(self, app)
         self.exit = wxPanel(self, -1)
         self.AddPage(self.xfpanel, "Transfers")
         self.AddPage(self.cfgc, "Client")
-        self.AddPage(self.nets, "Networks")
         self.AddPage(self.serv, "Server")
-        self.AddPage(self.log,  "Output Log") 
+        self.AddPage(self.log,  "Log") 
         self.AddPage(self.exit, "Exit Now")
 
         # TODO: design images, assign them here
@@ -81,15 +80,15 @@ class MainNotebook(wxNotebook):
 
         EVT_NOTEBOOK_PAGE_CHANGING(self, self.GetId(), self.OnPageChanged)
         self.Show()
-        self.Validate()
+        self.ValidateConfig()
 
-    def Validate(self):
+    def ValidateConfig(self):
         err = self.app.client.validate_config()
         if err:
             dlg = wxMessageDialog(self.app.frame, err,
                   "Invalid setting", wxOK | wxICON_ERROR);
             dlg.ShowModal()
-            dlg.Destroy()
+            dlg.destroy()
             #self.SetSelection(1)   # Would be nice if it worked
             return False
         else:
@@ -111,7 +110,7 @@ class MainNotebook(wxNotebook):
             raise SystemExit
 
         if old == 1:    # Client configuration tab, if change, validate
-            if not self.Validate():
+            if not self.ValidateConfig():
                 #event.Veto()  # causes all sorts of problems
                 pass
 
@@ -120,7 +119,8 @@ class MainNotebook(wxNotebook):
 class ServerPanel(wxPanel):
     def __init__(self, parent, app):
         wxPanel.__init__(self, parent, -1)
-   
+  
+        self.app = app
         self.servlog = wxTextCtrl(self, 601, style=wxTE_MULTILINE | wxTE_READONLY)
         box = wxBoxSizer(wxVERTICAL)
         box.Add(self.servlog, 1, wxEXPAND)
@@ -128,8 +128,14 @@ class ServerPanel(wxPanel):
         self.SetSizer(box)
         self.Layout()
 
-        # TODO: Start server once click to it, instead of at startup.
-        #return
+        if self.app.client.config["share"]:
+            self.start()
+        else:
+            self.Write("Not starting server--set 'share' to True to enable.\n")
+
+    def start(self):
+        """Start sumiserv."""
+
         self.Write("Starting sumiserv...\n")
         import sumiserv
 
@@ -141,9 +147,7 @@ class ServerPanel(wxPanel):
         #sumiserv.make_thread(sumiserv.main, (()))
 
     def Write(self, msg):
-        self.servlog.WriteText(msg)
-
-global real_stdout, log
+        self.servlog.AppendText(msg)
 
 class LogPanel(wxPanel):
     """Panel providing the log, all stdout output."""
@@ -152,37 +156,34 @@ class LogPanel(wxPanel):
         wxPanel.__init__(self, parent, -1)
 
         self.app = app
-        log = wxTextCtrl(self, 600, size=(-1, -1), \
+        self.textCtrl = wxTextCtrl(self, 600, size=(-1, -1), \
                          style=wxTE_MULTILINE | wxTE_READONLY)
         box = wxBoxSizer(wxVERTICAL)
-        box.Add(log, 1, wxEXPAND)
+        box.Add(self.textCtrl, 1, wxEXPAND)
         self.SetAutoLayout(true)
         self.SetSizer(box)
         self.Layout()
 
+        def log(msg):
+            if hasattr(self, "Write"):
+                self.Write(str(msg) + "\n")
+            else:
+                print msg
+        sumiget.log = log
+
         EVT_SET_FOCUS(self, self.OnFocus)
         EVT_KILL_FOCUS(self, self.OnKillFocus)
 
-        self.real_stdout = sys.stdout
-        # XXX: This leads to all sorts of GTK+ errors, some time dependency.
-        # Unless time.sleep(1). Odd. I/O buffering? For now, stdout is only
-        # redirected here if there is focus.
-        #import time
-        #time.sleep(1)
-        #sys.stdout = gui_stdout()
+    def Write(self, msg):
+        self.textCtrl.AppendText(msg)
+
     def OnFocus(self, event):
         # disabled for now
         #sys.stdout = gui_stdout()
         pass
 
     def OnKillFocus(self, event):
-        self.stdout = self.real_stdout
-
-class gui_stdout:
-    def write(self, s):
-        global real_stdout, log
-        #real_stdout.write("(write): %s" % s)
-        log.WriteText(s)
+        pass
 
 CTL_BANDWIDTH = 500
 CTL_CRYPTO = 501
@@ -871,7 +872,7 @@ class SUMIApp(wx.wxApp):
             if self.nb.xfpanel.getColumnText(index, COL_STATUS) == 'Transferring...':
                 print "ERROR: In-progress transfer from",nick,"at",index,"already"
                 print "Currently you can only have one transfer per user, sorry"
-                return -1 
+                return 
         else:
             nick2index[nick] = last_index
             index = nick2index[nick]

@@ -5,7 +5,7 @@
 # own transport module. Enjoy. P.S.: Handshaking will always timeout here.
 
 def transport_init():
-    print "Initializing fake transport"
+    log("Initializing fake transport")
 
 def sendmsg(nick, msg):
     # segment() is provided by the framework to split up a message
@@ -13,5 +13,5 @@ def sendmsg(nick, msg):
     segment(nick, msg, 500, sendmsg_1)
 
 def sendmsg_1(nick, msg):
-    print "(fake) <%s>%s" % (nick, msg)
+    log("(fake) <%s>%s" % (nick, msg))
 

@@ -13,10 +13,11 @@
  'irc_port': 6667,
  'irc_server': 'irc.xtc-dreams.com',
  'maxwait': 7,
- 'mss': 1472,
+ 'mss': 1475,
  'myip': '10.0.0.100',
- 'myport': 2770,
+ 'myport': 2771,
  'passwd': '11111111111111111111111111111111',
  'rwinsz': 5,
  'save_interval': 1,
- 'winsize': (858, 220)}
+ 'share': False,
+ 'winsize': (858, 228)}

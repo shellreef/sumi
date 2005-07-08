@@ -17,9 +17,10 @@ def transport_init():
     try:
         g_mIRC = win32gui.FindWindow("mIRC", None)
     except:
-        print "SYS:An error occured while trying to locate mIRC. Is mIRC running?"
+        log("SYS:An error occured while trying to locate mIRC. Is mIRC"+\
+                "running?")
         sys.exit(-1)
-    print "Located mIRC, running..."
+    log("Located mIRC, running...")
 
 
 def sendmsg(nick, msg):

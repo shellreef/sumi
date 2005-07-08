@@ -20,44 +20,44 @@ irc_lock = thread.allocate_lock()
 server = None
 
 def on_nickinuse(c, e):
-    print "Nickname in use"
+    log("Nickname in use")
     old_nick = e.arguments()[0]
     new_nick = old_nick[:-1] + chr(ord(old_nick[-1]) + 1)
-    print "%s nick in use, using %s" % (old_nick, new_nick)
+    log("%s nick in use, using %s" % (old_nick, new_nick))
     cfg["irc_nick"] = new_nick
     c.nick(new_nick)
 
 def on_notregistered(c, e):
-    print "We have not registered."
+    log("We have not registered.")
 
 def on_welcome(c, e):
-    print "We're logged in"
+    log("We're logged in")
     c.mode(cfg["irc_nick"], "+ix")
 
     for chan in cfg["irc_chans"]:
         key = cfg["irc_chans"][chan]
-        print "Joining channel %s..." % (chan,),
-        print c.join(chan, key)
+        log("Joining channel %s..." % chan)
+        log(c.join(chan, key))
     irc_lock.release()
 
 def on_umodeis(c, e):
     modes = e.arguments()
-    print "User modes: ", modes
+    log("User modes: %s" % modes)
     
 def on_cantjoin(c, e):
     (chan, errmsg) = e.arguments()
-    print "Can't join %s: %s" % (chan, errmsg)
+    log("Can't join %s: %s" % (chan, errmsg))
 
 def on_quit(c, e):
     nick, msg = irclib.nm_to_n(e.source()), e.arguments()[0]
-    print "User quit: <%s>%s" % (nick, msg)
+    log("User quit: <%s>%s" % (nick, msg))
     import sumiserv
     clients = sumiserv.clients
     if (clients.has_key(nick)):
         clients[nick]["xfer_stop"] = 1     # Terminate transfer thread
 
 def generic_callback(user, msg):
-    print "<%s> %s" % (user, msg)
+    log("<%s> %s" % (user, msg))
 
 def irc_thread(callback):
     global server
@@ -68,8 +68,8 @@ def irc_thread(callback):
             callback(irclib.nm_to_n(e.source()), e.arguments()[0])
         except None:   
             # remove None in production use to not crash on exceptions
-            print "Unhandled exception caused by %s: " %  \
-                irclib.nm_to_n(e.source()), sys.exc_info()
+            log("Unhandled exception caused by %s: %s" %  \
+                (irclib.nm_to_n(e.source()), sys.exc_info()))
         #nick, msg = irclib.nm_to_n(e.source()), e.arguments()[0]
         #print "MSG:%s:%s" % (nick, msg)  
 
@@ -84,22 +84,23 @@ def irc_thread(callback):
     irc.add_global_handler("badchannelkey", on_cantjoin)
     irc.add_global_handler("quit", on_quit)
     server = irc.server()
-    print "Connecting to IRC server %s:%s as %s..." % (cfg["irc_server"], 
+    log("Connecting to IRC server %s:%s as %s..." % (cfg["irc_server"], 
         cfg["irc_port"], 
-        cfg["irc_nick"]),
+        cfg["irc_nick"]))
     try:
         server.connect(cfg["irc_server"], cfg["irc_port"], cfg["irc_nick"])
     except irclib.ServerConnectionError, e:
-        print "Error connecting to",cfg["irc_server"],"port",cfg["irc_port"]
-        print e, dir(e)
+        log("Error connecting to %s port %s"
+                % (cfg["irc_server"], cfg["irc_port"]))
+        log("%s %s" % (e, dir(e)))
         sys.exit(1)
-    print "OK."
+    log("OK.")
     if callback != generic_callback:
         thread.start_new_thread(thread_notify, ())
     #import sumiserv
     #thread.start_new_thread(sumiserv.make_thread, (thread_notify, None))
     try:
-        print "irc.process_forever()"
+        log("irc.process_forever()")
         irc.process_forever()
     except KeyboardInterrupt, SystemExit:
         callback(None, "on_exit")
@@ -141,9 +142,9 @@ def thread_notify():
 def sendmsg(nick, msg):
     if not server:
         thread.start_new_thread(irc_thread, (generic_callback,))
-        print "Waiting to join channels..."
+        log("Waiting to join channels...")
         irc_lock.acquire()    # wait until channels joined
-        print "Acquired lock"
+        log("Acquired lock")
         irc_lock.release()
     segment(nick, msg, 550, sendmsg_1)
 

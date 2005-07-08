@@ -13,7 +13,7 @@ import time
 import struct
 
 def transport_init():
-    print "Initializing WinAIM transport"
+    log("Initializing WinAIM transport")
 
 def sendmsg(nick, msg):
     # segment() is provided by the framework to split up a message
@@ -84,7 +84,7 @@ def sendmsg_1(nick, msg):
         wait += 1
 
     if not im:
-        print "couldn't find AIM window!"
+        log("couldn't find AIM window!")
         return -1
 
     # Find the input control
@@ -99,8 +99,8 @@ def sendmsg_1(nick, msg):
         kids = []
         win32gui.EnumChildWindows(im, lambda x,y: kids.append(x), 0)
         if time.time() - started > 10:
-            print "Couldn't locate 45 child windows. Located ",len(kids),"."
-            print "AIM may have changed."
+            log("Couldn't locate 45 child windows. Located %s." % len(kids))
+            log("AIM may have changed.")
             break
         time.sleep(0.01)
     for kid in kids:
@@ -116,23 +116,23 @@ def sendmsg_1(nick, msg):
                 continue
 
             if win32gui.GetClassName(kids2[1]) != "CBClass":
-                print "The second child window wasn't a CBClass. Unexpected."
-                print "AIM may have changed. If so please edit the code."
+                log("The second child window wasn't a CBClass. Unexpected.")
+                log("AIM may have changed. If so please edit the code.")
                 return -3
   
             if win32gui.GetClassName(kids2[0]) != "Ate32Class":
-                print "First child window wasn't an Ate32Class. The required"
-                print "window is missing. AIM have changed. Fatal error."
+                log("First child window wasn't an Ate32Class. The required")
+                log("window is missing. AIM have changed. Fatal error.")
                 return -4
           
             txtwin = kids2[0] 
             break          
     if not found_atewin:
-        print "Sorry couldn't find AteWindow. AIM might have changed "
-        print "windows, rendering this program incompatible."
+        log("Sorry couldn't find AteWindow. AIM might have changed ")
+        log("windows, rendering this program incompatible.")
         return -2
     if not txtwin:
-        print "Somehow txtwin wasn't found."
+        log("Somehow txtwin wasn't found.")
         return -5
 
     # Type out the message. WM_CHAR doesn't steal focus, but it can't
