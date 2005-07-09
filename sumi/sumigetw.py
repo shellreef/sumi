@@ -55,17 +55,18 @@ class MainNotebook(wxNotebook):
 
         self.app = app
 
-
         self.xfpanel = TransferPanel(self, app)
-        self.cfgc = ConfigPanel(self, app)
+        self.cfgc = CConfigPanel(self, app)
+        self.cfgs = SConfigPanel(self, app)
         self.nets = wxPanel(self, -1)
-        self.serv = ServerPanel(self, app)
-        self.log  = LogPanel(self, app)
+        self.slog = SLogPanel(self, app)
+        self.clog  = CLogPanel(self, app)
         self.exit = wxPanel(self, -1)
         self.AddPage(self.xfpanel, "Transfers")
-        self.AddPage(self.cfgc, "Client")
-        self.AddPage(self.serv, "Server")
-        self.AddPage(self.log,  "Log") 
+        self.AddPage(self.cfgc, "Client Setup")
+        self.AddPage(self.clog,  "Client Log") 
+        self.AddPage(self.cfgs, "Server Setup")
+        self.AddPage(self.slog, "Server Log")
         self.AddPage(self.exit, "Exit Now")
 
         # TODO: design images, assign them here
@@ -88,7 +89,6 @@ class MainNotebook(wxNotebook):
             dlg = wxMessageDialog(self.app.frame, err,
                   "Invalid setting", wxOK | wxICON_ERROR);
             dlg.ShowModal()
-            dlg.destroy()
             #self.SetSelection(1)   # Would be nice if it worked
             return False
         else:
@@ -116,17 +116,20 @@ class MainNotebook(wxNotebook):
 
         event.Skip()   #  requires especially on Win32
 
-class ServerPanel(wxPanel):
+class SLogPanel(wxPanel):
+    """Server log panel."""
     def __init__(self, parent, app):
         wxPanel.__init__(self, parent, -1)
   
         self.app = app
-        self.servlog = wxTextCtrl(self, 601, style=wxTE_MULTILINE | wxTE_READONLY)
+        self.servlog = wxTextCtrl(self, -1, style=wxTE_MULTILINE | wxTE_READONLY)
         box = wxBoxSizer(wxVERTICAL)
         box.Add(self.servlog, 1, wxEXPAND)
         self.SetAutoLayout(true)
         self.SetSizer(box)
         self.Layout()
+
+        self.started = False
 
         if self.app.client.config["share"]:
             self.start()
@@ -144,19 +147,19 @@ class ServerPanel(wxPanel):
         sumiserv.log = log
 
         thread.start_new_thread(sumiserv.main, ((),))
+        self.started = True
         #sumiserv.make_thread(sumiserv.main, (()))
 
     def Write(self, msg):
         self.servlog.AppendText(msg)
 
-class LogPanel(wxPanel):
-    """Panel providing the log, all stdout output."""
+class CLogPanel(wxPanel):
+    """Client log output."""
     def __init__(self, parent, app):
-        global real_stdout, log
         wxPanel.__init__(self, parent, -1)
 
         self.app = app
-        self.textCtrl = wxTextCtrl(self, 600, size=(-1, -1), \
+        self.textCtrl = wxTextCtrl(self, -1, size=(-1, -1), \
                          style=wxTE_MULTILINE | wxTE_READONLY)
         box = wxBoxSizer(wxVERTICAL)
         box.Add(self.textCtrl, 1, wxEXPAND)
@@ -171,19 +174,8 @@ class LogPanel(wxPanel):
                 print msg
         sumiget.log = log
 
-        EVT_SET_FOCUS(self, self.OnFocus)
-        EVT_KILL_FOCUS(self, self.OnKillFocus)
-
     def Write(self, msg):
         self.textCtrl.AppendText(msg)
-
-    def OnFocus(self, event):
-        # disabled for now
-        #sys.stdout = gui_stdout()
-        pass
-
-    def OnKillFocus(self, event):
-        pass
 
 CTL_BANDWIDTH = 500
 CTL_CRYPTO = 501
@@ -196,7 +188,7 @@ CTL_MSS    = 507
 CTL_TYPE   = 508
 CTL_CODE   = 509
 
-class ConfigPanel(wxPanel):
+class CConfigPanel(wxPanel):
     """Client configuration panel."""
     def __init__(self, parent, app):
         wxPanel.__init__(self, parent, -1, style=wxWANTS_CHARS)
@@ -408,10 +400,39 @@ class ConfigPanel(wxPanel):
 # Stealth mode
 # IP_TOTLEN_HOST_ORDER
 
+CTL_SHARE = 701
+
+class SConfigPanel(wxPanel):
+    """Server configuration panel."""
+    def __init__(self, parent, app):
+        wxPanel.__init__(self, parent, -1, style=wxWANTS_CHARS)
+
+        self.app = app   
+        self.share = wxCheckBox(self, CTL_SHARE, "Enable sharing")
+        box = wxBoxSizer(wxVERTICAL)
+        box.Add(self.share, 1, wxEXPAND)
+        self.SetAutoLayout(true)
+        self.SetSizer(box)
+        self.Layout()
+
+        self.share.SetValue(self.app.client.config["share"])
+
+        EVT_CHECKBOX(self, CTL_SHARE, self.OnToggleSharing)
+
+    def OnToggleSharing(self, event):
+        self.app.client.config["share"] = self.share.GetValue()
+
+        if self.app.client.config["share"] and not self.app.nb.slog.started:
+            self.app.nb.slog.start()
+        elif not self.app.client.config["share"]:
+            # Too annoying?
+            #dlg = wxMessageDialog(self.app.frame, 
+            #      "The server will be shutdown once sumigetw is restarted.",
+            #      "SUMI Server", wxOK | wxICON_INFORMATION);
+            #dlg.ShowModal()
+            pass
+
 # Somewhat based on wxListCtrl demo
-# On Win32:
-#  Couldn't retreive information about list control item 1.
-#  Couldn't retreive information about list control item 4.
 class TransferListCtrl(wxListCtrl, wxListCtrlAutoWidthMixin):
     """List control handling the list of file transfers."""
     def __init__(self, parent, ID, pos=wxDefaultPosition,
@@ -832,7 +853,11 @@ class SUMIApp(wx.wxApp):
         return True
 
     def RecvReq(self):
-        """Sets up the request receiving, passes to an existing instance if there is one, otherwise listens for commands using RecvReqThread."""
+        """Sets up the request receiving, passes to an existing instance 
+           if there is one, otherwise listens for commands using RecvReqThread.
+        
+           This is used to allow one sumigetw instance to handle multiple
+           requests, not serving."""
         ss = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
             ss.bind((REQHOST, REQPORT))
@@ -850,7 +875,8 @@ class SUMIApp(wx.wxApp):
         thread.start_new_thread(self.RecvReqThread, (ss, ))
 
     def RecvReqThread(self, ss):
-        """Thread that receives socket connections in order to handle additional requests after the program is started."""
+        """Thread that receives socket connections in order to handle 
+            additional requests after the program is started."""
         while 1:
             (cs, addr) = ss.accept()
             data = cs.recv(256)

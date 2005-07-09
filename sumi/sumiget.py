@@ -113,8 +113,8 @@ class Client:
             errmsg = msg[len("error: "):]
             log("*** Error: " % errmsg)
 
-    # Write the resume file for transfer from nick
     def save_lost(self, x, finished=0):
+        """Write the resume file for transfer from nick."""
         finished=0    # no special case
         self.senders[x]["fs"].seek(0)    
         self.senders[x]["fs"].truncate()    # Clear
@@ -136,36 +136,292 @@ class Client:
             self.senders[x]["fs"].write("FIN")
             self.senders[x]["fs"].flush() 
 
-    def handle_packet(self, data, addr):
-        """Handle received packets."""
-        if len(data) < 6:
-            log("Short packet: %s bytes from %s" % (len(data), addr))
-            return
-
-        prefix  = data[:3]
-        (seqno, ) = struct.unpack("!L", "\0" + data[3:6])
- 
-        # Find nick that is associated with the random prefix; which is the
-        # only way to identify the source.
-        # The data structures aren't setup very efficiently
+    def prefix2nick(self, prefix):
+        """Find nick that is associated with the random prefix; which is the
+        only way to identify the source."""
+       
+        # The data structures aren't setup very efficiently.
         nick = None
         for x in self.senders:
             if self.senders[x].has_key("prefix") and \
                self.senders[x]["prefix"] == prefix:
                 #xprint "DATA:Prefix=%02x%02x%02x its %s" %\
                 #    (tuple(map(ord, prefix)) + (x, ))
-                nick = x
-                break
+                return x
         if nick == None:
             p = "%02x%02x%02x" % (tuple(map(ord, prefix)))
             # On Win32 this takes up a lot of time
             log("DATA:UNKNOWN PREFIX! %s %s bytes from %s"
                     % (p,len(data),addr))
-            return
+            return None
         #print "Incoming:",len(data),"bytes from",addr,"=",nick," #",seqno
 
+    def setup_resuming(self, nick, lostdata):
+        """Setup data structures to resume a file."""
+
+        self.senders[nick]["at"] = int(lostdata.pop())
+
+        log("RESUMING AT %s" % self.senders[nick]["at"])
+        log("IS_RESUMING: LOST: %s" % lostdata)
+        self.senders[nick]["lost"] = {}
+        for x in lostdata:
+            try:
+                self.senders[nick]["lost"][int(x)] = 1
+            except ValueError:
+                pass    # don't add non-ints
+        log("LOADED LOSTS: %s" % self.senders[nick]["lost"])
+
+        # Initialize the rwin with empty hashes, mark off missings
+        self.senders[nick]["rwin"] = {}
+        for x in range(1, self.senders[nick]["at"] + 1):
+            self.senders[nick]["rwin"][int(x)] = 1   # received 
+
+        for L in self.senders[nick]["lost"]:    # mark losses
+            self.senders[nick]["rwin"][int(L)] = 0
+
+        #print "RESUME RWIN: ", self.senders[nick]["rwin"]
+
+        # Formula below is WRONG. Last packet is not size of MSS.
+        # Bytes received = (MSS * at) - (MSS * numlost)
+        # XXX: MSS's may be inconsistant across users! Corruption
+        #self.senders[nick]["bytes"] = \
+        #    (self.mss * self.senders[nick]["at"]) - \
+        #    (self.mss * len(self.senders[nick]["lost"].keys()))
+        s = self.senders[nick]["fh"].tell()
+        self.senders[nick]["fh"].seek(0, 2)   # SEEK_END
+        self.senders[nick]["bytes"] = \
+            self.senders[nick]["fh"].tell()
+        self.senders[nick]["fh"].seek(s, 0)
+
+        #print "STORED BYTES: ", self.senders[nick]["bytes"]
+        #print "AND THE SIZE: ", self.senders[nick]["size"]
+
+        # Files don't store statistics like these
+        self.senders[nick]["all_lost"] = []  # blah
+        self.senders[nick]["rexmits"] = 0
+
+    def setup_non_resuming(nick):
+        """Setup data structures for a new file."""
+        # Initialize
+        self.senders[nick]["at"] = 0
+        self.senders[nick]["rexmits"] = 0
+        self.senders[nick]["all_lost"] = []
+        self.senders[nick]["bytes"] = 0  # bytes received
+        self.senders[nick]["lost"] = {}    # use: keys(), pop()..
+        # RWIN is a list of all the packets, and if they occured (0=no),
+        # incremented each time a packet of that seqno is received. Since
+        # Python arrays don't automatically grow with assignment, a hash
+        # is used instead. If "rwin" was an array, [], missed packets would
+        # cause an IndexError. See
+        #http://mail.python.org/pipermail/python-list/2003-May/165484.html
+        # for rationale and some other class implementations
+        self.senders[nick]["rwin"] = {}
+
+    def setup_file(self, nick):
+        """Setup the file to save to."""
+        fn = self.config["dl_dir"] + os.path.sep + \
+            self.senders[nick]["fn"]
+        log("Opening %s for %s..." % (fn, nick))
+        self.senders[nick]["start"] = time.time()
+
+        # These try/except blocks try to open the file rb+, but if
+        # it fails with 'no such file', create them with wb+ and
+        # open with rb+. Good candidate for a function!
+        try:
+            self.senders[nick]["fh"] = open(fn, "rb+")
+        except IOError:
+            open(fn, "wb+").close()
+            self.senders[nick]["fh"] = open(fn, "rb+")
+        log("open")
+
+        # Open a new resuming file (create if needed)
+        try:
+            self.senders[nick]["fs"] = open(fn + ".sumi", "rb+")
+            is_resuming = 1  # unless proven otherwise
+        except IOError:
+            open(fn + ".sumi", "wb+").close()
+            self.senders[nick]["fs"] = open(fn + ".sumi", "rb+")
+            is_resuming = 0   # empty resume file, new download
+
+        # Lost data format: lostpkt1,lostpkt2,...,current_pkt
+        lostdata = None
+
+        # Check if the data file exists, and if so, resume off it
+        if os.access(fn, os.R_OK):
+            # The data file is readable, read lost data 
+            lostdata = self.senders[nick]["fs"].read().split(",")
+        else: 
+            is_resuming = 0     # Can't read data file, so can't resume
+
+        # Need at least an offset to resume...
+        if (len(lostdata) <= 1): is_resuming = 0
+        log("LEN LOSTDATA=%s" % len(lostdata))#,"and lostdata=",lostdata
+
+        #is_resuming=0#FORCE
+
+        # Setup lost packets
+        if (is_resuming):   # this works
+            self.setup_resuming(nick, lostdata)
+        else:
+            self.setup_non_resuming(nick, lostdata)
+
+    def handle_auth(self, nick, prefix, addr, data):
+        """Handle the authentication packet."""
+        context = md5.md5()
+        context.update(data)       # auth "key" is all of data, hash it
+        #context.update("hi")#bad hash
+        #hash = context.hexdigest() 
+        hashcode = base64.encodestring(context.digest())[:-1]
+        log("PKT:Got auth packet from %s for %s" % (addr,nick))
+  
+
+        # File length, new prefix, flags, filename
+        (self.senders[nick]["size"], ) = struct.unpack("!L", 
+            data[SUMIHDRSZ:SUMIHDRSZ + SUMIAUTHHDRSZ])
+        log("SIZE:%d" % self.senders[nick]["size"])
+        new_prefix = data[SUMIHDRSZ + 4:SUMIHDRSZ + 4 + 3]
+        if len(new_prefix) != 3:
+            log("Missing new_prefix in auth packet!")
+            sys.exit(1)
+        flags = ord(data[SUMIHDRSZ + 4 + 3:SUMIHDRSZ + 4 + 3 + 1])
+        log("FLAGS: %s" % flags)
+        self.senders[nick]["mcast"] = flags & 1
+
+        filename=data[SUMIHDRSZ+8:data[SUMIHDRSZ+8:].find("\0")+SUMIHDRSZ+8]
+
+        self.senders[nick]["fn"] = filename
+        log("Filename: <%s>" % filename)
+
+        # Server can change prefix we suggested (negotiated).
+        log("OLD PREFIX: %02x%02x%02x" % 
+            (tuple(map(ord, self.senders[nick]["prefix"]))))
+        log("NEW PREFIX: %02x%02x%02x" % 
+            (tuple(map(ord, new_prefix))))
+
+        if new_prefix != self.senders[nick]["prefix"]:
+            log("Switching to a new prefix!")
+        self.senders[nick]["prefix"] = new_prefix
+
+        self.callback(nick, "info", self.senders[nick]["size"], \
+            base64.encodestring(prefix)[:-1], filename, \
+            self.senders[nick]["transport"], \
+            self.config["data_chan_type"])
+
+        if (self.mss != len(data)):
+            log("WARNING: Downgrading MSS %d->%d, maybe set it lower?" 
+                % (self.mss, len(data)))
+            self.mss = len(data)
+            if (self.mss < 256):
+                log("MSS is extremely low (%d), quitting" % self.mss)
+                sys.exit(-1)
+
+        # Open the file and set it up
+        if not self.senders[nick].has_key("fh"):  #  file not open yet
+            self.setup_file(nick)
+
+        # Tell the sender to start sending, we're ok
+        # Resume /after/ our current offset: at + 1
+        log("Sending sumi auth")
+        self.sendmsg(nick, "sumi auth " + pack_args({"m":self.mss,
+            "s":addr[0], "h":hashcode, "o":self.senders[nick]["at"] + 1}))
+
+        self.on_timer()    # instant update
+
+        return
+
+    def handle_data(self, nick, prefix, addr, seqno, data):
+        """Handle data packets."""
+
+        # Prefix has been checked, seqno calculated, so just get to the data
+        data = data[SUMIHDRSZ:]
+
+        # All file data is received here
+
+        self.senders[nick]["last_msg"] = time.time()
+
+        offset = (seqno - 1) * (self.mss - SUMIHDRSZ)
+        self.senders[nick]["fh"].seek(offset)
+        self.senders[nick]["fh"].write(data)
+
+        # Mark down each packet in our receive window
+        try:
+            self.senders[nick]["rwin"][seqno] += 1
+        except KeyError:
+            self.senders[nick]["rwin"][seqno] = 1    # create
+
+        if (self.senders[nick]["rwin"][seqno] >= 2):
+            log("(DUPLICATE PACKET %d, IGNORED)" % seqno)
+            return
+
+        #print "THIS IS RWIN: ", self.senders[nick]["rwin"]
+
+        # New data (not duplicate) - add to running total
+        self.senders[nick]["bytes"] += len(data) 
+
+        self.callback(nick, "write", offset, self.senders[nick]["bytes"],
+            self.senders[nick]["size"], addr)
+
+
+        #Check previous packets, see if they were lost (unless first packet)
+        if (seqno > 1):
+            i = 1 
+            # Nice little algorithm. Work backwards, searching for gaps.
+            #print "I'm at ",seqno
+            while seqno - i >= 0:
+                #print "?? ", seqno-i
+                if not self.senders[nick]["rwin"].has_key(seqno - i):
+                    self.senders[nick]["lost"][seqno - i] = 1
+                    self.senders[nick]["all_lost"].append(str(seqno - i))
+                    i += 1
+                else:
+                    #print "ITS THERE!"
+                    break  # this one wasn't lost, so already checked
+
+            if self.senders[nick]["mcast"]:
+                log("using mcast, so not re-request these lost pkts")
+                # we'll get these packets next time around 
+            if self.senders[nick]["lost"].has_key(seqno):
+                self.senders[nick]["lost"].pop(seqno)
+                log("Recovered packet %s %s" 
+                        % (seqno, len(self.senders[nick]["lost"])))
+                self.senders[nick]["rexmits"] += 1
+                log("(rexmits = %s" % self.senders[nick]["rexmits"])
+                self.callback(nick, "rexmits", self.senders[nick]["rexmits"])
+                #on_timer()   # Maybe its all we need
+            # Less than full sized packet = last
+            if (len(data) != self.mss - SUMIHDRSZ):
+                log("NON-FULLSIZED: %d != %d" 
+                        % (len(data), self.mss - SUMIHDRSZ))
+                self.senders[nick]["gotlast"] = 1
+                # File size is now sent in auth packet so no need to calc it here
+                #self.senders[nick]["size"] = self.senders[nick]["fh"].tell()
+                self.on_timer()     # have it check if finished
+
+
+        if self.senders.has_key(nick):
+            self.save_lost(nick)  # for resuming
+
+        if (self.senders.has_key(nick) and len(self.senders[nick]["lost"])):
+            self.callback(nick, "lost", self.senders[nick]["lost"].keys())
+            #print "These packets are currently lost: ", self.senders[nick]["lost"].keys()
+        else:
+            self.callback(nick, "lost", ())
+
+    def handle_packet(self, data, addr):
+        """Handle received packets."""
+        if len(data) < 6:   # prefix(3) + seqno(3)
+            log("Short packet: %s bytes from %s" % (len(data), addr))
+            return
+
+        prefix  = data[:3]
+        (seqno, ) = struct.unpack("!L", "\0" + data[3:6])
+
+        nick = self.prefix2nick(prefix)
+        if not nick: 
+            return
+
         self.senders[nick]["retries"] = 0   # acks worked
- 
+
         self.senders[nick]["last_msg"] = time.time()
 
         # Last most recently received packet, for resuming
@@ -183,267 +439,10 @@ class Client:
         # this used to be partially stored in the source port, but PAT--
         # Port Address Translation--closely related to NAT, can mangle 
         # the srcport
-        if (seqno == 0):       # all 0's = auth packet
-            context = md5.md5()
-            context.update(data)       # auth "key" is all of data, hash it
-            #context.update("hi")#bad hash
-            #hash = context.hexdigest() 
-            hashcode = base64.encodestring(context.digest())[:-1]
-            log("PKT:Got auth packet from %s for %s" % (addr,nick))
-  
-            log("PKT:Verifying prefix (authenticity of server)...")
-
-            # XXX: Does this ever fail?
-            if (data[0:3] == prefix and len(data) > len(prefix)):
-                log("OK")
-            else:
-                log("failed!")
-
-            # file metadata should be here (file length)
-            (self.senders[nick]["size"], ) = struct.unpack("!L", 
-                data[SUMIHDRSZ:SUMIHDRSZ + SUMIAUTHHDRSZ])
-            log("SIZE:%d" % self.senders[nick]["size"])
-            new_prefix = data[SUMIHDRSZ + 4:SUMIHDRSZ + 4 + 3]
-            if len(new_prefix) != 3:
-                log("Missing new_prefix in auth packet!")
-                sys.exit(1)
-            flags = ord(data[SUMIHDRSZ + 4 + 3:SUMIHDRSZ + 4 + 3 + 1])
-            log("FLAGS: %s" % flags)
-            self.senders[nick]["mcast"] = flags & 1
-
-            filename=data[SUMIHDRSZ+8:data[SUMIHDRSZ+8:].find("\0")+SUMIHDRSZ+8]
-
-            self.senders[nick]["fn"] = filename
-            log("Filename: <%s>" % filename)
-
-            log("OLD PREFIX: %02x%02x%02x" % 
-                (tuple(map(ord, self.senders[nick]["prefix"]))))
-            log("NEW PREFIX: %02x%02x%02x" % 
-                (tuple(map(ord, new_prefix))))
-            if new_prefix != self.senders[nick]["prefix"]:
-                log("Switching to a new prefix!")
-            self.senders[nick]["prefix"] = new_prefix
-
-            self.callback(nick, "info", self.senders[nick]["size"], \
-                base64.encodestring(prefix)[:-1], filename, \
-                self.senders[nick]["transport"], \
-                self.config["data_chan_type"])
-
-            if (self.mss != len(data)):
-                log("WARNING: Downgrading MSS %d->%d, maybe set it lower?" 
-                    % (self.mss, len(data)))
-                self.mss = len(data)
-                if (self.mss < 256):
-                    log("MSS is extremely low (%d), quitting" % self.mss)
-                    sys.exit(-1)
-
-            # Open the file and set it up
-            if not self.senders[nick].has_key("fh"):  #  file not open yet
-                fn = self.config["dl_dir"] + os.path.sep + \
-                    self.senders[nick]["fn"]
-                log("Opening %s for %s..." % (fn, nick))
-                self.senders[nick]["start"] = time.time()
-
-                # These try/except blocks try to open the file rb+, but if
-                # it fails with 'no such file', create them with wb+ and
-                # open with rb+. Good candidate for a function!
-                try:
-                    self.senders[nick]["fh"] = open(fn, "rb+")
-                except IOError:
-                    open(fn, "wb+").close()
-                    self.senders[nick]["fh"] = open(fn, "rb+")
-                log("open")
-
-                # Open a new resuming file (create if needed)
-                try:
-                    self.senders[nick]["fs"] = open(fn + ".sumi", "rb+")
-                    is_resuming = 1  # unless proven otherwise
-                except IOError:
-                    open(fn + ".sumi", "wb+").close()
-                    self.senders[nick]["fs"] = open(fn + ".sumi", "rb+")
-                    is_resuming = 0   # empty resume file, new download
-
-                # Lost data format: lostpkt1,lostpkt2,...,current_pkt
-                lostdata = None
-
-                # Check if the data file exists, and if so, resume off it
-                if os.access(fn, os.R_OK):
-                    # The data file is readable, read lost data 
-                    lostdata = self.senders[nick]["fs"].read().split(",")
-                else: 
-                    is_resuming = 0     # Can't read data file, so can't resume
-
-                # Need at least an offset to resume...
-                if (len(lostdata) <= 1): is_resuming = 0
-                log("LEN LOSTDATA=%s" % len(lostdata))#,"and lostdata=",lostdata
-
-                #is_resuming=0#FORCE
- 
-                # Setup lost
-                if (is_resuming):   # this works
-                    self.senders[nick]["at"] = int(lostdata.pop())
- 
-                    log("RESUMING AT %s" % self.senders[nick]["at"])
-                    log("IS_RESUMING: LOST: %s" % lostdata)
-                    self.senders[nick]["lost"] = {}
-                    for x in lostdata:
-                        try:
-                            self.senders[nick]["lost"][int(x)] = 1
-                        except ValueError:
-                            pass    # don't add non-ints
-                    log("LOADED LOSTS: %s" % self.senders[nick]["lost"])
-
-                    # Initialize the rwin with empty hashes, mark off missings
-                    self.senders[nick]["rwin"] = {}
-                    for x in range(1, self.senders[nick]["at"] + 1):
-                        self.senders[nick]["rwin"][int(x)] = 1   # received 
-
-                    for L in self.senders[nick]["lost"]:    # mark losses
-                        self.senders[nick]["rwin"][int(L)] = 0
-
-                    #print "RESUME RWIN: ", self.senders[nick]["rwin"]
-
-                    # Formula below is WRONG. Last packet is not size of MSS.
-                    # Bytes received = (MSS * at) - (MSS * numlost)
-                    # XXX: MSS's may be inconsistant across users! Corruption
-                    #self.senders[nick]["bytes"] = \
-                    #    (self.mss * self.senders[nick]["at"]) - \
-                    #    (self.mss * len(self.senders[nick]["lost"].keys()))
-                    s = self.senders[nick]["fh"].tell()
-                    self.senders[nick]["fh"].seek(0, 2)   # SEEK_END
-                    self.senders[nick]["bytes"] = \
-                        self.senders[nick]["fh"].tell()
-                    self.senders[nick]["fh"].seek(s, 0)
- 
-                    #print "STORED BYTES: ", self.senders[nick]["bytes"]
-                    #print "AND THE SIZE: ", self.senders[nick]["size"]
-
-                    # Used to be a check here for resuming a finished file, but
-                    # now there is no special case -- the resuming code handles
-                    # it without any problems.
-                    #if 0 and self.senders[nick]["bytes"] == \
-                    #   self.senders[nick]["size"]:
-                    #   print "File complete, not resumed"
-                    #   # Send a fake write to fill in the values, and a real fin
-                    #   self.callback(nick, "write", \
-                    #                 self.senders[nick]["bytes"], \
-                    #                 self.senders[nick]["bytes"], \
-                    #                 self.senders[nick]["size"], \
-                    #                 ["(resumed)"])
-                    #   self.callback(nick, "fin", 0, \
-                    #                 self.senders[nick]["size"], 0, "")
-                    #   self.senders.pop(nick)
-                    #   return
-
-                    # Files don't store statistics like these
-                    self.senders[nick]["all_lost"] = []  # blah
-                    self.senders[nick]["rexmits"] = 0
-                else:
-                    # Initialize
-                    self.senders[nick]["at"] = 0
-                    self.senders[nick]["rexmits"] = 0
-                    self.senders[nick]["all_lost"] = []
-                    self.senders[nick]["bytes"] = 0  # bytes received
-                    self.senders[nick]["lost"] = {}    # use: keys(), pop()..
-    # RWIN is a list of all the packets, and if they occured (0=no),
-    # incremented each time a packet of that seqno is received. Since
-    # Python arrays don't automatically grow with assignment, a hash
-    # is used instead. If "rwin" was an array, [], missed packets would
-    # cause an IndexError. See
-    #http://mail.python.org/pipermail/python-list/2003-May/165484.html
-                # for rationale and some other class implementations
-                    self.senders[nick]["rwin"] = {}
-
-
-            # Tell the sender to start sending, we're ok
-            # Resume /after/ our current offset: at + 1
-            log("Sending sumi auth")
-            self.sendmsg(nick, "sumi auth " + pack_args({"m":self.mss,
-                "s":addr[0], "h":hashcode, "o":self.senders[nick]["at"] + 1}))
-
-            self.on_timer()    # instant update
-
-            # The rest of this function handles data transfer
-            return
+        if seqno == 0:       # all 0's = auth packet
+            self.handle_auth(nick, prefix, addr, data)
         else:
-            # Prefix has been checked, seqno calculated, so just get to the data
-            data = data[SUMIHDRSZ:]
-
-            # All file data is received here
-  
-            self.senders[nick]["last_msg"] = time.time()
-   
-            offset = (seqno - 1) * (self.mss - SUMIHDRSZ)
-            self.senders[nick]["fh"].seek(offset)
-            self.senders[nick]["fh"].write(data)
-            #sys.stdout.write(".");
-            #print "WRITE:%d:%d:%d:%s"%(offset, offset + len(data), len(data))
-            #self.callback(nick, "write", offset, offset + len(data), len(data), \
-                #self.senders[nick]["size"], addr)
- 
-            # Mark down each packet in our receive window
-            try:
-                self.senders[nick]["rwin"][seqno] += 1
-            except KeyError:
-                self.senders[nick]["rwin"][seqno] = 1    # create
- 
-            if (self.senders[nick]["rwin"][seqno] >= 2):
-                log("(DUPLICATE PACKET %d, IGNORED)" % seqno)
-                return
-
-            #print "THIS IS RWIN: ", self.senders[nick]["rwin"]
-
-            # New data (not duplicate) - add to running total
-            self.senders[nick]["bytes"] += len(data) 
-
-            self.callback(nick, "write", offset, self.senders[nick]["bytes"],
-                self.senders[nick]["size"], addr)
-
- 
-            #Check previous packets, see if they were lost (unless first packet)
-            if (seqno > 1):
-                i = 1 
-                # Nice little algorithm. Work backwards, searching for gaps.
-                #print "I'm at ",seqno
-                while seqno - i >= 0:
-                    #print "?? ", seqno-i
-                    if not self.senders[nick]["rwin"].has_key(seqno - i):
-                        self.senders[nick]["lost"][seqno - i] = 1
-                        self.senders[nick]["all_lost"].append(str(seqno - i))
-                        i += 1
-                    else:
-                        #print "ITS THERE!"
-                        break  # this one wasn't lost, so already checked
-
-                if self.senders[nick]["mcast"]:
-                    log("using mcast, so not re-request these lost pkts")
-                    # we'll get these packets next time around 
-                if self.senders[nick]["lost"].has_key(seqno):
-                    self.senders[nick]["lost"].pop(seqno)
-                    log("Recovered packet %s %s" 
-                            % (seqno, len(self.senders[nick]["lost"])))
-                    self.senders[nick]["rexmits"] += 1
-                    log("(rexmits = %s" % self.senders[nick]["rexmits"])
-                    self.callback(nick, "rexmits", self.senders[nick]["rexmits"])
-                    #on_timer()   # Maybe its all we need
-                # Less than full sized packet = last
-                if (len(data) != self.mss - SUMIHDRSZ):
-                    log("NON-FULLSIZED: %d != %d" 
-                            % (len(data), self.mss - SUMIHDRSZ))
-                    self.senders[nick]["gotlast"] = 1
-                    # File size is now sent in auth packet so no need to calc it here
-                    #self.senders[nick]["size"] = self.senders[nick]["fh"].tell()
-                    self.on_timer()     # have it check if finished
-
-
-            if self.senders.has_key(nick):
-                self.save_lost(nick)  # for resuming
-
-            if (self.senders.has_key(nick) and len(self.senders[nick]["lost"])):
-                self.callback(nick, "lost", self.senders[nick]["lost"].keys())
-                #print "These packets are currently lost: ", self.senders[nick]["lost"].keys()
-            else:
-                self.callback(nick, "lost", ())
+            self.handle_data(nick, prefix, addr, seqno, data)
 
     def thread_timer(self):
         """Every RWINSZ seconds, send a nak of missing pkts up to that point."""
@@ -900,6 +899,7 @@ class Client:
             # TODO: Index senders based on unique key..instead of server_nick
             # Then we could have multiple transfers from same user, same time!
             log("Already have an in-progress transfer from %s" % server_nick)
+            log(self.senders)
             self.callback(server_nick, "1xferonly")
             #print "Senders: ", self.senders
             return -1
@@ -961,11 +961,6 @@ class Client:
         self.senders.pop(server_nick)
         return -1
 
-    # The sole request. In a separate thread so it can wait for IRC.
-    # NOTE, sumigetw doesn't use this, it makes its own thread & calls request
-    def thread_request(self, transport, nick, file):
-         self.request(transport, nick, file)
-
     def set_callback(self, f):
         """Set callback to be used for handling notifications."""
         self.callback = f
@@ -1011,7 +1006,7 @@ class Client:
 
         thread.start_new_thread(self.thread_timer, ())
         #senders[nick]["transport_init"] = t.transport_init
-        thread.start_new_thread(self.thread_request, (transport, nick, file))
+        thread.start_new_thread(self.request, (transport, nick, file))
 
         # This thread will release() input_lock, letting thread_request to go
         #transport_init()
@@ -1044,9 +1039,12 @@ class Client:
             log("Aborting %s" % x)
             self.abort(x)
 
+        print "Exiting now"
         sys.exit()
+        os._exit()
 
 def on_sigusr1(signo, intsf):
+    """SIGUSR1 is used on Unix for signalling multiple transfers."""
     global base_path
     log("Got SIGUSR1 (%s %s) calling" % (signo, intsf))
     (transport, nick, filename) = open(base_path + "run", 
