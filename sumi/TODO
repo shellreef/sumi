@@ -1,5 +1,7 @@
 TO DO  20040217JC
 
+* multiple transfers per person, with only one auth, and readd crypto
+* sumi dir!
 * Get sumiget.py standalone working again
 * GUI to create sumiserv.cfg easily--have a simple console tab in
   "Server" as of 20050706, but need configuration options. Seemless.

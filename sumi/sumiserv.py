@@ -161,19 +161,29 @@ def handle_dir(nick, msg):
     """Handle sumi dir -- send directory list."""
     log("%s is calling sumi dir" % nick)
 
-def handle_send(nick, msg):
-    """Handle sumi send -- setup a new transfer."""
-    log("%s is sumi sending" % nick)
+    handle_request(nick, msg)
+    
+    # TODO
+    # How should sumi dir work? Can we authenticate only once, then
+    # allow multiple transfers (including sends and dirs)? Also, we
+    # should allow multiple simultaneous transfers, so one can browse
+    # while transferring large files.
+    send_auth(nick, "")
+
+def handle_request(nick, msg):
+    """Handle a generic transfer request, returning arguments dictionary.
+    
+    Setup basic fields, MSS, communication channel, prefix, and IP
+    (possibly multicast)."""
     if (clients.has_key(nick) and not clients[nick].has_key("preauth")):
         log("CLEARING LEFT OVERS")
         clients[nick].clear()
-    msg = msg[len("sumi send "):]
-    try: 
-        #(file, offset, ip, port, mss, b64prefix, speed)=msg.split("\t") 
-        args = unpack_args(msg)
-        log("ARGS=%s" % args)
-        filename = args["f"]
-        offset   = int(args["o"])
+    magic, verb, msg = msg.split(" ", 2)
+    if magic != "sumi":
+        return sendmsg_error(nick, "not sumi command")
+    args = unpack_args(msg)
+    log("ARGS=%s" % args)
+    try:
         # Basic fields
         ip       = args["i"]
         port     = int(args["n"])
@@ -222,21 +232,10 @@ def handle_send(nick, msg):
     except:
         return sendmsg_error(nick, "invalid IP address: %s" % ip)
 
-    log("nick=%s,FILE=%s,OFFSET=%d,IP=%s:%d MSS=%d PREFIX=%02x%02x%02x" % (
-          nick, filename, offset, ip, port, mss, ord(prefix[0]), \
+    log("nick=%s,IP=%s:%d MSS=%d PREFIX=%02x%02x%02x" % (
+          nick, ip, port, mss, ord(prefix[0]), \
           ord(prefix[1]), ord(prefix[2])))
 
-    # Build the authentication packet using the client-requested prefix
-    key = "%s\0\0\0" % prefix       # 3-byte prefix, 3-byte seqno (0)
-    if (len(key) != SUMIHDRSZ):
-        return sendmsg_error(nick, "key + seqno != SUMIHDRSZ")
-
-    #clients[nick] = {}   # This appears to be done up there ^^^
-    if (filename[0] == "#"):
-        clients[nick]["file"] = int(filename[1:]) - 1
-    else:
-        return sendmsg_error(nick, "file must be integer") 
-    clients[nick]["offset"] = int(offset)
     clients[nick]["addr"] = (ip, port)
     clients[nick]["mss"] = int(mss)
     clients[nick]["prefix"] = prefix
@@ -278,15 +277,6 @@ def handle_send(nick, msg):
 
     clients[nick]["ack_ts"] = time.time()
 
-    # TODO: put information about the file here. hash?
-
-    # Make sure the filename/pack number is valid
-    if clients[nick]["file"] in range(len(cfg["filedb"])):
-        # XXX: This should be the encrypted size; size on wire.
-        authhdr = struct.pack("!L", \
-        os.path.getsize(cfg["filedb"][clients[nick]["file"]]["fn"]))
-    else:
-        return sendmsg_error(nick, "no such pack number")
 
     # 24-bit prefix. The server decides on the prefix to use for the auth
     # packet, but here we embed the prefix that we, the server, decide to
@@ -325,13 +315,17 @@ def handle_send(nick, msg):
         mcast = 0
     clients[nick]["mcast"] = mcast
 
-    # Used for data transfer, may differ from client-chosen auth pkt prefix
-    authhdr += clients[nick]["prefix"]
+    return args
 
-    authhdr += chr(mcast) 
+def send_auth(nick, authhdr):
+    """Send authentication packet with given header."""
+    if not clients[nick].has_key("prefix"):
+        return sendmsg_error(nick, "missing prefix")
 
-    authhdr += os.path.basename(cfg["filedb"][clients[nick]["file"]]["fn"]+\
-               "\0");  # Null-term'd
+    # Build the authentication packet using the client-requested prefix
+    key = "%s\0\0\0" % clients[nick]["prefix"]       # 3-byte prefix, 3-byte seqno (0)
+    if (len(key) != SUMIHDRSZ):
+        return sendmsg_error(nick, "key + seqno != SUMIHDRSZ")
 
     #if (len(authhdr) != SUMIAUTHHDRSZ):
     #    print "internal error: auth header incorrect"
@@ -339,6 +333,7 @@ def handle_send(nick, msg):
     key += authhdr
 
     # Payload is random data to fill MSS
+    mss = clients[nick]["mss"]
     for i in range(mss - SUMIHDRSZ - len(authhdr)):
         key += struct.pack("B", random.randint(0, 255))
     if (len(key) != mss):
@@ -361,7 +356,46 @@ def handle_send(nick, msg):
         ord(key[1]), ord(key[2])))
     #send_packet(clients[nick]["asrc"], (ip, port), key)
 
-    return True
+def handle_send(nick, msg):
+    """Handle sumi send -- setup a new transfer."""
+    log("%s is sumi sending" % nick)
+
+    args = handle_request(nick, msg)
+
+    try: 
+        #(file, offset, ip, port, mss, b64prefix, speed)=msg.split("\t") 
+        filename = args["f"]
+        offset   = int(args["o"])
+    except:
+        return sendmsg_error(nick, "not enough fields for send")
+
+    log("FILE=%s,OFFSET=%s" % (filename, offset))
+
+
+    if (filename[0] == "#"):
+        clients[nick]["file"] = int(filename[1:]) - 1
+    else:
+        return sendmsg_error(nick, "file must be integer") 
+    clients[nick]["offset"] = int(offset)
+
+    # Make sure the filename/pack number is valid
+    if not clients[nick]["file"] in range(len(cfg["filedb"])):
+        return sendmsg_error(nick, "no such pack number")
+    
+    # Build header -- this contains file information.
+    # TODO: put more information about the file here. hash?
+
+    # XXX: This should be the encrypted size; size on wire.
+    authhdr = struct.pack("!L", \
+        os.path.getsize(cfg["filedb"][clients[nick]["file"]]["fn"]))
+
+    # Used for data transfer, may differ from client-chosen auth pkt prefix
+    authhdr += clients[nick]["prefix"]
+    authhdr += chr(clients[nick]["mcast"])
+    authhdr += os.path.basename(cfg["filedb"][clients[nick]["file"]]["fn"]+\
+               "\0");  # Null-term'd
+
+    send_auth(nick, authhdr)
 
 def handle_auth(nick, msg):
     """Handle sumi auth -- authentication."""
