@@ -219,17 +219,17 @@ class CConfigPanel(wxPanel):
 
         # Cryptography. TODO: Get pre auth working, then really work on this.
         # Also, make the listbox here one item high. Make it drop down.
-        self.crypto_label = wxStaticText(self, -1, "Cryptography:", \
-                                wxPoint(0, 30), wxSize(-1, -1))
-        self.crypto = wxChoice(self, CTL_CRYPTO, wxPoint(80, 30), wxSize(-1, -1),
-                                choices=["None", \
-                                         "Symmetric (AES)", \
-                                         "Asymmetric", \
-                                         "One time pad"])
-        self.cryptos = ['', 's', 'a', 'o']
-        crypto2n = {'': 0, 's': 1, 'a': 2, 'o': 3}
-        self.crypto.SetSelection(crypto2n[self.app.client.config["crypto"]])
-        EVT_CHOICE(self, CTL_CRYPTO, self.OnCryptoChange)
+        #self.crypto_label = wxStaticText(self, -1, "Cryptography:", \
+                #                        wxPoint(0, 30), wxSize(-1, -1))
+        #self.crypto = wxChoice(self, CTL_CRYPTO, wxPoint(80, 30), wxSize(-1, -1),
+        #                        choices=["None", \
+                #                                 "Symmetric (AES)", \
+                #                         "Asymmetric", \
+                #                         "One time pad"])
+        #self.cryptos = ['', 's', 'a', 'o']
+        #crypto2n = {'': 0, 's': 1, 'a': 2, 'o': 3}
+        #self.crypto.SetSelection(crypto2n[self.app.client.config["crypto"]])
+        #EVT_CHOICE(self, CTL_CRYPTO, self.OnCryptoChange)
         # TODO: Asymmetric encryption key (passwd)
 
         # Data channel type
@@ -326,8 +326,8 @@ class CConfigPanel(wxPanel):
 
         self.app.client.config["bandwidth"] = int(bw)
 
-    def OnCryptoChange(self, event):
-        self.app.client.config["crypto"] = self.cryptos[event.GetInt()]
+    #def OnCryptoChange(self, event):
+        #self.app.client.config["crypto"] = self.cryptos[event.GetInt()]
 
     def OnDChanChange(self, event=0):
         if event != 0:

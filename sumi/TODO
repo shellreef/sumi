@@ -1,5 +1,6 @@
 TO DO  20040217JC
 
+* Get sumiget.py standalone working again
 * GUI to create sumiserv.cfg easily--have a simple console tab in
   "Server" as of 20050706, but need configuration options. Seemless.
 * Find out why "Exit Now" is delayed when uncompiled, but not when py2exe'd

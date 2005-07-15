@@ -541,31 +541,6 @@ class Client:
         log("DONE - UPDATING")
         self.save_lost(nick, 1)
 
-        # If was encrypted, decrypt
-        # TODO: Separate transport and dchan encryption types
-        if (self.config["crypto"] == "s"):
-            #from aes.aes import aes
-            from Crypto.Cipher import AES
-
-            self.callback(nick, "dec", "AES")
-            #aes_crypto = aes()
-            #aes_crypto.setKey(self.config["passwd"])
-            # Use CFB mode because it doesn't require padding
-            aes_crypto = AES.new(self.config["passwd"], AES.MODE_CFB)
-
-            # Error: I/O operation on closed file?
-            self.senders[nick]["fh"].flush()
-            self.senders[nick]["fh"].seek(0)
-            data = self.senders[nick]["fh"].read()
- 
-            log("About to decrypt %s bytes" % len(data))
-            data = aes_crypto.decrypt(data)
-
-            out = open(self.config["dl_dir"] + os.path.sep + \
-                  self.senders[nick]["fn"], "wb")
-            out.write(data)
-            self.senders[nick]["fh"] = out
-
         self.sendmsg(nick, "sumi done")
 
         duration = time.time() - self.senders[nick]["start"]
@@ -705,33 +680,8 @@ class Client:
         # sumi send deal strictly with file transfers. This way, sumi sec+
         # sumi login can be implemented later; allowing remote admin.
         # TODO: Actually, why not simply extend sumi send to allow remote admn.
-    def secure_chan(self, server_nick):
-        """Request a secure channel."""
-        if (self.config["crypto"] == "a"):
-            # TODO: This key generation should be done elsewhere and better
-            from Crypto.PublicKey import RSA
-            from Crypto.Util.randpool import RandomPool
-            #from Crypto.Util import number             # (not used)
-            self.pool = RandomPool(384)
-            self.pool.stir()
-            # Larger key needed to encrypt larger data, 768 too small
-            log("Generating key...")
-            import cPickle
-            # Only send public key, not private key
-            # TODO: this needs to be fixed, its not seamless
-            self.config["passwd"] = \
-                cPickle.dumps(RSA.generate(1024, self.pool.get_bytes).publickey())
-
-        msg = "sumi sec " + \
-            self.config["crypto"] + \
-            base64.encodestring(self.config["passwd"]).replace("\n", "")
-
-        # Bootstrap sendmsg 
-        #self.sendmsg(server_nick, msg)
-        self.senders[server_nick]["sendmsg"](server_nick, msg)
-        # Now, communicate in crypto with server_nick
-        self.senders[server_nick]["crypto"] = self.config["crypto"]
-        self.senders[server_nick]["passwd"] = self.config["passwd"]
+    #def secure_chan(self, server_nick):
+    #    """Request a secure channel."""
 
     def validate_config(self):
         """Validate configuration after loading it, possibly modifying it
@@ -844,40 +794,9 @@ class Client:
 #        #return sendmsg(nick, msg)
 #        return self.senders[nick]["sendmsg"](nick, msg)
 
-    # Send a secure message to server_nick
+    # Send a message to server_nick
     def sendmsg(self, server_nick, msg):
-        is_enc = 0
-        #print "===", self.senders[server_nick]
         log(">>%s>%s" % (server_nick, msg))
-        if (self.senders.has_key(server_nick) and \
-            self.senders[server_nick]["crypto"] == "s"):
-            from Crypto.Cipher import AES
-            #from aes.aes import aes
-            #aes_crypto = aes()
-            #aes_crypto.setKey(self.senders[server_nick]["passwd"])
-            #msg = aes_crypto.encrypt(msg)
-            aes_crypto = AES.new(self.senders[server_nick]["passwd"], AES.MODE_CFB)
-            msg = aes_crypto.encrypt(msg)
-            is_enc = 1
-        elif (self.senders.has_key(server_nick) and \
-              self.senders[server_nick]["crypto"] == "a"):
-            import cPickle
-            from Crypto.PublicKey import RSA
-            key = cPickle.loads(self.config["passwd"])
-            msg = key.encrypt(msg, number.getPrime(10, self.pool.get_bytes))[0]
-            is_enc = 1
-
-        # If encrypted, base64 it for transport
-        if is_enc:
-            msg = base64.encodestring(msg)
-            # base64 likes to split the lines, remove newlines we'll do it
-            # ourself thanks
-            msg = msg.replace("\n", "")
-
-        #print "<<<<<<%s>>>>>>" % msg
-        # Note, this message will usually be long; the transport takes
-        # care of splitting it up for us if necessary
-        ##self.sendmsg(server_nick, msg)
         return self.senders[server_nick]["sendmsg"](server_nick, msg)
 
     def abort(self, server_nick):
@@ -917,9 +836,6 @@ class Client:
             transports[transport] = 1   # Initialize only once
             log("Just inited %s" % transport)
 
-        # Setup cryptology
-        self.secure_chan(server_nick)
-
         log("You want %s from %s" % (server_nick, file))
 
         offset = 0
@@ -933,11 +849,7 @@ class Client:
             "o":offset, "i":self.myip, "n":self.myport, "m":self.mss,
             "p":base64.encodestring(prefix)[:-1], 
             "b":self.bandwidth,
-            "w":self.rwinsz, "d":self.config["data_chan_type"],
-            "x":self.config["crypto"]})
-            # XYZ: In sumi sec
-            #"K":base64.encodestring(self.config["passwd"])[:-1]})
-
+            "w":self.rwinsz, "d":self.config["data_chan_type"]})
 
         self.sendmsg(server_nick, msg) 
         #self.sendmsg(server_nick, msg)

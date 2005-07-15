@@ -135,36 +135,6 @@ def set_src_allow(allow_cidr):
     log("Allowing: %s, mask=%.8x, allow=%.8x" % (allow_cidr, SRC_IP_MASK,
         SRC_IP_ALLOW))
 
-def recvmsg_secure(nick, msg):
-    """Receive an encrypted message."""
-    if (clients[nick]["crypto"] == "s"):
-        # TODO: Find out if we need to de-base64 it somehow more consistantly
-        #print msg
-        msg = base64.decodestring(msg)
-
-        #from aes.aes import aes
-        #aes_crypto = aes()
-        #print "Dec with =",clients[nick]["pkey"]
-        #aes_crypto.setKey(clients[nick]["pkey"])
-        #msg = aes_crypto.decrypt(msg)
-        from Crypto.Cipher import AES
-        aes_crypto = AES.new(clients[nick]["pkey"], AES.MODE_CFB)
-        msg = aes_crypto.decrypt(msg)
-    elif (clients[nick]["crypto"] == "a"):
-        msg = base64.decodestring(msg)
-        import cPickle
-
-        log("pkey = " + clients[nick]["pkey"])
-# bails with:
-#AttributeError: RSAobj instance has no attribute '__setitem__'
-
-        key = cPickle.loads(clients[nick]["pkey"])
-        if (key.has_private):
-            log("Good, key has private")
-        msg = key.decrypt(msg)  
-        # key.decrypt???
-    return msg
-
 def recv_multipart(nick, msg):
     """Accumulate a continued message (beginning with >), returning
     True if the message is currently incomplete or False if the message
@@ -187,41 +157,9 @@ def recv_multipart(nick, msg):
         log("COMPLETE MSG:  %s" % msg)   # Now handle
         return False
 
-def handle_sec(nick, msg):
-    """Handle a sumi sec message, used for setting up security
-       (encryption). Return whether successful."""
-    log("%s is request security" % nick)
-    args = msg[len("sumi sec "):]
-    # This is sent in the clear, so it should be made uniform and
-    # not suspicious. Instead of using pack_args(), go for something like
-    #   <X><key>
-    # where X is one byte: O=one-time pad, S=symmetric, A=asymmetric 
-    #                   ^ or lowercase if wants to encrypt acks, too!
-    clients[nick] = { }
-    clients[nick]["preauth"] = 1
-    clients[nick]["crypto"] = args[0]
-    key_ = args[1:]
-    clients[nick]["sec_acks"] = 0
-    if (clients[nick]["crypto"] >= "a" and
-        clients[nick]["crypto"] <= "z"):
-        clients[nick]["sec_acks"] = 1
-    #print "sec_acks=",clients[nick]["sec_acks"] 
-    try:
-        log("Decoding %s" % key_)
-        key_ = base64.decodestring(key_ + "=")
-    except None: #base64.binascii.Error:
-        clients[nick] = {}     # forget them, they dont know how to b64
-        return sendmsg_error(nick, "sec invalid key")
-    if (clients[nick]["crypto"] == "O" or clients[nick]["crypto"] == "o"):
-        clients[nick]["otppos"] = struct.unpack("!L", key_[0:4])
-        clients[nick]["otpid"] = key_[4:]
-        log("pos=%s" % clients[nick]["otppos"])
-        log("otpid=%s" % clients[nick]["otpid"])
-    else:
-        clients[nick]["pkey"] = key_   # pre-auth key
-        log("Yeah the pw is %s" % key_)
-        clients[nick]["passwd"] = clients[nick]["pkey"]  # backwards
-    return True
+def handle_dir(nick, msg):
+    """Handle sumi dir -- send directory list."""
+    log("%s is calling sumi dir" % nick)
 
 def handle_send(nick, msg):
     """Handle sumi send -- setup a new transfer."""
@@ -236,6 +174,7 @@ def handle_send(nick, msg):
         log("ARGS=%s" % args)
         filename = args["f"]
         offset   = int(args["o"])
+        # Basic fields
         ip       = args["i"]
         port     = int(args["n"])
         mss      = int(args["m"])
@@ -243,14 +182,6 @@ def handle_send(nick, msg):
         speed    = int(args["b"])   # b=bandwidth
         rwinsz   = int(args["w"])
         dchantype= args["d"]            
-        crypto   = None
-        #passwd   = None
-        otpfile  = None
-        if args.has_key("x"): crypto = args["x"]
-        # Don't do this; moved to sumi sec
-        #if args.has_key("K"): passwd = base64.decodestring(args["K"])
-        if args.has_key("O"): otpfile = args["O"]
-        if args.has_key("@"): otpfile = args["@"]
     except KeyError:
         log("not enough fields/missing fields")
         return sendmsg_error(nick, "not enough fields/missing fields")
@@ -291,7 +222,6 @@ def handle_send(nick, msg):
     except:
         return sendmsg_error(nick, "invalid IP address: %s" % ip)
 
-    # TODO: make sure the filename/pack number is valid, and we have it
     log("nick=%s,FILE=%s,OFFSET=%d,IP=%s:%d MSS=%d PREFIX=%02x%02x%02x" % (
           nick, filename, offset, ip, port, mss, ord(prefix[0]), \
           ord(prefix[1]), ord(prefix[2])))
@@ -347,36 +277,15 @@ def handle_send(nick, msg):
     # TODO:others: t (TCP)
 
     clients[nick]["ack_ts"] = time.time()
-    clients[nick]["crypto"] = crypto
 
-    if (clients[nick]["crypto"] == "o"):    # one-time pad
-        clients[nick]["otpfile"] = open(cfg["otpdir"] + otpfile, "rb")
-        # Per-client OTPs are best, otherwise, anyone with the OTP can
-        # intercept, and if client sends OTP file offset it hasn't use
-        # yet, but we have used already up to, then client has to use
-        # our offset, resulting in gaps unused/used in the pad, which may
-        # be too large to transfer other files in..a housekeeping mess.
-        # XXX: not defined
-        #clients[nick]["otppos"] = otppos
-
-        # XXX: to XOR two strings, use: (my own creation)
-        # import operator
-        # "".join(map(chr, map(operator.xor, map(ord, a), map(ord, b))))
-        # Also, auth packet should be encrypted too, and data packets.
-        # Everything should be encryptable except the prefix, otherwise
-        # client won't know how to decrypt(prefix=virtual address).
-      # AES encryption often makes it larger - encrypt file only, before
-      # sending?
-    elif (clients[nick]["crypto"] == "s"):   # symmetric
-        #clients[nick]["passwd"] = passwd
-        log("SYMMETRIC")
     # TODO: put information about the file here. hash?
 
-    try:
+    # Make sure the filename/pack number is valid
+    if clients[nick]["file"] in range(len(cfg["filedb"])):
         # XXX: This should be the encrypted size; size on wire.
         authhdr = struct.pack("!L", \
         os.path.getsize(cfg["filedb"][clients[nick]["file"]]["fn"]))
-    except IndexError:
+    else:
         return sendmsg_error(nick, "no such pack number")
 
     # 24-bit prefix. The server decides on the prefix to use for the auth
@@ -524,23 +433,8 @@ def handle_auth(nick, msg):
         return sendmsg_error(nick, "hashcode: %s != %s" % 
                 (derived_hash, hashcode))
 
-    #XXX  Setup crypto on our part
-    ## THIS ALL SHOULD BE MOVED INTO PRE-AUTH (sumi sec)
-    if clients[nick]["crypto"] == "s":
-        from aes.aes import aes
-        aes_crypt = aes()
-        log("PW=%s" % clients[nick]["passwd"])
-        aes_crypt.setKey(clients[nick]["passwd"])
-        ciphered = open(cfg["filedb"][clients[nick]["file"]]["fn"] + ".aes", "wb+")
-        ciphered.write(aes_crypt.encrypt(   \
-            open(cfg["filedb"][clients[nick]["file"]]["fn"], "rb").read()))
-        ciphered.close()
-        clients[nick]["fh"] = \
-            open(cfg["filedb"][clients[nick]["file"]]["fn"] + ".aes", "rb")
-    else:
-        clients[nick]["fh"] = \
-            open(cfg["filedb"][clients[nick]["file"]]["fn"], "rb")   
-
+    clients[nick]["fh"] = \
+        open(cfg["filedb"][clients[nick]["file"]]["fn"], "rb")
 
     # Find size...
     clients[nick]["fh"].seek(0, 2)   # SEEK_END
@@ -609,27 +503,19 @@ def recvmsg(nick, msg, no_decrypt=0):
     if recv_multipart(nick, msg):
         return None    # neither success or failure
 
-    # If encrypted, decrypt
-    if clients.has_key(nick) and clients[nick].has_key("crypto") \
-        and not no_decrypt:       # its encrypted
-        #print nick,"IS SECURED"
-        msg = recvmsg_secure(nick, msg)
-        log("(*%s): %s" % (nick, msg))
-
     # If transfer in progress, allowed to use abbreviated protocol
     if (clients.has_key(nick) and clients[nick].has_key("authenticated") and \
         clients[nick]["authenticated"] == 2):
         transfer_control(nick, msg)
 
-    if (msg.find("sumi sec ") == 0):        # should be as opaque as possible
-        return handle_sec(nick, msg)
-    elif (msg.find("sumi send ") == 0):
+    #if (msg.find("sumi sec ") == 0):        # should be as opaque as possible
+    #    return handle_sec(nick, msg)
+    if (msg.find("sumi send ") == 0):
         return handle_send(nick, msg)
     elif (msg.find("sumi auth ") == 0):
         return handle_auth(nick, msg)
     elif (msg.find("sumi dir ") == 0):
-        # TODO: Directory list
-        return sendmsg_error(nick, "sumi dir not yet implemented")
+        return handle_dir(nick, msg)
     elif (msg.find("sumi done") == 0):
         return handle_done(nick, msg)
 
