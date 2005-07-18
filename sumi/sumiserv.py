@@ -178,9 +178,6 @@ def handle_request(nick, msg):
     if (clients.has_key(nick) and not clients[nick].has_key("preauth")):
         log("CLEARING LEFT OVERS")
         clients[nick].clear()
-    magic, verb, msg = msg.split(" ", 2)
-    if magic != "sumi":
-        return sendmsg_error(nick, "not sumi command")
     args = unpack_args(msg)
     log("ARGS=%s" % args)
     try:
@@ -403,7 +400,6 @@ def handle_auth(nick, msg):
         return sendmsg_error(nick, "step 1 not complete")
 
     log("message: %s" % msg)
-    msg = msg[len("sumi auth "):]
     #(their_mss, asrc, hash) = msg.split("\t")
     args = unpack_args(msg)
     log("args: %s" % args)
@@ -520,6 +516,13 @@ def handle_done(nick, msg):
         log("Somehow lost filename")
     destroy_client(nick)
 
+def handle_sec(nick, msg):
+    # TODO: base64 decode, get client's public key, send sesskey and IV, save,
+    # then watch out for AES'd messages from this client
+    import base64
+    from Crypto.PublicKey import RSA
+    pass
+
 def recvmsg(nick, msg, no_decrypt=0):
     """Handle an incoming message.
 
@@ -542,16 +545,19 @@ def recvmsg(nick, msg, no_decrypt=0):
         clients[nick]["authenticated"] == 2):
         transfer_control(nick, msg)
 
-    #if (msg.find("sumi sec ") == 0):        # should be as opaque as possible
-    #    return handle_sec(nick, msg)
-    if (msg.find("sumi send ") == 0):
-        return handle_send(nick, msg)
-    elif (msg.find("sumi auth ") == 0):
-        return handle_auth(nick, msg)
-    elif (msg.find("sumi dir ") == 0):
-        return handle_dir(nick, msg)
-    elif (msg.find("sumi done") == 0):
-        return handle_done(nick, msg)
+    all = msg.split(" ", 2)
+    if len(all) != 3: return False
+
+    magic, cmd, arg = all
+    if magic != "sumi": return False
+    table = {
+        "sec":  handle_sec,
+        "send": handle_send,
+        "auth": handle_auth,
+        "dir":  handle_dir,
+        "done": handle_done}
+    if table.has_key(cmd):
+        table[cmd](nick, arg)
 
     return True
 

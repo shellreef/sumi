@@ -1,5 +1,11 @@
 TO DO  20040217JC
 
+* crypto: use SSLCrypto library, generate key, k.encStart() then
+  k.encNext(data). First call, returns 1544-byte beginning, with some 
+  bencoded data, but subsequent k.encNext(data)'s return n-byte strings!
+  This way, each packet can be encrypted 1:1, with no increase in size; just
+  have to find a place for the initial 1544 bytes (for 2048-bit key). However,
+  all data before a packet must be received in order to decrypt it (no gaps).
 * multiple transfers per person, with only one auth, and readd crypto
 * sumi dir!
 * Get sumiget.py standalone working again
