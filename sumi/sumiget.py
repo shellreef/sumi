@@ -7,6 +7,7 @@
 # See also: sumigetw.py
 
 import thread
+import binascii
 import base64
 import random
 import socket
@@ -17,9 +18,10 @@ import sys
 import os
 import md5
 import time
+import libsumi
+
 from libsumi import *
 from nonroutable import is_nonroutable_ip
-
 from getifaces import get_ifaces, get_default_ip
 
 def log(msg):
@@ -83,6 +85,7 @@ class Client:
         log("Loading config...")
         # Mode "U" for universal newlines, so \r\n is okay
         self.config = eval("".join(open(config_file, "rU").read()))
+        libsumi.cfg = self.config
         log("OK")
 
         self.validate_config()
@@ -141,19 +144,14 @@ class Client:
         only way to identify the source."""
        
         # The data structures aren't setup very efficiently.
-        nick = None
         for x in self.senders:
             if self.senders[x].has_key("prefix") and \
                self.senders[x]["prefix"] == prefix:
                 #xprint "DATA:Prefix=%02x%02x%02x its %s" %\
                 #    (tuple(map(ord, prefix)) + (x, ))
                 return x
-        if nick == None:
-            p = "%02x%02x%02x" % (tuple(map(ord, prefix)))
-            # On Win32 this takes up a lot of time
-            log("DATA:UNKNOWN PREFIX! %s %s bytes from %s"
-                    % (p,len(data),addr))
-            return None
+        return None
+
         #print "Incoming:",len(data),"bytes from",addr,"=",nick," #",seqno
 
     def setup_resuming(self, nick, lostdata):
@@ -200,7 +198,7 @@ class Client:
         self.senders[nick]["all_lost"] = []  # blah
         self.senders[nick]["rexmits"] = 0
 
-    def setup_non_resuming(nick):
+    def setup_non_resuming(self, nick):
         """Setup data structures for a new file."""
         # Initialize
         self.senders[nick]["at"] = 0
@@ -263,7 +261,7 @@ class Client:
         if (is_resuming):   # this works
             self.setup_resuming(nick, lostdata)
         else:
-            self.setup_non_resuming(nick, lostdata)
+            self.setup_non_resuming(nick)
 
     def handle_auth(self, nick, prefix, addr, data):
         """Handle the authentication packet."""
@@ -271,8 +269,8 @@ class Client:
         context.update(data)       # auth "key" is all of data, hash it
         #context.update("hi")#bad hash
         #hash = context.hexdigest() 
-        hashcode = base64.encodestring(context.digest())[:-1]
-        log("PKT:Got auth packet from %s for %s" % (addr,nick))
+        hashcode = b64(context.digest())
+        log("Got auth packet from %s for %s" % (addr,nick))
   
 
         # File length, new prefix, flags, filename
@@ -303,7 +301,7 @@ class Client:
         self.senders[nick]["prefix"] = new_prefix
 
         self.callback(nick, "info", self.senders[nick]["size"], \
-            base64.encodestring(prefix)[:-1], filename, \
+            b64(prefix), filename, \
             self.senders[nick]["transport"], \
             self.config["data_chan_type"])
 
@@ -417,8 +415,12 @@ class Client:
         (seqno, ) = struct.unpack("!L", "\0" + data[3:6])
 
         nick = self.prefix2nick(prefix)
-        if not nick: 
-            return
+        if not nick:
+            p = "%02x%02x%02x" % (tuple(map(ord, prefix)))
+            # On Win32 this takes up a lot of time
+            log("DATA:UNKNOWN PREFIX! %s %s bytes from %s"
+                    % (p,len(data),addr))
+            return None
 
         self.senders[nick]["retries"] = 0   # acks worked
 
@@ -648,7 +650,7 @@ class Client:
         def decode(pkt):
             return (sumiserv.get_udp_data(pkt), pkt)
 
-        sumiserv.capture(decode, "udp", callback)
+        capture(decode, "udp", callback)
 
     def cli_user_input(self):
         """Client user input (not used anymore), belongs in separate program."""
@@ -680,8 +682,98 @@ class Client:
         # sumi send deal strictly with file transfers. This way, sumi sec+
         # sumi login can be implemented later; allowing remote admin.
         # TODO: Actually, why not simply extend sumi send to allow remote admn.
-    #def secure_chan(self, server_nick):
-    #    """Request a secure channel."""
+
+    def crypto_thread(self, server_nick, ckeys):
+        """Thread to wait for messages from server to setup crypto.
+        Passes messages to handle_transport_message."""
+        def crypto_callback(user_nick, msg):
+            return self.handle_transport_message(user_nick, msg)
+        print "==",self
+        print "==",server_nick
+        print "==",ckeys
+        if not self.senders[server_nick].has_key("recvmsg"):
+            print "%s is missing recvmsg transport" % server_nick
+            print "recvmsg is necessary for crypto (shouldn't happen)"
+            sys.exit(-2)
+        self.senders[server_nick]["recvmsg"](crypto_callback)
+
+    def handle_transport_message(self, nick, msg):
+        """Handle a transport message from the server; used for crypto."""
+        if not self.senders.has_key(nick):
+            return
+
+        # Always base64'd
+        try:
+            raw = base64.decodestring(msg)
+        except binascii.Error:
+            print "%s couldn't decode?!" % msg
+            return
+
+        # Server will send three things: pubkeys, nonce1/2, nonce2/2
+        # in two messages (pubkeys+nonce1/2, nonce2/2). We can tell which
+        # message we are receiving by what we received previously.
+        if not self.senders[nick].has_key("crypto_state"):
+            print "Got pubkeys + nonce1/2"
+            # First message...its pubkeys + nonce1/2
+            skeys = unpack_keys(raw[0:32*3])
+            print "skeys=%s" % skeys
+            nonce_1 = raw[32*3:]
+            # can't decrypt now, since only have half; keep it
+            print "nonce_1=%s" % ([nonce_1,]) 
+            self.senders[nick]["nonce_1"] = nonce_1
+            self.senders[nick]["crypto_state"] = 1
+
+            # Send 1/2 of encrypted sumi send request (TODO)
+        elif self.senders[nick]["crypto_state"] == 1:
+            print "Got nonce 2/2"
+            # Second message: nonce2/2j
+            nonce_1 = self.senders[nick]["nonce_1"]
+            nonce_2 = raw
+            # TODO: Send 2/2 of encrypted sumi send request
+
+    def setup_crypto(self, server_nick):
+        """Send sumi sec (secure) command, setting up an encrypted channel."""
+        print "Setting up cryptography..."
+
+        # All crypto library imports are inside functions, rather than at
+        # the top of the file, so that we can run without them if needed.
+        from ecc.ecc import ecc
+
+        # Generate our keys
+        ckeys = []
+        for i in range(3):
+            ckeys.append(ecc(ord(random_bytes(1))))
+       
+        # Send our public keys to server
+        raw = ""
+        for k in ckeys:
+            raw += "".join(k.publicKey())
+        log("Our keys: %s" % b64(raw))
+        self.sendmsg(server_nick, "sumi sec %s" % b64(raw))
+
+        self.senders[server_nick]["ckeys"] = ckeys
+
+        # Wait for server's public keys. Start a receiving thread here
+        # because setting up crypto is the only time we receive transport
+        # messages from the server. 
+        print ">>>>>",server_nick
+        print self
+        #thread.start_new_thread(self.crypto_thread, (server_nick, ckeys))
+        thread.start_new_thread(self.wrap_thread, 
+                (self.crypto_thread, (server_nick, ckeys)))
+
+    def wrap_thread(self, f, args):
+        """Call a function safely, so that unhandled exceptions are reported.
+        Useful to wrap threads, since thread.start_new_thread displays very
+        uninformative messages in the event of an unhandled exception."""
+        try:
+            f(*args)
+        except None:
+            x = sys.exc_info()
+            print ("Unhandled exception in %s: %s line %s %s" 
+                    % (f, x[0], x[2].tb_lineno, x[1]))
+            log("Unhandled exception in %s: %s line %s %s" 
+                    % (f, x[0], x[2].tb_lineno, x[1]))
 
     def validate_config(self):
         """Validate configuration after loading it, possibly modifying it
@@ -802,10 +894,20 @@ class Client:
     def abort(self, server_nick):
         self.sendmsg(server_nick, "!")
         self.callback(server_nick, "aborting")
-       
+
+    def make_request(self, server_nick, file, offset):
+        """Build a message to request file and generate a random prefix."""
+        prefix = random_bytes(3)
+        self.senders[server_nick]["prefix"] = prefix
+        msg = "sumi send " + pack_args({"f":file,
+            "o":offset, "i":self.myip, "n":self.myport, "m":self.mss,
+            "p":b64(prefix),
+            "b":self.bandwidth,
+            "w":self.rwinsz, "d":self.config["data_chan_type"]})
+        return msg
+
     def request(self, transport, server_nick, file):
         """Request a file from a server."""
-        global transports
 
         # command line args are now the sole form of user input;
         self.callback(server_nick, "t_wait")   # transport waiting, see below
@@ -828,28 +930,21 @@ class Client:
         # Setup transport system
         self.senders[server_nick]["transport"] = transport
         self.load_transport(transport, server_nick)
-        if (transports.has_key(transport) and transports[transport]):
-            pass    # already initialized
-            log("Not initing %s" % transport)
-        else:
-            self.senders[server_nick]["transport_init"]()
-            transports[transport] = 1   # Initialize only once
-            log("Just inited %s" % transport)
+
+        if self.config["crypto"]:
+            if not self.senders[server_nick].has_key("recvmsg"):
+                print "Sorry, this transport lacks a recvmsg, so crypto "+\
+                        "is not available."
+                sys.exit(-1)
+                return
+            self.setup_crypto(server_nick)
 
         log("You want %s from %s" % (server_nick, file))
 
         offset = 0
 
-        prefix = string.join(map(chr, (random.randint(0, 255),
-                                       random.randint(0, 255),
-                                       random.randint(0, 255))), "")
-        self.senders[server_nick]["prefix"] = prefix
-
-        msg = "sumi send " + pack_args({"f":file,
-            "o":offset, "i":self.myip, "n":self.myport, "m":self.mss,
-            "p":base64.encodestring(prefix)[:-1], 
-            "b":self.bandwidth,
-            "w":self.rwinsz, "d":self.config["data_chan_type"]})
+        msg = self.make_request(server_nick, file, offset)
+        # TODO: encrypted
 
         self.sendmsg(server_nick, msg) 
         #self.sendmsg(server_nick, msg)
@@ -881,7 +976,7 @@ class Client:
         log("(CB)%s: %s" % (cmd, ",".join(list(map(str, args)))))
 
     def load_transport(self, transport, nick):
-        global input_lock, sendmsg, transport_init
+        global input_lock, sendmsg, transport_init, transports
         # Import the transport. This may fail, if, for example, there is
         # no such transport module.
         log(sys.path)
@@ -899,18 +994,25 @@ class Client:
         t.segment = segment
         t.cfg = self.config
         t.log = log
+        t.capture = capture
+        t.get_tcp_data = get_tcp_data
 
         self.senders[nick]["sendmsg"] = t.sendmsg
-        #sendmsg = t.sendmsg
-        #transport_init = t.transport_init
 
-        #self.transport_init = transport_init
+        if hasattr(t, "recvmsg"):
+            # If can't receive messages, crypto not available
+            self.senders[nick]["recvmsg"] = t.recvmsg
 
         self.senders[nick]["transport_init"] = t.transport_init
 
-        # Wait for transport
-        #input_lock.acquire()
-   # moved to caller
+        # Initialize if not
+        if (transports.has_key(transport) and transports[transport]):
+            pass    # already initialized
+            log("Not initing %s" % transport)
+        else:
+            self.senders[nick]["transport_init"]()
+            transports[transport] = 1   # Initialize only once
+            log("Just inited %s" % transport)
 
     def main(self, transport, nick, file):
         self.senders[nick] = {}

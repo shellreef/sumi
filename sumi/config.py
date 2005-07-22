@@ -3,7 +3,7 @@
 {'allow_local': 1,
  'bandwidth': 1500000,
  'colwidths': [160, 136, 107, 55, 73, 69, 76, 99, 71, 49],
- 'crypto': '',
+ 'crypto': 'y',
  'data_chan_type': 'u',
  'dchanmode': 'socket',
  'dl_dir': 'X:/p2p/sumi/incoming/',

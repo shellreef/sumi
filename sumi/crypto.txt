@@ -11,6 +11,9 @@ Many different crypto libraries for Python:
 
 Use public key cryptography (RSA) at first to exchange session keys & IV,
 then use AES in CTR mode to encrypt packets.
+ XXX: consider ECC because of shorter key sizes & exp. attacks
+      cr.yp.to/nistp244.html maybe. ECC=Diffie-Hellman over ellipic curves.
+	  TODO: libtomcrypt Python wrapper, instead of old cryptkit
 
 - cleartext
 + RSA
