@@ -688,14 +688,15 @@ class Client:
         Passes messages to handle_transport_message."""
         def crypto_callback(user_nick, msg):
             return self.handle_transport_message(user_nick, msg)
-        print "==",self
-        print "==",server_nick
-        print "==",ckeys
+
+        log("crypto_thread: %s %s" % (server_nick, self.senders))
+
         if not self.senders[server_nick].has_key("recvmsg"):
-            print "%s is missing recvmsg transport" % server_nick
-            print "recvmsg is necessary for crypto (shouldn't happen)"
+            log("%s is missing recvmsg transport" % server_nick)
+            log("recvmsg is necessary for crypto (shouldn't happen)")
             sys.exit(-2)
         self.senders[server_nick]["recvmsg"](crypto_callback)
+
 
     def handle_transport_message(self, nick, msg):
         """Handle a transport message from the server; used for crypto."""
@@ -706,34 +707,64 @@ class Client:
         try:
             raw = base64.decodestring(msg)
         except binascii.Error:
-            print "%s couldn't decode?!" % msg
+            log("%s couldn't decode?!" % msg)
             return
 
         # Server will send three things: pubkeys, nonce1/2, nonce2/2
         # in two messages (pubkeys+nonce1/2, nonce2/2). We can tell which
         # message we are receiving by what we received previously.
         if not self.senders[nick].has_key("crypto_state"):
-            print "Got pubkeys + nonce1/2"
+            log("Got pubkeys + nonce1/2")
             # First message...its pubkeys + nonce1/2
             skeys = unpack_keys(raw[0:32*3])
-            print "skeys=%s" % skeys
+            log("skeys=%s" % skeys)
             nonce_1 = raw[32*3:]
             # can't decrypt now, since only have half; keep it
-            print "nonce_1=%s" % ([nonce_1,]) 
+            log("nonce_1=%s" % ([nonce_1,]))
             self.senders[nick]["nonce_1"] = nonce_1
-            self.senders[nick]["crypto_state"] = 1
 
-            # Send 1/2 of encrypted sumi send request (TODO)
+            # Find out shared/private keys (pkeys)
+            ckeys = self.senders[nick]["ckeys"]
+            pkeys = []
+            for ck, sk in zip(ckeys, skeys):
+                pkeys.append(ck.DH_recv(sk))
+            log("pkeys=%s" % pkeys)
+            sesskey = pkeys[0] + pkeys[1]
+            sessiv = pkeys[2]
+            self.senders[nick]["sesskey"] = sesskey
+            self.senders[nick]["sessiv"] = sessiv
+
+            clear_req = self.senders[nick]["request_clear"]
+            log("sesskey/iv: %s" % ([sesskey, sessiv],))
+            enc_req = encipher(clear_req, sesskey, sessiv)
+            log("ENC REQ: %s" % ([enc_req],))
+            self.senders[nick]["request_enc"] = enc_req
+            req1 = enc_req[0::2]   # even
+            req2 = enc_req[1::2]   # odd 
+            self.senders[nick]["request_1"] = req1
+            self.senders[nick]["request_2"] = req2
+
+            # Send 1/2 of encrypted sumi send request 
+            self.sendmsg(nick, b64(req1))
+
+            self.senders[nick]["crypto_state"] = 1
         elif self.senders[nick]["crypto_state"] == 1:
-            print "Got nonce 2/2"
+            log("Got nonce 2/2")
             # Second message: nonce2/2j
             nonce_1 = self.senders[nick]["nonce_1"]
             nonce_2 = raw
-            # TODO: Send 2/2 of encrypted sumi send request
+            nonce = decipher(interleave(nonce_1, nonce_2), 
+                    self.senders[nick]["sesskey"],
+                    self.senders[nick]["sessiv"])
+            print "NONCE=%s" % ([nonce,])
+            self.senders[nick]["nonce"] = nonce
+
+            # Send 2/2 of encrypted sumi send request
+            self.sendmsg(nick, b64(self.senders[nick]["request_2"]))
 
     def setup_crypto(self, server_nick):
         """Send sumi sec (secure) command, setting up an encrypted channel."""
-        print "Setting up cryptography..."
+        log("Setting up cryptography...")
 
         # All crypto library imports are inside functions, rather than at
         # the top of the file, so that we can run without them if needed.
@@ -756,8 +787,7 @@ class Client:
         # Wait for server's public keys. Start a receiving thread here
         # because setting up crypto is the only time we receive transport
         # messages from the server. 
-        print ">>>>>",server_nick
-        print self
+        log(">>>>> %s" % server_nick)
         #thread.start_new_thread(self.crypto_thread, (server_nick, ckeys))
         thread.start_new_thread(self.wrap_thread, 
                 (self.crypto_thread, (server_nick, ckeys)))
@@ -768,11 +798,9 @@ class Client:
         uninformative messages in the event of an unhandled exception."""
         try:
             f(*args)
-        except None:
+        except:
             x = sys.exc_info()
-            print ("Unhandled exception in %s: %s line %s %s" 
-                    % (f, x[0], x[2].tb_lineno, x[1]))
-            log("Unhandled exception in %s: %s line %s %s" 
+            log("(Thread) Unhandled exception in %s: %s line %s %s" 
                     % (f, x[0], x[2].tb_lineno, x[1]))
 
     def validate_config(self):
@@ -895,12 +923,13 @@ class Client:
         self.sendmsg(server_nick, "!")
         self.callback(server_nick, "aborting")
 
-    def make_request(self, server_nick, file, offset):
+    def make_request(self, server_nick, file):
         """Build a message to request file and generate a random prefix."""
         prefix = random_bytes(3)
         self.senders[server_nick]["prefix"] = prefix
         msg = "sumi send " + pack_args({"f":file,
-            "o":offset, "i":self.myip, "n":self.myport, "m":self.mss,
+            #"o":offset,  # offset moved to sumi auth (know file size)
+            "i":self.myip, "n":self.myport, "m":self.mss,
             "p":b64(prefix),
             "b":self.bandwidth,
             "w":self.rwinsz, "d":self.config["data_chan_type"]})
@@ -933,21 +962,23 @@ class Client:
 
         if self.config["crypto"]:
             if not self.senders[server_nick].has_key("recvmsg"):
-                print "Sorry, this transport lacks a recvmsg, so crypto "+\
-                        "is not available."
+                log("Sorry, this transport lacks a recvmsg, so crypto "+\
+                        "is not available.")
                 sys.exit(-1)
                 return
+            # Store request since its sent in halves
+            self.senders[server_nick]["request_clear"] = \
+                    self.make_request(server_nick, file)
             self.setup_crypto(server_nick)
 
         log("You want %s from %s" % (server_nick, file))
 
-        offset = 0
 
-        msg = self.make_request(server_nick, file, offset)
-        # TODO: encrypted
+        # Cleartext request is sent now
+        if not self.config["crypto"]:
+            msg = self.make_request(server_nick, file)
+            self.sendmsg(server_nick, msg) 
 
-        self.sendmsg(server_nick, msg) 
-        #self.sendmsg(server_nick, msg)
         log("Sent")
         self.callback(server_nick, "req_sent") # request sent (handshaking)
 
@@ -1053,7 +1084,7 @@ class Client:
             log("Aborting %s" % x)
             self.abort(x)
 
-        print "Exiting now"
+        log("Exiting now")
         sys.exit()
         os._exit()
 

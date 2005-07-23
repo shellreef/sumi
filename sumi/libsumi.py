@@ -7,6 +7,7 @@
 import struct 
 import random
 import base64
+from itertools import imap, izip
 
 SUMIHDRSZ = 6#bytes
 SUMIAUTHHDRSZ = 4#bytes
@@ -97,3 +98,29 @@ def b64(data):
     b = base64.encodestring(data)
     b = b.replace("\n", "")   # annoying...
     return b
+
+def decipher(msg, k, iv):
+    """Symmetric decipher msg with k and IV iv, using AES."""
+    from Crypto.Cipher import AES
+    a = AES.new(k, AES.MODE_CBC, iv)
+    return a.decrypt(msg) 
+
+def encipher(msg, k, iv):
+    """Symmetric encipher msg with k and IV iv, using AES."""
+    from Crypto.Cipher import AES
+    # Why create a new AES object for every encryption? Its only used
+    # once per packet/message, since the IV changes. So we have to 
+    # recreate the object with a new IV. I think this is better than
+    # CTR mode since it uses cipherblocks. LibTomCrypt might not require
+    # recreating new object each time, look into it.
+    a = AES.new(k, AES.MODE_CBC, iv)
+    # Pad to multiple of 16
+    pad = "\0" * ((16 - len(msg) % 16) & 15)
+    return a.encrypt(msg + pad)
+
+
+def interleave(evens, odds):
+    """Interleave evens with odds, such that interleave(a[0::2], a[1::2])
+    = a."""
+    return "".join(imap("".join, izip(evens, odds)))
+

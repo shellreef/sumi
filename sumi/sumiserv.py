@@ -365,18 +365,15 @@ def handle_send(nick, msg):
     try: 
         #(file, offset, ip, port, mss, b64prefix, speed)=msg.split("\t") 
         filename = args["f"]
-        offset   = int(args["o"])
     except:
         return sendmsg_error(nick, "not enough fields for send")
 
-    log("FILE=%s,OFFSET=%s" % (filename, offset))
-
+    log("FILE=%s" % filename)
 
     if (filename[0] == "#"):
         clients[nick]["file"] = int(filename[1:]) - 1
     else:
         return sendmsg_error(nick, "file must be integer") 
-    clients[nick]["offset"] = int(offset)
 
     # Make sure the filename/pack number is valid
     if not clients[nick]["file"] in range(len(cfg["filedb"])):
@@ -589,6 +586,10 @@ def handle_sec(nick, msg):
     pkeys = []
     for i in range(3):
         pkeys.append(skeys[i].DH_recv(ckeys[i]))
+    clients[nick]["sesskey"] = pkeys[0] + pkeys[1]
+    clients[nick]["sessiv"] = pkeys[2]
+    log("session key/iv: %s" % ([clients[nick]["sesskey"],
+        clients[nick]["sessiv"]],))
 
     # Calculate and save unencrypted nonce (nonce), and two halves encrypted.
     nonce, nonce_1, nonce_2 = generate_nonce(nick, pkeys)
@@ -605,20 +606,41 @@ def handle_sec(nick, msg):
     return sendmsg(nick, b64(str_skeys + nonce_1))
 
 def recvmsg_secure(nick, msg):
-    """Handle an encrypted message."""
+    """Handle an encrypted message from the client. Return a cleartext
+    message, or None if we handled the message."""
+
+    if "sumi sec " in msg:
+        # Not meant for us; restarting crypto
+        return msg
     if clients[nick]["crypto_state"] == 1:       # 1/2 request, nonce 2/2
         print "msg=%s"%msg
-        clients[nick]["req1"] = base64.decodestring(msg)
+        try:
+            clients[nick]["req1"] = base64.decodestring(msg)
+        except binascii.Error:
+            del clients[nick]["crypto_state"]
+            return sendmsg_error(nick, "bad encoding of req 1/2+nonce 2/2")
         # Send 2/2 nonce
         sendmsg(nick, b64(clients[nick]["nonce_2"]))
+        log("Got 1/2 request, sent 2/2 nonce")
         clients[nick]["crypto_state"] = 2
-        print "Got 1/2 request, sending 2/2 nonce"
     elif clients[nick]["crypto_state"] == 2:     # 2/2 request, auth pkt
         req1 = clients[nick]["req1"]
-        req2 = base64.decodestring(msg)
-        req = req1 + req2
-        # TODO: decrypt req w/, process it
-        print "Got 2/2 request, TODO: send"
+        try:
+            req2 = base64.decodestring(msg)
+        except binascii.Error:
+            del clients[nick]["crypto_state"]
+            return sendmsg_error(nick, "bad encoding of req 2/2")
+        req_enc = interleave(req1, req2)
+        #log("REQ_ENC=%s" % ([req_enc],))
+        req = decipher(req_enc,
+                clients[nick]["sesskey"],
+                clients[nick]["sessiv"])
+        log("REQ CLEAR=%s" % ([req],))
+        log("Got 2/2 request")
+        clients[nick]["crypto_state"] = 3
+        # Have recvmsg handle it
+        return req
+    return None
 
 def recvmsg(nick, msg):
     """Handle an incoming message.
@@ -642,10 +664,13 @@ def recvmsg(nick, msg):
         clients[nick]["authenticated"] == 2:
         transfer_control(nick, msg)
 
-    # If we got a sumi sec, then all messages will then be encrypted
-    # (TODO)
-    #if clients[nick].has_key("crypto_state"):
-    #    recvmsg_secure(nick, msg)
+    # Encrypted messages
+    if clients.has_key(nick) and clients[nick].has_key("crypto_state"):
+        cleartext = recvmsg_secure(nick, msg)
+        if not cleartext:
+            return    # handled (key exchange, etc.)
+        msg = cleartext.replace("\0", "")
+        log(";;; decrypted: %s" % msg)
 
     all = msg.split(" ", 2)
     if len(all) != 3: return False

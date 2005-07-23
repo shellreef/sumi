@@ -1,5 +1,11 @@
 TO DO  20040217JC
 
+* MAKE CLIENT VERIFY NONCE FROM SERVER, and make server send hash of nonce
+  in new_prefix of auth packet, which will then be used for data prefix.
+  Or maybe add a new, larger header in auth packet for the hash, >24-bit.
+  This is NECESSARY to protect against MITM.
+And also, of course, encrypt data packets, and sumi auth, and maybe acks.
+
 * crypto: use SSLCrypto library, generate key, k.encStart() then
   k.encNext(data). First call, returns 1544-byte beginning, with some 
   bencoded data, but subsequent k.encNext(data)'s return n-byte strings!

@@ -1,3 +1,10 @@
+2005-07-23 Jeff Connelly <jeffconnelly@users.sourceforge.net>
+	* Request messages can now be encrypted, set "crypto" to "y"
+	* EC-DH + interlock protocol for key exchange/request
+	* AES-256 for symmetric encryption 
+	* Protects against passive eavesdropping and active MITM (not hijack)
+	* Works well, but incomplete--need to verify nonce, encrypt data
+
 2005-07-14 Jeff Connelly <jeffconnelly@users.sourceforge.net>
 	* Removed cryptography for now--needs to be redone.
 

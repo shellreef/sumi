@@ -170,8 +170,7 @@ class CLogPanel(wxPanel):
         def log(msg):
             if hasattr(self, "Write"):
                 self.Write(str(msg) + "\n")
-            else:
-                print msg
+            print msg
         sumiget.log = log
 
     def Write(self, msg):
