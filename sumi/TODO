@@ -1,7 +1,5 @@
 TO DO  20040217JC
 
-* MAKE SERVER SEND NONCE INSIDE AUTH PACKET, AND HAVE CLIENT VERIFY IT!
-
 * Investigate tor (tor.eff.org) for a transport, and AIM over HTTP proxy
 * MAKE CLIENT VERIFY NONCE FROM SERVER, and make server send hash of nonce
   in new_prefix of auth packet, which will then be used for data prefix.
