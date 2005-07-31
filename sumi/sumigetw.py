@@ -956,14 +956,12 @@ class SUMIApp(wx.wxApp):
             self.SetColor(nick, wxRED)
         elif (cmd == "req_sent"):  # request was sent
             self.SetInfo(nick, COL_STATUS, "Handshaking")
-        elif (cmd == "req_count"): # request handshake countdown
-            self.SetInfo(nick, COL_STATUS, "Handshaking (%d)" % args[0])
+        elif (cmd == "req_count"): # request handshake countdown+status
+            self.SetInfo(nick, COL_STATUS, "%s (%d)" % (args[1], args[0]))
         elif (cmd == "rexmits"):   # retransmission
             self.SetInfo(nick, COL_REXMITS, str(args[0]))
         elif (cmd == "lost"):      # outstanding lost packets
             self.SetInfo(nick, COL_MISSING, str(len(args[0])))
-        elif (cmd == "dec"):       # decrypting in progress
-            self.SetInfo(nick, COL_STATUS, "Decrypt %s" % args[0])
         elif (cmd == "timeout"):   # timed out/no such nick
             self.SetInfo(nick, COL_STATUS, "Timeout")
             self.SetColor(nick, wxRED)
@@ -972,8 +970,7 @@ class SUMIApp(wx.wxApp):
             print "Info: ", args
 
             # Like xchat's dcc, blue=transferring, green=done, & red=err
-            self.SetColor(nick, wxBLUE)
-            self.SetInfo(nick, COL_STATUS, "Transferring...")
+            self.SetInfo(nick, COL_STATUS, "Authenticating")
             self.SetInfo(nick, COL_FILENAME, filename)
             self.SetInfo(nick, COL_SIZE, "%d" % size)
             self.SetInfo(nick, COL_BYTES, "0")
@@ -988,6 +985,12 @@ class SUMIApp(wx.wxApp):
             (rate, eta) = args
             self.SetInfo(nick, COL_RATE, "%.1fKB/s" % (rate / 1024))
             self.SetInfo(nick, COL_ETA, "%d min" % int(eta / 60))
+        elif (cmd == "recv_1st"):
+            # One-time actions that take effect throughout the whole
+            # transfer but have no need to be re-set every packet. Note this
+            # message does not include any args; write will be called w/ args.
+            self.SetColor(nick, wxBLUE)
+            self.SetInfo(nick, COL_STATUS, "Transferring...")
         elif (cmd == "write"):
             #self.gauge.SetValue(int(args[1]))
             # XXX Is this correct? Lost packets? Will overestimate.
@@ -1024,6 +1027,9 @@ class SUMIApp(wx.wxApp):
             self.SetColor(nick, wxColour(32, 128, 32))   # a suitable green
             #self.info.SetLabel("Complete %d B @ %d kB/s: %s" % \
             #    (size, speed, all_lost))
+        else:
+            print "??? Unrecognized command: %s %s" % (cmd, args)
+            #assert False, "Unrecognized command: %s %s" % (cmd, args)
 
     def OnExit(self, evt=0):
         # If closed by "X" button on Win32, self.frame will already be

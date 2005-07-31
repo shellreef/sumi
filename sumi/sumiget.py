@@ -86,6 +86,7 @@ class Client:
         # Mode "U" for universal newlines, so \r\n is okay
         self.config = eval("".join(open(config_file, "rU").read()))
         libsumi.cfg = self.config
+        libsumi.log = log
         log("OK")
 
         self.validate_config()
@@ -265,13 +266,21 @@ class Client:
 
     def handle_auth(self, nick, prefix, addr, data):
         """Handle the authentication packet."""
-        context = md5.md5()
-        context.update(data)       # auth "key" is all of data, hash it
-        #context.update("hi")#bad hash
-        #hash = context.hexdigest() 
-        hashcode = b64(context.digest())
+        g = time.time()
+        d3 = g - self.senders[nick]["sent_req2"]
+        if d3 >= INTERLOCK_DELAY:  # really 2*INTERLOCK_DELAY, but be careful
+            log("WARNING: POSSIBLE MITM ATTACK! %s seconds is too long." % d3)
+            log("Your request may have been intercepted.")
+            # only a warning because first data packet should catch it
+
         log("Got auth packet from %s for %s" % (addr,nick))
-  
+
+        # Decrypt payload, THEN hash
+        self.senders[nick]["sessiv"] = inc_str(self.senders[nick]["sessiv"])
+        data = data[0:SUMIHDRSZ] + self.decrypt(nick, data[SUMIHDRSZ:])
+        #log("Decrypted payload: %s" % ([data],))
+    
+        hashcode = b64(hash128(data))
 
         # File length, new prefix, flags, filename
         (self.senders[nick]["size"], ) = struct.unpack("!L", 
@@ -320,8 +329,16 @@ class Client:
         # Tell the sender to start sending, we're ok
         # Resume /after/ our current offset: at + 1
         log("Sending sumi auth")
-        self.sendmsg(nick, "sumi auth " + pack_args({"m":self.mss,
-            "s":addr[0], "h":hashcode, "o":self.senders[nick]["at"] + 1}))
+        auth = pack_args({"m":self.mss,
+               "s":addr[0], "h":hashcode, "o":self.senders[nick]["at"] + 1})
+        if self.senders[nick].has_key("crypto_state"):
+            self.senders[nick]["sessiv"] = inc_str(
+                    self.senders[nick]["sessiv"])
+            auth = b64(self.encrypt(nick, auth))
+            log("Encrypted sumi auth: %s" % auth)
+        else:
+            auth = "sumi auth " + auth
+        self.sendmsg(nick, auth)
 
         self.on_timer()    # instant update
 
@@ -332,6 +349,20 @@ class Client:
 
         # Prefix has been checked, seqno calculated, so just get to the data
         data = data[SUMIHDRSZ:]
+
+        if not self.senders[nick].has_key("got_first"):
+            self.senders[nick]["got_first"] = True
+            # Make sure first data packet is received soon enough
+            g = time.time()
+            d4 = g - self.senders[nick]["sent_req2"]
+            if d4 >= 2*INTERLOCK_DELAY-0.1:
+                log("POTENTIAL MITM ATTACK DETECTED--DELAY TOO LONG. %s"%d4)
+                import os
+                os._exit(-1)
+                return
+            else:
+                log(":) No MITM detected")
+            self.callback(nick, "recv_1st")
 
         # All file data is received here
 
@@ -358,7 +389,6 @@ class Client:
 
         self.callback(nick, "write", offset, self.senders[nick]["bytes"],
             self.senders[nick]["size"], addr)
-
 
         #Check previous packets, see if they were lost (unless first packet)
         if (seqno > 1):
@@ -683,23 +713,32 @@ class Client:
         # sumi login can be implemented later; allowing remote admin.
         # TODO: Actually, why not simply extend sumi send to allow remote admn.
 
-    def crypto_thread(self, server_nick, ckeys):
+    def crypto_thread(self, nick, ckeys):
         """Thread to wait for messages from server to setup crypto.
-        Passes messages to handle_transport_message."""
+        Passes messages to handle_server_message."""
         def crypto_callback(user_nick, msg):
-            return self.handle_transport_message(user_nick, msg)
+            return self.handle_server_message(user_nick, msg)
 
-        log("crypto_thread: %s %s" % (server_nick, self.senders))
-
-        if not self.senders[server_nick].has_key("recvmsg"):
-            log("%s is missing recvmsg transport" % server_nick)
+        if not self.senders[nick].has_key("recvmsg"):
+            log("%s is missing recvmsg transport" % nick)
             log("recvmsg is necessary for crypto (shouldn't happen)")
             sys.exit(-2)
-        self.senders[server_nick]["recvmsg"](crypto_callback)
+        self.senders[nick]["recvmsg"](crypto_callback)
+    
+    def encrypt(self, nick, msg):
+        """Encrypt a message using nick's key and IV."""
+        e = encipher(msg, self.senders[nick]["sesskey"], 
+                self.senders[nick]["sessiv"])
+        return e
 
+    def decrypt(self, nick, msg):
+        """Decrypt a message using nick's key and IV."""
+        return decipher(msg, self.senders[nick]["sesskey"], 
+                self.senders[nick]["sessiv"])
 
-    def handle_transport_message(self, nick, msg):
-        """Handle a transport message from the server; used for crypto."""
+    def handle_server_message(self, nick, msg):
+        """Handle a message received from the server on the transport.
+        Used for crypto."""
         if not self.senders.has_key(nick):
             return
 
@@ -713,7 +752,18 @@ class Client:
         # Server will send three things: pubkeys, nonce1/2, nonce2/2
         # in two messages (pubkeys+nonce1/2, nonce2/2). We can tell which
         # message we are receiving by what we received previously.
-        if not self.senders[nick].has_key("crypto_state"):
+        if not self.senders[nick].has_key("crypto_state"):  # pubkeys+nonce1/2
+            g = time.time()                                 #  -> req1/2
+            self.senders[nick]["got_nonce1"] = g
+            d1 = g - self.senders[nick]["sent_sec"]
+            log("Took %s seconds to get pk+nonce1/2 after sumi sec" % d1)
+            if round(d1) < INTERLOCK_DELAY:
+                self.callback(nick, "sec_fail1")
+                log("INTERLOCK FAILURE 1! %s < %s" % (d1, INTERLOCK_DELAY))
+                log("Possible attack. Not trusting the server. Aborting.")
+                return
+
+            self.set_handshake_status(nick, "Interlocking-1")
             log("Got pubkeys + nonce1/2")
             # First message...its pubkeys + nonce1/2
             skeys = unpack_keys(raw[0:32*3])
@@ -729,14 +779,14 @@ class Client:
             for ck, sk in zip(ckeys, skeys):
                 pkeys.append(ck.DH_recv(sk))
             log("pkeys=%s" % pkeys)
-            sesskey = pkeys[0] + pkeys[1]
+            sesskey = hash128(pkeys[0]) + hash128(pkeys[1])
             sessiv = pkeys[2]
             self.senders[nick]["sesskey"] = sesskey
             self.senders[nick]["sessiv"] = sessiv
 
             clear_req = self.senders[nick]["request_clear"]
             log("sesskey/iv: %s" % ([sesskey, sessiv],))
-            enc_req = encipher(clear_req, sesskey, sessiv)
+            enc_req = self.encrypt(nick, clear_req)
             log("ENC REQ: %s" % ([enc_req],))
             self.senders[nick]["request_enc"] = enc_req
             req1 = enc_req[0::2]   # even
@@ -745,26 +795,49 @@ class Client:
             self.senders[nick]["request_2"] = req2
 
             # Send 1/2 of encrypted sumi send request 
+            self.senders[nick]["sent_req1"] = time.time()
             self.sendmsg(nick, b64(req1))
 
             self.senders[nick]["crypto_state"] = 1
-        elif self.senders[nick]["crypto_state"] == 1:
+        elif self.senders[nick]["crypto_state"] == 1:   # nonce2/2->req2/2
+            g = time.time()
+            self.senders[nick]["got_nonce2"] = g
+            d2 = g - self.senders[nick]["sent_req1"]
+            log("Took %s seconds to get nonce2" % d2)
+            if round(d2) < INTERLOCK_DELAY:
+                self.callback(nick, "sec_fail2")
+                log("INTERLOCK FAILURE 2! Possible attack, aborting.")
+                log("%s < %s" % (d2, INTERLOCK_DELAY))
+                return
+
             log("Got nonce 2/2")
+            self.set_handshake_status(nick, "Interlocking-2")
             # Second message: nonce2/2j
             nonce_1 = self.senders[nick]["nonce_1"]
             nonce_2 = raw
-            nonce = decipher(interleave(nonce_1, nonce_2), 
-                    self.senders[nick]["sesskey"],
-                    self.senders[nick]["sessiv"])
+            nonce = self.decrypt(nick, interleave(nonce_1, nonce_2))
             print "NONCE=%s" % ([nonce,])
             self.senders[nick]["nonce"] = nonce
 
-            # Send 2/2 of encrypted sumi send request
+            # Send 2/2 of encrypted sumi send request. Expect response soon.
             self.sendmsg(nick, b64(self.senders[nick]["request_2"]))
+            self.senders[nick]["sent_req2"] = time.time()
 
-    def setup_crypto(self, server_nick):
+            self.senders[nick]["crypto_state"] = 2
+
+    def set_handshake_status(self, nick, status):
+        """Set handshake status to status, and send a callback message
+        updating it with the new status and existing countdown."""
+        self.senders[nick]["handshake_status"] = status
+        self.callback(nick, "req_count",
+            self.senders[nick]["handshake_count"],
+            self.senders[nick]["handshake_status"])
+
+    def setup_crypto(self, nick):
         """Send sumi sec (secure) command, setting up an encrypted channel."""
         log("Setting up cryptography...")
+
+        self.set_handshake_status(nick, "Key exchange")
 
         # All crypto library imports are inside functions, rather than at
         # the top of the file, so that we can run without them if needed.
@@ -780,28 +853,20 @@ class Client:
         for k in ckeys:
             raw += "".join(k.publicKey())
         log("Our keys: %s" % b64(raw))
-        self.sendmsg(server_nick, "sumi sec %s" % b64(raw))
+        self.senders[nick]["ckeys"] = ckeys
 
-        self.senders[server_nick]["ckeys"] = ckeys
+        self.senders[nick]["sent_sec"] = time.time()
+        self.sendmsg(nick, "sumi sec %s" % b64(raw))
 
         # Wait for server's public keys. Start a receiving thread here
         # because setting up crypto is the only time we receive transport
         # messages from the server. 
-        log(">>>>> %s" % server_nick)
-        #thread.start_new_thread(self.crypto_thread, (server_nick, ckeys))
-        thread.start_new_thread(self.wrap_thread, 
-                (self.crypto_thread, (server_nick, ckeys)))
-
-    def wrap_thread(self, f, args):
-        """Call a function safely, so that unhandled exceptions are reported.
-        Useful to wrap threads, since thread.start_new_thread displays very
-        uninformative messages in the event of an unhandled exception."""
-        try:
-            f(*args)
-        except:
-            x = sys.exc_info()
-            log("(Thread) Unhandled exception in %s: %s line %s %s" 
-                    % (f, x[0], x[2].tb_lineno, x[1]))
+        log(">>>>> %s" % nick)
+        thread.start_new_thread(self.crypto_thread, (nick, ckeys))
+        #thread.start_new_thread(self.wrap_thread, 
+        #        (self.crypto_thread, (nick, ckeys)))
+        # Uncomment to run without a thread for better error reporting
+        #self.crypto_thread(nick, ckeys)
 
     def validate_config(self):
         """Validate configuration after loading it, possibly modifying it
@@ -874,7 +939,13 @@ class Client:
                 self.mss
             except:
                 return "MSS was not set, please set it in the Client tab."
-   
+        if self.config.has_key("crypto"):
+            bs = get_cipher().block_size
+            if (self.mss - SUMIHDRSZ) % bs:
+                self.mss -= (self.mss - SUMIHDRSZ) % 16
+                self.config["mss"] = self.mss
+                log("Fit MSS-SUMIHDRSZ to cipher block size: %s" % self.mss)
+
         if self.config.has_key("rwinsz"):
             self.rwinsz = self.config["rwinsz"]
             self.rwinsz_old = 0
@@ -914,19 +985,19 @@ class Client:
 #        #return sendmsg(nick, msg)
 #        return self.senders[nick]["sendmsg"](nick, msg)
 
-    # Send a message to server_nick
-    def sendmsg(self, server_nick, msg):
-        log(">>%s>%s" % (server_nick, msg))
-        return self.senders[server_nick]["sendmsg"](server_nick, msg)
+    # Send a message to nick
+    def sendmsg(self, nick, msg):
+        log(">>%s>%s" % (nick, msg))
+        return self.senders[nick]["sendmsg"](nick, msg)
 
-    def abort(self, server_nick):
-        self.sendmsg(server_nick, "!")
-        self.callback(server_nick, "aborting")
+    def abort(self, nick):
+        self.sendmsg(nick, "!")
+        self.callback(nick, "aborting")
 
-    def make_request(self, server_nick, file):
+    def make_request(self, nick, file):
         """Build a message to request file and generate a random prefix."""
         prefix = random_bytes(3)
-        self.senders[server_nick]["prefix"] = prefix
+        self.senders[nick]["prefix"] = prefix
         msg = "sumi send " + pack_args({"f":file,
             #"o":offset,  # offset moved to sumi auth (know file size)
             "i":self.myip, "n":self.myport, "m":self.mss,
@@ -935,68 +1006,76 @@ class Client:
             "w":self.rwinsz, "d":self.config["data_chan_type"]})
         return msg
 
-    def request(self, transport, server_nick, file):
+    def request(self, transport, nick, file):
         """Request a file from a server."""
 
         # command line args are now the sole form of user input;
-        self.callback(server_nick, "t_wait")   # transport waiting, see below
+        self.callback(nick, "t_wait")   # transport waiting, see below
 
         # Input lock is mostly obsolete -- it is supposed to wait for
         # transport_init() to return, but we already wait for it 
         #input_lock.acquire()   # wait for transport connection
 
-        if (self.senders.has_key(server_nick)):
-            # TODO: Index senders based on unique key..instead of server_nick
+        if (self.senders.has_key(nick)):
+            # TODO: Index senders based on unique key..instead of nick
             # Then we could have multiple transfers from same user, same time!
-            log("Already have an in-progress transfer from %s" % server_nick)
+            log("Already have an in-progress transfer from %s" % nick)
             log(self.senders)
-            self.callback(server_nick, "1xferonly")
+            self.callback(nick, "1xferonly")
             #print "Senders: ", self.senders
             return -1
 
-        self.senders[server_nick] = {} 
+        self.senders[nick] = {} 
 
         # Setup transport system
-        self.senders[server_nick]["transport"] = transport
-        self.load_transport(transport, server_nick)
+        self.senders[nick]["transport"] = transport
+        self.load_transport(transport, nick)
+
+        self.senders[nick]["handshake_count"] = 0
+        self.senders[nick]["handshake_status"] = "Handshaking"
 
         if self.config["crypto"]:
-            if not self.senders[server_nick].has_key("recvmsg"):
+            if not self.senders[nick].has_key("recvmsg"):
                 log("Sorry, this transport lacks a recvmsg, so crypto "+\
                         "is not available.")
                 sys.exit(-1)
                 return
             # Store request since its sent in halves
-            self.senders[server_nick]["request_clear"] = \
-                    self.make_request(server_nick, file)
-            self.setup_crypto(server_nick)
+            self.senders[nick]["request_clear"] = \
+                    self.make_request(nick, file)
+            self.setup_crypto(nick)
 
-        log("You want %s from %s" % (server_nick, file))
-
+        log("You want %s from %s" % (nick, file))
 
         # Cleartext request is sent now
         if not self.config["crypto"]:
-            msg = self.make_request(server_nick, file)
-            self.sendmsg(server_nick, msg) 
+            msg = self.make_request(nick, file)
+            self.sendmsg(nick, msg) 
 
         log("Sent")
-        self.callback(server_nick, "req_sent") # request sent (handshaking)
+        self.callback(nick, "req_sent") # request sent (handshaking)
 
         # Countdown. This provides a timeout for handshaking with nonexistant
         # senders, so the user isn't left hanging.
         maxwait = self.config["maxwait"]
 
+        if self.config["crypto"]:
+            # Factor in time to interlock (2*T, plus another T for safety)
+            maxwait += 3 * INTERLOCK_DELAY
+
         for x in range(maxwait, 0, -1):
             # If received fn in this time, then exists, so stop countdown
-            if not self.senders.has_key(server_nick):
+            if not self.senders.has_key(nick):
                 return -1    # some other error
-            if self.senders[server_nick].has_key("fn"):
+            if self.senders[nick].has_key("fn"):
                 return 0     # don't break - otherwise will timeout
-            self.callback(server_nick, "req_count", x)
+            self.senders[nick]["handshake_count"] = x 
+            self.callback(nick, "req_count", x,
+                    self.senders[nick]["handshake_status"])
             time.sleep(1)
 
-        self.callback(server_nick, "timeout")
-        self.senders.pop(server_nick)
+        self.callback(nick, "timeout")
+        self.senders.pop(nick)
         return -1
 
     def set_callback(self, f):

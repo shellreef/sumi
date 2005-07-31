@@ -64,6 +64,7 @@ def load_cfg():
 
     cfg = eval("".join(open(config_file, "rU").read()))
     libsumi.cfg = cfg
+    libsumi.log = log
 
 load_cfg()
 
@@ -317,30 +318,35 @@ def handle_request(nick, msg):
 
     return args
 
-def send_auth(nick, authhdr):
-    """Send authentication packet with given header."""
+def send_auth(nick, file_info):
+    """Send authentication packet to nick.
+
+    file_info contains information on the file."""
     if not clients[nick].has_key("prefix"):
         return sendmsg_error(nick, "missing prefix")
 
     # Build the authentication packet using the client-requested prefix
-    key = "%s\0\0\0" % clients[nick]["prefix"]       # 3-byte prefix, 3-byte seqno (0)
-    if (len(key) != SUMIHDRSZ):
-        return sendmsg_error(nick, "key + seqno != SUMIHDRSZ")
+    # 3-byte prefix, 3-byte seqno (0)
+    pkt = "%s\0\0\0" % clients[nick]["prefix"]
+    assert len(pkt) == SUMIHDRSZ, "pkt + seqno != SUMIHDRSZ";
 
-    #if (len(authhdr) != SUMIAUTHHDRSZ):
-    #    print "internal error: auth header incorrect"
-    #    sys.exit(-4)
-    key += authhdr
-
-    # Payload is random data to fill MSS
+    # Payload is file information, followed by random data, up to MSS
+    payload = file_info
     mss = clients[nick]["mss"]
+    payload += random_bytes(mss - SUMIHDRSZ - len(file_info))
 
-    key += random_bytes(mss - SUMIHDRSZ - len(authhdr))
-    if (len(key) != mss):
-        # This is an internal error, and should never happen, but might
-        return sendmsg_error(nick, "bad key generation: %d != %d" % (
-                                   len(key), mss))
-    clients[nick]["key"] = key       # Save so can hash when find out MSS
+    clear_pkt = pkt + payload
+    assert len(clear_pkt) == mss, \
+            "bad pkt generation: %d != %d" % (len(clear_pkt), mss)
+    clients[nick]["authpkt"] = clear_pkt   # Save so can hash when find out MSS
+
+    if clients[nick]["preauth"]:
+        # Encrypt payload--after saved in "authpkt" for hashing.
+        clients[nick]["sessiv"] = inc_str(clients[nick]["sessiv"])
+        payload = encrypt(nick, payload)
+    pkt += payload
+
+    clients[nick]["authpkt_enc"] = pkt
 
     # Send raw UDP from: src_gen(), to: dst_gen()
     # This will trigger client to send sumi auth
@@ -351,10 +357,10 @@ def send_auth(nick, authhdr):
     # blocked/handled by kernel, for example, or src may be blocked.
     log("Sending auth packet now.")
     clients[nick]["send"](clients[nick]["asrc"], \
-                          clients[nick]["dst_gen"](), key)
-    log(" AUTH PREFIX=%02x%02x%02x" % (ord(key[0]), \
-        ord(key[1]), ord(key[2])))
-    #send_packet(clients[nick]["asrc"], (ip, port), key)
+                          clients[nick]["dst_gen"](), pkt)
+    log(" AUTH PREFIX=%02x%02x%02x" % (ord(pkt[0]), \
+        ord(pkt[1]), ord(pkt[2])))
+    #send_packet(clients[nick]["asrc"], (ip, port), pkt)
 
 def handle_send(nick, msg):
     """Handle sumi send -- setup a new transfer."""
@@ -383,16 +389,16 @@ def handle_send(nick, msg):
     # TODO: put more information about the file here. hash?
 
     # XXX: This should be the encrypted size; size on wire.
-    authhdr = struct.pack("!L", \
+    file_info = struct.pack("!L", \
         os.path.getsize(cfg["filedb"][clients[nick]["file"]]["fn"]))
 
     # Used for data transfer, may differ from client-chosen auth pkt prefix
-    authhdr += clients[nick]["prefix"]
-    authhdr += chr(clients[nick]["mcast"])
-    authhdr += os.path.basename(cfg["filedb"][clients[nick]["file"]]["fn"]+\
+    file_info += clients[nick]["prefix"]
+    file_info += chr(clients[nick]["mcast"])
+    file_info += os.path.basename(cfg["filedb"][clients[nick]["file"]]["fn"]+\
                "\0");  # Null-term'd
 
-    send_auth(nick, authhdr)
+    send_auth(nick, file_info)
 
 def handle_auth(nick, msg):
     """Handle sumi auth -- authentication."""
@@ -450,15 +456,15 @@ def handle_auth(nick, msg):
     log("Verifying authenticity of client...")
     # The hash has to be calculated AFTER the auth string is received so
     # we know how much of it to hash (number of bytes: the MSS)
-    if (their_mss > len(clients[nick]["key"])):   # trying to overflow, eh..
-        return sendmsg_error(nick, "claimed MSS > keylength!")
+    if (their_mss > len(clients[nick]["authpkt"])):   # trying to overflow, eh..
+        return sendmsg_error(nick, "claimed MSS > pktlength!")
 
-    # The client may have truncated the datagram to match their MSS
-    context = md5.md5() 
-    context.update(clients[nick]["key"][0:clients[nick]["mss"]])
-
-    #derived_hash = context.hexdigest()
-    derived_hash = b64(context.digest())
+    # The client (or really, the transmission medium) may have truncated 
+    # the datagram to match their MSS, so only hash up to their MSS. Similar
+    # to MTU path discovery?
+    derived_hash = b64(hash128(clients[nick]["authpkt"]\
+        [0:clients[nick]["mss"]]))
+    #log("Clear payload: %s" % ([clients[nick]["authpkt"]],))
     if (derived_hash != hashcode):
         return sendmsg_error(nick, "hashcode: %s != %s" % 
                 (derived_hash, hashcode))
@@ -516,17 +522,21 @@ def handle_done(nick, msg):
         log("Somehow lost filename")
     destroy_client(nick)
 
-def generate_nonce(nick, pkeys):
+def encrypt(nick, msg):
+    """Encrypt msg to nick."""
+    e = encipher(msg, clients[nick]["sesskey"], clients[nick]["sessiv"])
+    return e
+
+def decrypt(nick, msg):
+    """Decrypt msg from nick."""
+    return decipher(msg, clients[nick]["sesskey"], clients[nick]["sessiv"])
+
+def generate_nonce(nick):
     """Generate and encrypt a random nonce (number used only once) for nick.
-   
-    pkeys is three 16-byte keys; first two are used as session key, last is
-    used as an IV. Return unencrypted nonce and two encrypted halves."""
+    Returns two cleartext and two encrypted halves."""
 
     nonce = random_bytes(32)
-    from Crypto.Cipher import AES   # from pycrypto
-    # 32-bit key, 16-bit IV
-    a = AES.new(pkeys[0] + pkeys[1], AES.MODE_CBC, pkeys[2])
-    nonce_enc = a.encrypt(nonce)
+    nonce_enc = encrypt(nick, nonce)
 
     # Split into even and odd bytes for interlock protocol. Better than
     # beginning and end because can't be decrypted as easily.
@@ -553,6 +563,8 @@ def handle_sec(nick, msg):
     Pa=prefix, randomly generated by us here
     Pb=request
     Ea,b(M)<n>=encrypt message M with key a,b, take nth half
+
+    The <1> and <2> responses from us (B) are delayed INTERLOCK_DELAY.
     """
 
     #from Crypto.PublicKey import RSA
@@ -586,24 +598,33 @@ def handle_sec(nick, msg):
     pkeys = []
     for i in range(3):
         pkeys.append(skeys[i].DH_recv(ckeys[i]))
-    clients[nick]["sesskey"] = pkeys[0] + pkeys[1]
+    clients[nick]["sesskey"] = hash128(pkeys[0]) + hash128(pkeys[1])
     clients[nick]["sessiv"] = pkeys[2]
     log("session key/iv: %s" % ([clients[nick]["sesskey"],
         clients[nick]["sessiv"]],))
 
     # Calculate and save unencrypted nonce (nonce), and two halves encrypted.
-    nonce, nonce_1, nonce_2 = generate_nonce(nick, pkeys)
+    nonce, nonce_1, nonce_2 = generate_nonce(nick)
     clients[nick]["crypto_state"] = 1
     clients[nick]["nonce"] = nonce
     clients[nick]["nonce_1"] = nonce_1
     clients[nick]["nonce_2"] = nonce_2
+    clients[nick]["preauth"] = True
 
     # We rarely send messages to the client over the transport, but it is
     # necessary here, because the data channel isn't setup yet (we want to
     # let them encrypt the send request, since it includes their IP).
 
-    # Send our public keys + 1/2 encrypted nonce
-    return sendmsg(nick, b64(str_skeys + nonce_1))
+    # Send our public keys + 1/2 encrypted nonce after INTERLOCK_DELAY
+    log("Waiting to send pk+nonce1/2...")
+    thread.start_new_thread(delayed_send, 
+                            (nick, b64(str_skeys + nonce_1)))
+
+def delayed_send(nick, msg):
+    """Send msg to nick after INTERLOCK_DELAY seconds."""
+    time.sleep(INTERLOCK_DELAY)
+    log("Sending delayed message: %s" % msg)
+    sendmsg(nick, msg)
 
 def recvmsg_secure(nick, msg):
     """Handle an encrypted message from the client. Return a cleartext
@@ -612,7 +633,7 @@ def recvmsg_secure(nick, msg):
     if "sumi sec " in msg:
         # Not meant for us; restarting crypto
         return msg
-    if clients[nick]["crypto_state"] == 1:       # 1/2 request, nonce 2/2
+    if clients[nick]["crypto_state"] == 1:       # 1/2 request->nonce 2/2
         print "msg=%s"%msg
         try:
             clients[nick]["req1"] = base64.decodestring(msg)
@@ -620,10 +641,12 @@ def recvmsg_secure(nick, msg):
             del clients[nick]["crypto_state"]
             return sendmsg_error(nick, "bad encoding of req 1/2+nonce 2/2")
         # Send 2/2 nonce
+        log("Got 1/2 request--delaying")
+        time.sleep(INTERLOCK_DELAY)
         sendmsg(nick, b64(clients[nick]["nonce_2"]))
         log("Got 1/2 request, sent 2/2 nonce")
         clients[nick]["crypto_state"] = 2
-    elif clients[nick]["crypto_state"] == 2:     # 2/2 request, auth pkt
+    elif clients[nick]["crypto_state"] == 2:     # 2/2 request->auth pkt
         req1 = clients[nick]["req1"]
         try:
             req2 = base64.decodestring(msg)
@@ -632,14 +655,31 @@ def recvmsg_secure(nick, msg):
             return sendmsg_error(nick, "bad encoding of req 2/2")
         req_enc = interleave(req1, req2)
         #log("REQ_ENC=%s" % ([req_enc],))
-        req = decipher(req_enc,
-                clients[nick]["sesskey"],
-                clients[nick]["sessiv"])
-        log("REQ CLEAR=%s" % ([req],))
-        log("Got 2/2 request")
+        req = decrypt(nick, req_enc)
+        log("Got 2/2 request: %s" % ([req,]))
+        # (No delay here--immediate; if client detects a delay=MITM)
         clients[nick]["crypto_state"] = 3
         # Have recvmsg handle it
         return req
+    elif clients[nick]["crypto_state"] == 3:      # sumi auth->data
+        try:
+            auth_enc = base64.decodestring(msg)
+        except binascii.Error:
+            del clients[nick]["crypto_state"]
+            return sendmsg_error(nick, "bad encoding of auth")
+        clients[nick]["sessiv"] = inc_str(clients[nick]["sessiv"])
+        auth = decrypt(nick, auth_enc)
+        if not auth:
+            log("Failed to decrypt auth %s" % auth_enc)
+            return
+        auth = "sumi auth " + auth
+        log("DECRYPTED AUTH: %s" % auth)
+
+        clients[nick]["crypto_state"] = 4
+        # Handled in recvmsg
+        return auth
+    # crypto_state == 4 is file transfer
+
     return None
 
 def recvmsg(nick, msg):
@@ -1086,6 +1126,7 @@ def setup_rawproxd():
                len(challenge))
        sys.exit(-6)
 
+    # Raw proxy still uses MD5
     ctx = md5.md5()
     ctx.update(challenge)
     ctx.update(pw)
@@ -1429,10 +1470,13 @@ def sendmsg(nick, msg):
     fatal(24, "somehow sendmsg wasn't set by transport (%s: %s)" % (nick, msg))
 
 def sendmsg_error(nick, msg):
-    """Report an error message, if not in stealth mode. Returns False."""
-    if (not cfg["stealth_mode"]):
+    """Report an error message, if not in quiet mode. Returns False.
+    Also destroys client information, assuming a fatal error."""
+    if (not cfg["quiet_mode"]):
         sendmsg(nick, "error: %s" % msg)
     log("%s -> error: %s" % (nick, msg))
+
+    clients[nick] = {}
     return False
 
 def human_readable_size(size):

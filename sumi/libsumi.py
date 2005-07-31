@@ -5,13 +5,20 @@
 # Python library for common SUMI functions, shared between client and server
 
 import struct 
-import random
+import Crypto.Util.randpool
 import base64
-from itertools import imap, izip
+import sha
+from itertools import izip, chain
+from Crypto.Cipher import AES
+
+cipher_mod = AES
 
 SUMIHDRSZ = 6#bytes
 SUMIAUTHHDRSZ = 4#bytes
 PKT_TIMEOUT = 3#seconds
+
+# Time to sleep between interlock protocol exchanges
+INTERLOCK_DELAY = 1#second
 
 def unpack_args(raw):
     """Parse arguments in the form of aFOO\tbBAR\tcQUUX\to23948\tfhello
@@ -31,12 +38,19 @@ def pack_args(args):
    raw = "\t".join(array)
    return raw
 
+rand_obj = None
 def random_bytes(n):
     """Return n random bytes."""
-    # TODO: use Crypto.Util.randpool (from pycrypto) if available, config
-    m = ""
-    for i in range(n):
-        m += struct.pack("B", random.randint(0, 255))
+    global rand_obj
+    if not rand_obj:
+        log("Initializing RNG...")
+        # TODO: persistent RNG, but faster startup
+        rand_obj = Crypto.Util.randpool.RandomPool()
+    m = rand_obj.get_bytes(n)
+    # Bad RNG
+    #m = ""
+    #for i in range(n):
+    #    m += struct.pack("B", random.randint(0, 255))
     return m
 
 def unpack_keys(raw):
@@ -100,27 +114,59 @@ def b64(data):
     return b
 
 def decipher(msg, k, iv):
-    """Symmetric decipher msg with k and IV iv, using AES."""
-    from Crypto.Cipher import AES
-    a = AES.new(k, AES.MODE_CBC, iv)
+    """Symmetric decipher msg with k and IV iv."""
+    a = cipher_mod.new(k, cipher_mod.MODE_CBC, iv)
     return a.decrypt(msg) 
 
 def encipher(msg, k, iv):
-    """Symmetric encipher msg with k and IV iv, using AES."""
-    from Crypto.Cipher import AES
+    """Symmetric encipher msg with k and IV iv."""
     # Why create a new AES object for every encryption? Its only used
     # once per packet/message, since the IV changes. So we have to 
     # recreate the object with a new IV. I think this is better than
     # CTR mode since it uses cipherblocks. LibTomCrypt might not require
     # recreating new object each time, look into it.
-    a = AES.new(k, AES.MODE_CBC, iv)
-    # Pad to multiple of 16
-    pad = "\0" * ((16 - len(msg) % 16) & 15)
+    a = cipher_mod.new(k, cipher_mod.MODE_CBC, iv)
+    # Pad to multiple of block size
+    pad = "\0" * ((cipher_mod.block_size - len(msg) 
+        % cipher_mod.block_size) & (cipher_mod.block_size - 1))
     return a.encrypt(msg + pad)
 
+def get_cipher():
+    """Return a PEP272-compliant symmetric cipher module."""
+    return cipher_mod
 
 def interleave(evens, odds):
-    """Interleave evens with odds, such that interleave(a[0::2], a[1::2])
-    = a."""
-    return "".join(imap("".join, izip(evens, odds)))
+    """Interleave evens with odds, such that 
+    interleave(a[0::2], a[1::2) == a."""
+    #return "".join(imap("".join, izip(evens, odds)))
+    # Better--uses itertools 
+    return "".join(chain(*(izip(evens, odds))))
 
+def hash160(msg):
+    """Return a 160-bit SHA-1 digest."""
+    # TODO: Use SHA-2 hashes, esp. SHA-256
+    return sha.new(msg).digest()
+
+def hash128(msg):
+    """Return a SHA-1 digest truncated to 128 bits."""
+    # MD5 used to be used here until it was broken.
+    return sha.new(msg).digest()[0:16]
+
+def pack_num(n):
+    """Pack an arbitrary sized integer into as many bytes as required."""
+    s = ""
+    while n:
+        s += chr(n % 256)
+        n /= 256
+    return s
+
+def unpack_num(s):
+    """Unpack an arbitrary-sized string into its integer equivalent."""
+    n = 0
+    for i in range(0,len(s)):
+        n += ord(s[i]) * (256 ** i)
+    return n
+
+def inc_str(s):
+    """Numerically increment string (little-endian)."""
+    return pack_num(unpack_num(s) + 1)

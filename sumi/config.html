@@ -149,12 +149,18 @@ standalone sumiget or sumiserv.</td>
  <td>IP_TOTLEN_HOST_ORDER</td>
  <td>1 for FreeBSD, 0 for Linux (on little-endian)</td>
 </tr><tr>
- <td>stealth_mode</td>
+ <td>quiet_mode</td>
  <td>1 for no client error messages, 0 for. Disable this if you want your
-     clients to know what they did wrong (default). Set stealth_mode to 1 and
+     clients to know what they did wrong (default). Set quiet_mode to 1 and
  sleep_interval to 0 if you want sumiserv to never send any IRC messages. It
- can mostly be disguised as an ordinary IRC client this way. TODO: CTCP
- VERSION.</td>
+ can mostly be disguised as an ordinary IRC client this way. However,
+encryption will be unavailable because this requires server transport
+messages.
+
+TODO: CTCP
+ VERSION.
+
+</td>
 </tr><tr>
  <td>our_bandwidth</td>
  <td>Upload bandwidth speed limit in bits/sec (128000=128Kbps). To convert
