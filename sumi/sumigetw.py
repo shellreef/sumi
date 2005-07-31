@@ -969,7 +969,6 @@ class SUMIApp(wx.wxApp):
             (size, prefix, filename, transport, dchantype) = args
             print "Info: ", args
 
-            # Like xchat's dcc, blue=transferring, green=done, & red=err
             self.SetInfo(nick, COL_STATUS, "Authenticating")
             self.SetInfo(nick, COL_FILENAME, filename)
             self.SetInfo(nick, COL_SIZE, "%d" % size)
@@ -989,6 +988,7 @@ class SUMIApp(wx.wxApp):
             # One-time actions that take effect throughout the whole
             # transfer but have no need to be re-set every packet. Note this
             # message does not include any args; write will be called w/ args.
+            # Like xchat's dcc, blue=transferring, green=done, & red=err
             self.SetColor(nick, wxBLUE)
             self.SetInfo(nick, COL_STATUS, "Transferring...")
         elif (cmd == "write"):

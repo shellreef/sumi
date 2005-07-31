@@ -395,6 +395,8 @@ def handle_send(nick, msg):
     # Used for data transfer, may differ from client-chosen auth pkt prefix
     file_info += clients[nick]["prefix"]
     file_info += chr(clients[nick]["mcast"])
+    if clients[nick].has_key("preauth"):
+        file_info += hash160(clients[nick]["nonce"])
     file_info += os.path.basename(cfg["filedb"][clients[nick]["file"]]["fn"]+\
                "\0");  # Null-term'd
 
@@ -1507,6 +1509,7 @@ def setup_config():
                 "\nPlease check that the file exists and is readable.")
         offer["size"] = size
         offer["hsize"] = human_readable_size(size)   
+    random_init()
 
 _abbrevs = [
     (1 << 50L, "P"),

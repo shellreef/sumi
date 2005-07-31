@@ -39,13 +39,20 @@ def pack_args(args):
    return raw
 
 rand_obj = None
+
+def random_init():
+    global rand_obj
+    if rand_obj: return
+    log("Initializing RNG...")
+    # TODO: Better RNG, faster startup is needed!
+    rand_obj = Crypto.Util.randpool.PersistentRandomPool("sumi.rng")
+
+    # TODO: /dev/u?random, Windows cryptographic random services
+    # LibTomCrypt has access to these, TODO: Python wrapper
+
 def random_bytes(n):
     """Return n random bytes."""
     global rand_obj
-    if not rand_obj:
-        log("Initializing RNG...")
-        # TODO: persistent RNG, but faster startup
-        rand_obj = Crypto.Util.randpool.RandomPool()
     m = rand_obj.get_bytes(n)
     # Bad RNG
     #m = ""
@@ -75,6 +82,7 @@ def capture(decoder, filter, callback):
     if filter:
         p.setfilter(filter)
     while 1:
+        # Occasionally, throws a pcapy.PcapError. Not sure why.
         pkt = p.next()
         pkt_data = pkt[1]
         (user, msg) = decoder(pkt_data)
@@ -170,3 +178,12 @@ def unpack_num(s):
 def inc_str(s):
     """Numerically increment string (little-endian)."""
     return pack_num(unpack_num(s) + 1)
+
+def take(data, n, at):
+    """Take n bytes from data, starting at 'at', incrementing at by n.
+    Return the taken data and the new offset."""
+    x = data[at:at + n]
+    at += n
+    return (x, at)
+
+

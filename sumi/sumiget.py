@@ -283,18 +283,28 @@ class Client:
         hashcode = b64(hash128(data))
 
         # File length, new prefix, flags, filename
-        (self.senders[nick]["size"], ) = struct.unpack("!L", 
-            data[SUMIHDRSZ:SUMIHDRSZ + SUMIAUTHHDRSZ])
-        log("SIZE:%d" % self.senders[nick]["size"])
-        new_prefix = data[SUMIHDRSZ + 4:SUMIHDRSZ + 4 + 3]
-        if len(new_prefix) != 3:
-            log("Missing new_prefix in auth packet!")
-            sys.exit(1)
-        flags = ord(data[SUMIHDRSZ + 4 + 3:SUMIHDRSZ + 4 + 3 + 1])
-        log("FLAGS: %s" % flags)
-        self.senders[nick]["mcast"] = flags & 1
+        i = SUMIHDRSZ
+        size_str, i = take(data, SUMIAUTHHDRSZ, i)
+        new_prefix, i = take(data, 3, i)
+        flags_str, i = take(data, 1, i)
 
-        filename=data[SUMIHDRSZ+8:data[SUMIHDRSZ+8:].find("\0")+SUMIHDRSZ+8]
+        (self.senders[nick]["size"], ) = struct.unpack("!L", size_str)
+        log("SIZE:%s" % self.senders[nick]["size"])
+        assert len(new_prefix) == 3, "Missing new_prefix in auth packet!"
+        flags = ord(flags_str)
+        log("FLAGS:%s" % flags)
+        self.senders[nick]["mcast"] = flags & 1
+        if self.senders[nick].has_key("crypto_state"):
+            recvd_hash, i = take(data, 20, i)
+            derived_hash = self.senders[nick]["nonce_hash"]
+            if recvd_hash != derived_hash:
+                log("Server verification failed! %s != %s" % (\
+                        ([recvd_hash], [derived_hash])))
+                self.senders[nick] = {}
+                return
+            log("Server verified: interlock nonce matches auth pkt nonce")
+
+        filename = data[i:data[i:].find("\0") + i]
 
         self.senders[nick]["fn"] = filename
         log("Filename: <%s>" % filename)
@@ -306,6 +316,7 @@ class Client:
             (tuple(map(ord, new_prefix))))
 
         if new_prefix != self.senders[nick]["prefix"]:
+            # May be already being used by server
             log("Switching to a new prefix!")
         self.senders[nick]["prefix"] = new_prefix
 
@@ -351,6 +362,9 @@ class Client:
         data = data[SUMIHDRSZ:]
 
         if not self.senders[nick].has_key("got_first"):
+            self.senders[nick]["start_seqno"] = seqno
+            log("FIRST PACKET: %s" % seqno)
+
             self.senders[nick]["got_first"] = True
             # Make sure first data packet is received soon enough
             g = time.time()
@@ -373,9 +387,9 @@ class Client:
         self.senders[nick]["fh"].write(data)
 
         # Mark down each packet in our receive window
-        try:
+        if self.senders[nick]["rwin"].has_key(seqno):
             self.senders[nick]["rwin"][seqno] += 1
-        except KeyError:
+        else:
             self.senders[nick]["rwin"][seqno] = 1    # create
 
         if (self.senders[nick]["rwin"][seqno] >= 2):
@@ -458,11 +472,6 @@ class Client:
 
         # Last most recently received packet, for resuming
         self.senders[nick]["at"] = seqno 
-
-        # First packet received
-        if not self.senders[nick].has_key("start_seqno") and seqno != 0:
-            self.senders[nick]["start_seqno"] = seqno
-            log("FIRST PACKET: %s" % seqno)
 
         log("PACKET: %s" % seqno)
 
@@ -818,6 +827,7 @@ class Client:
             nonce = self.decrypt(nick, interleave(nonce_1, nonce_2))
             print "NONCE=%s" % ([nonce,])
             self.senders[nick]["nonce"] = nonce
+            self.senders[nick]["nonce_hash"] = hash160(nonce)
 
             # Send 2/2 of encrypted sumi send request. Expect response soon.
             self.sendmsg(nick, b64(self.senders[nick]["request_2"]))
@@ -940,6 +950,7 @@ class Client:
             except:
                 return "MSS was not set, please set it in the Client tab."
         if self.config.has_key("crypto"):
+            random_init()
             bs = get_cipher().block_size
             if (self.mss - SUMIHDRSZ) % bs:
                 self.mss -= (self.mss - SUMIHDRSZ) % 16
