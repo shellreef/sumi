@@ -1,3 +1,11 @@
+2005-07-31 Jeff Connelly <jeffconnelly@users.sourceforge.net> - 0.8.11
+	* Auth packet includes hash of nonce for client to verify
+	* Completely redone crypto implementation from 0.8.10
+	* Use SHA-1 for key derivation function as recommended
+	* Changed MD5 to SHA-1 in auth packet (MD5 still used for rawproxd)
+	* Added INTERLOCK_DELAY; a time-sensitive enhancement to the Interlock
+	  Protocol in order to detect some MITM
+
 2005-07-23 Jeff Connelly <jeffconnelly@users.sourceforge.net>
 	* Request messages can now be encrypted, set "crypto" to "y"
 	* EC-DH + interlock protocol for key exchange/request
