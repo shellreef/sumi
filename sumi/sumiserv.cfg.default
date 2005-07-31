@@ -5,7 +5,7 @@
 
 "global_mss": 5000,           # Allow no MSS larger than this
 "IP_TOTLEN_HOST_ORDER": 1,    # 1 for FreeBSD, 0 for Linux (on little-endian)
-"stealth_mode":0,            # 1 for no client error messages, 0 for
+"quiet_mode":0,               # 1 for no client error messages, 0 for
 "our_bandwidth":128000,      # Upload bandwidth speed limit
 "sleep_interval":300,#sec    # time to sleep before channel notifications,0=stop
 "src_allow":"4/24",          # src IPs to allow in CIDR notation

@@ -340,7 +340,7 @@ def send_auth(nick, file_info):
             "bad pkt generation: %d != %d" % (len(clear_pkt), mss)
     clients[nick]["authpkt"] = clear_pkt   # Save so can hash when find out MSS
 
-    if clients[nick]["preauth"]:
+    if clients[nick].has_key("preauth"):
         # Encrypt payload--after saved in "authpkt" for hashing.
         clients[nick]["sessiv"] = inc_str(clients[nick]["sessiv"])
         payload = encrypt(nick, payload)

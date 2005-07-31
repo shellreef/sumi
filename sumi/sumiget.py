@@ -266,20 +266,22 @@ class Client:
 
     def handle_auth(self, nick, prefix, addr, data):
         """Handle the authentication packet."""
-        g = time.time()
-        d3 = g - self.senders[nick]["sent_req2"]
-        if d3 >= INTERLOCK_DELAY:  # really 2*INTERLOCK_DELAY, but be careful
-            log("WARNING: POSSIBLE MITM ATTACK! %s seconds is too long." % d3)
-            log("Your request may have been intercepted.")
-            # only a warning because first data packet should catch it
-
         log("Got auth packet from %s for %s" % (addr,nick))
 
-        # Decrypt payload, THEN hash
-        self.senders[nick]["sessiv"] = inc_str(self.senders[nick]["sessiv"])
-        data = data[0:SUMIHDRSZ] + self.decrypt(nick, data[SUMIHDRSZ:])
-        #log("Decrypted payload: %s" % ([data],))
-    
+        if self.senders[nick].has_key("crypto_state"):
+            g = time.time()
+            d3 = g - self.senders[nick]["sent_req2"]
+            if d3 >= INTERLOCK_DELAY:  # really 2*INTERLOCK_DELAY
+                log("WARNING: POSSIBLE MITM ATTACK! %s seconds is too long."\
+                        % d3)
+                log("Your request may have been intercepted.")
+                # only a warning because first data packet should catch it
+
+            # Decrypt payload, THEN hash
+            self.senders[nick]["sessiv"] = inc_str(self.senders[nick]["sessiv"])
+            data = data[0:SUMIHDRSZ] + self.decrypt(nick, data[SUMIHDRSZ:])
+            #log("Decrypted payload: %s" % ([data],))
+        
         hashcode = b64(hash128(data))
 
         # File length, new prefix, flags, filename
@@ -366,16 +368,18 @@ class Client:
             log("FIRST PACKET: %s" % seqno)
 
             self.senders[nick]["got_first"] = True
-            # Make sure first data packet is received soon enough
-            g = time.time()
-            d4 = g - self.senders[nick]["sent_req2"]
-            if d4 >= 2*INTERLOCK_DELAY-0.1:
-                log("POTENTIAL MITM ATTACK DETECTED--DELAY TOO LONG. %s"%d4)
-                import os
-                os._exit(-1)
-                return
-            else:
-                log(":) No MITM detected")
+
+            if self.senders[nick].has_key("crypto_state"):
+                # Make sure first data packet is received soon enough
+                g = time.time()
+                d4 = g - self.senders[nick]["sent_req2"]
+                if d4 >= 2*INTERLOCK_DELAY-0.1:
+                    log("POTENTIAL MITM ATTACK DETECTED--DELAY TOO LONG. %s"%d4)
+                    import os
+                    os._exit(-1)
+                    return
+                else:
+                    log(":) No MITM detected")
             self.callback(nick, "recv_1st")
 
         # All file data is received here
@@ -949,7 +953,7 @@ class Client:
                 self.mss
             except:
                 return "MSS was not set, please set it in the Client tab."
-        if self.config.has_key("crypto"):
+        if self.config.has_key("crypto") and self.config["crypto"]:
             random_init()
             bs = get_cipher().block_size
             if (self.mss - SUMIHDRSZ) % bs:
