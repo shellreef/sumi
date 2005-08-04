@@ -6,33 +6,29 @@ Definitions
 
 Message
 C->S
-sumi sec <method><key>
+sumi sec <pubkeys>
 
-This is pre-auth encryption. <method> is a one-byte method:
-"O"          one-time pad, key=<offset>,<otp-id>
-"S"          symmetric, key=password (AES)
-"A"          asymmetric, key=public key
-Lowercase types = encrypt acks, also (default not)
+Sends the server the client's public keys. The exchange is as follows:
 
-Pre-auth crypto allows sumi send to be enciphered so the IP is hidden, and only
-the server can decrypt it. See crypto.txt.
+C                                        S
+sumi sec <C's pubkeys>------------------->
+<-------S's pubkeys + 1/2 nonce(encrypted)
+1/2 request(encrypted)------------------->
+<---------------------2/2 nonce(encrypted)
+2/2 request(encrypted)------------------->
 
 Message
 C->S
 sumi send <packed_args>
 (f) file     File which is requested, either a filename or package number.
-XX(o) offset   Initial position to begin transfer at, used for resuming.
-             (moved to sumi auth, so client can resume from filename)
 (i) ip       IP address of client.
 (n) port     UDP port number of client. If "X", S will send to random ports.
              If dtype is ICMP, encoded as type*0x100+code
 (m) mss      Maximum segment size to try initially; largest packet C->S
-(
 (p) prefix   Random 3-byte prefix, base64'd to 4 bytes
 (b) speed    Bandwidth in bits per second
 (d) dtype    Data channel type
              u=UDP t=TCP e=ICMP(echo)  i..other ICMP codes useful?
-XX(l) latency  Delay to wait before sending each packet (use b instead)
 
 Client requests a file from a server. Server sends SUMI auth packet to<IP:port>,
 beginning with <prefix>, filled with random data up to <mss> bytes.
@@ -76,7 +72,8 @@ Message
 C->S
 Positive-Acknowledgement, TFTP-Style
 k
-Server will send the next packet.
+Server will send the next packet. 
+ ** This old style is no longer supported. **
 
 Message
 C->S

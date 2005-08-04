@@ -12,7 +12,9 @@ client-side/      scripts or plugins to help integrate sumi, client side
 launch/           setuid script to make a raw socket and pass it to sumiserv
 c++-obsolete/     obsolete C++ version of sumi (0.2)
 perl-obsolete/    obsolete Perl version of sumi (0.1)
-fec/              notes & code on Forward Error Correction (not yet implemented)
+extra/            various papers on interesting topics
+  crypto/         cryptography & authentication
+  fec/            notes & code on Forward Error Correction (not yet implemented)
 hash/             notes & code on hashes (not yet implemented)
 ss/               a few screenshots
 

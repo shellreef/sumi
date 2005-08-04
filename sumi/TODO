@@ -1,5 +1,6 @@
 TO DO   20050802JC
 
+* Find out why I have config.html,faq.html in . and doc/, & whats better
 * Investigate tor (tor.eff.org) for a transport, and AIM over HTTP proxy
 * Encrypt data packets after AONT'd
 * Use LibTomCrypt for everything after wrapping it for Python
