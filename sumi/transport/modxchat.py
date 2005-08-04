@@ -1,7 +1,10 @@
 # Created:20040216
 # By Jeff Connelly
 
-# xchat 
+# xchat transport
+
+# You need at least xchat 2, load ../client-side/xchat.pl in xchat before
+# using this.
 
 import os
 import sys
@@ -9,9 +12,8 @@ import sys
 XCHAT_FILE = "/tmp/xchat"
 
 def transport_init():
-    if os.system("killall -0 xchat") == 0:  # No other portable way(?)
-        pass
-    else:
+    # No other portable way to find if xchat is running?
+    if os.system("killall -0 xchat 2>/dev/null") != 0:
         log("An error occured while trying to locate 'xchat'.")
         log("Is 'xchat' running?")
         sys.exit(-1)
@@ -37,6 +39,4 @@ def sendcmd(cmd):
     if os.system("killall -USR2 xchat") != 0:
         log("SYS:xchat lost!")
         sys.exit(-2) 
-
-transport_init()
 

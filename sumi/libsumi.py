@@ -5,13 +5,9 @@
 # Python library for common SUMI functions, shared between client and server
 
 import struct 
-import Crypto.Util.randpool
 import base64
 import sha
 from itertools import izip, chain
-from Crypto.Cipher import AES
-
-cipher_mod = AES
 
 SUMIHDRSZ = 6#bytes
 SUMIAUTHHDRSZ = 4#bytes
@@ -41,10 +37,17 @@ def pack_args(args):
    raw = "\t".join(array)
    return raw
 
-rand_obj = None
+rand_obj = cipher_mod = None
 
 def random_init():
-    global rand_obj
+    """Initialize RNG and crypto."""
+    global rand_obj, cipher_mod
+    try:
+        import Crypto.Util.randpool
+        from Crypto.Cipher import AES
+    except:
+        log("Error importin PyCrypto. Disable crypto or install PyCrypto")
+        raise SystemExit
     if rand_obj: return
     log("Initializing RNG...")
     # TODO: Better RNG, faster startup is needed!
@@ -53,14 +56,24 @@ def random_init():
     # TODO: /dev/u?random, Windows cryptographic random services
     # LibTomCrypt has access to these, TODO: Python wrapper
 
+    cipher_mod = AES
+
 def random_bytes(n):
     """Return n random bytes."""
     global rand_obj
+    if not rand_obj: return random_bytes_weak(n)
     m = rand_obj.get_bytes(n)
+    return m
+
+def random_bytes_weak(n):
+    """Return n random bytes, generated using Python's random module.
+    Only used if random_init() is not called, i.e., if crypto is not
+    available."""
+    import random
     # Bad RNG
-    #m = ""
-    #for i in range(n):
-    #    m += struct.pack("B", random.randint(0, 255))
+    m = ""
+    for i in range(n):
+        m += struct.pack("B", random.randint(0, 255))
     return m
 
 def unpack_keys(raw):

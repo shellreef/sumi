@@ -313,5 +313,15 @@ which is not available for Windows Me. (Unicode is not supported.)
 wanpacket.dll are not in C:\Program Files\SUMI. Try re-running sumiserv,
 and if the same error occurs, reinstall WinPcap.
 
-
-
+<h2>When requesting a file with the xchat transport, xchat says
+    "SIGUSR2 :Unknown command", why?</h2>
+<p>First, make sure you have xchat 2 or better. Previously, SUMI included
+a patch to allow using xchat 1.8, but this patch is no longer included. 
+Next, load <tt>client-side/xchat.pl</tt> into xchat using /load followed
+by the filename, or X-Chat -&gt; Load Plugin or Script. If xchat says:
+<blockquote>
+    Unknown file type sumi/client-side/xchat.pl. Maybe you need
+    to install the Perl or Python plugin?
+</blockquote>
+<p>Then your xchat does not support Perl, so you need to enable it and reload
+the script.

@@ -1,4 +1,7 @@
-Patching X-Chat to Allow Sending Commands from Other Processes 2004-02-16 JC?
+** UPDATE 20050803: Patching is no longer required with xchat >= 2
+   Simply load xchat.pl in xchat instead, then use /sumi to request a file.
+
+Patching X-Chat to Allow Sending Commands from Other Processes 2004-02-16 JC
 
 Apply "xchat.c.patch" to xchat-1.8.11/src/common/xchat.c. This will add a few
 lines that read an IRC command and execute it when SIGUSR2 is sent to the xchat

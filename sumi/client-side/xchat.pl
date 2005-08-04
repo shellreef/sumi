@@ -6,8 +6,18 @@
 # 20040712: rewritten for xchat2, no patch required anymore
 # Note, but doesn't use xchat2's new Xchat:: functions, still using old IRC::
 
+# HOW TO USE THIS SCRIPT
+# 1. Make sure you have xchat2 with Perl support (default in many builds)
+# 2. Copy to ~/.xchat2 as sumi.pl (or whatever)
+# 3. Modify SGW_PATH below to match your sumigetw.py location
+# 4. Now xchat2 should say "SUMI xchat2 transport loading" at startup
+
+# Use /sumi get sumi-00 #1 (for example) to download, after on a server.
+# You can also manually invoke SUMI from the command like: sumigetw xchat ...
+# And finally, you can also /load xchat.pl instead of saving it in ~/.xchat2
+
+$SGW_PATH = "/home/jeff/p2p/sumi/sumigetw.py";  # Change to match your path
 $XCHAT_FILE = "/tmp/xchat";  # Make sure this matches modxchat.py's
-$SGW_PATH = "/home/jeff/p2p/sumi/sumigetw.py";
 
 IRC::register("SUMI", "0.1", "", "");
 IRC::add_command_handler("sumi", on_sumi);
