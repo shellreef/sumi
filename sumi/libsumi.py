@@ -20,6 +20,9 @@ PKT_TIMEOUT = 3#seconds
 # Time to sleep between interlock protocol exchanges
 INTERLOCK_DELAY = 1#second
 
+def log(msg):
+    print "(libsumi) %s" % msg
+
 def unpack_args(raw):
     """Parse arguments in the form of aFOO\tbBAR\tcQUUX\to23948\tfhello
     world. Each parameter begins with a single letter, followed by its value,
