@@ -290,7 +290,7 @@ class Client:
         new_prefix, i = take(data, 3, i)
         flags_str, i = take(data, 1, i)
 
-        (self.senders[nick]["size"], ) = struct.unpack("!L", size_str)
+        (self.senders[nick]["size"], ) = struct.unpack("!I", size_str)
         log("SIZE:%s" % self.senders[nick]["size"])
         assert len(new_prefix) == 3, "Missing new_prefix in auth packet!"
         flags = ord(flags_str)
@@ -460,7 +460,7 @@ class Client:
             return
 
         prefix  = data[:3]
-        (seqno, ) = struct.unpack("!L", "\0" + data[3:6])
+        (seqno, ) = struct.unpack("!I", "\0" + data[3:6])
 
         nick = self.prefix2nick(prefix)
         if not nick:

@@ -1255,9 +1255,9 @@ def build_udphdr(src, dst, payload):
     """Build a UDP header followed by the payload, given the source and
     destination as (IP, port) tuples. The UDP checksum will be calculated."""
     # Pseudoheader for checksum
-    pseudo = struct.pack("!LLBBH", 
-        struct.unpack("!L", socket.inet_aton(src[0]))[0],
-        struct.unpack("!L", socket.inet_aton(dst[0]))[0],
+    pseudo = struct.pack("!IIBBH", 
+        struct.unpack("!I", socket.inet_aton(src[0]))[0],
+        struct.unpack("!I", socket.inet_aton(dst[0]))[0],
         0, 17, UDPHDRSZ + len(payload))
 
     # Build UDP header
@@ -1290,7 +1290,7 @@ def build_iphdr(totlen, src_ip, dst_ip, type):
     if (not cfg["IP_TOTLEN_HOST_ORDER"]):
         totlen = socket.htons(totlen)
   
-    hdr = struct.pack("!BBHHHBBHLL",
+    hdr = struct.pack("!BBHHHBBHII",
         0x40 | IPHDRSZ >> 2,                   # version+IHL little endian
         #payload = ((IPHDRSZ >> 2) << 4) | 4,  # big endian
         0,                                     # DSCP/TOS

@@ -22,4 +22,4 @@ package:
 
 clean::
 	rm -f /home/jeff/p2p/sumi/incoming/*
-	rm -f *.pyc
+	rm -rf *.pyc
