@@ -123,7 +123,8 @@ def set_src_allow(allow_cidr):
     global SRC_IP_MASK, SRC_IP_ALLOW
     (allow, cidr) = allow_cidr.split("/")
     cidr = int(cidr)
-    SRC_IP_MASK = (0xffffffffL >> (32 - cidr) << (32 - cidr))
+    # 1 bits = random, 0 bits = fixed
+    SRC_IP_MASK = ~(0xffffffffL << cidr) & 0xffffffffL
     allow_list = map(int, allow.split("."))
     a = b = c = d = 0
     try:
@@ -131,11 +132,13 @@ def set_src_allow(allow_cidr):
         b = allow_list[1]
         c = allow_list[2]
         d = allow_list[3]
-    except IndexError:    # digits are allowed to be omitted
+    except IndexError:    # digits are allowed to be omitted, ex: 4/24
         pass
-    (SRC_IP_ALLOW, ) = struct.unpack("L", struct.pack("BBBB", a, b, c, d))
+    # Where mask is 0, SRC_IP_ALLOW specifies fixed, unchanging bits in IP
+    SRC_IP_ALLOW = d + c*256 + b*256**2 + a*256**3
+
     # For consistency. SRC_IP_ALLOW bits are only meaningful when the
-    # corresponding bits are 1 in SRC_IP_MASK
+    # corresponding bits are 1 in SRC_IP_MASK.
     SRC_IP_ALLOW &= ~SRC_IP_MASK  
     log("Allowing: %s, mask=%.8x, allow=%.8x" % (allow_cidr, SRC_IP_MASK,
         SRC_IP_ALLOW))
@@ -389,7 +392,7 @@ def handle_send(nick, msg):
     # TODO: put more information about the file here. hash?
 
     # XXX: This should be the encrypted size; size on wire.
-    file_info = struct.pack("!L", \
+    file_info = struct.pack("!I", \
         os.path.getsize(cfg["filedb"][clients[nick]["file"]]["fn"]))
 
     # Used for data transfer, may differ from client-chosen auth pkt prefix
@@ -951,7 +954,7 @@ def datapkt(nick, seqno):
     block = clients[nick]["fh"].read(blocksz)
 
     pkt = clients[nick]["prefix"]        # 3-byte prefix
-    pkt += struct.pack("!L", seqno)[1:]  # 3-byte seq no
+    pkt += struct.pack("!I", seqno)[1:]  # 3-byte seq no
     if (len(pkt) != SUMIHDRSZ):
         fatal(5, "internal failure: header not expected size")
     pkt += block
@@ -1447,9 +1450,9 @@ def randip():
     """Generate a random IP and port to use as a source address."""
     # CIDR notation; 4/24 = 4.0.0.0 - 4.255.255.255, masks, and TODO: excludes
     raw_ip = random.randint(0, 2 ** 32)
-    raw_ip &= SRC_IP_MASK
-    raw_ip |= SRC_IP_ALLOW
-    str_ip = ".".join(map(str, struct.unpack("BBBB", struct.pack("L", raw_ip))))
+    raw_ip &= SRC_IP_MASK          # clear where mask 0
+    raw_ip |= SRC_IP_ALLOW         # set where allow 1
+    str_ip =".".join(map(str,struct.unpack("!BBBB", struct.pack("!I", raw_ip))))
     # TODO: generate another if nonroutable
     #if (is_nonroutable_ip(str_ip)):
     #    print "WARNING: Using non-routable IP"
@@ -1509,7 +1512,7 @@ def setup_config():
                 "\nPlease check that the file exists and is readable.")
         offer["size"] = size
         offer["hsize"] = human_readable_size(size)   
-    random_init()
+    if cfg["crypto"]: random_init()
 
 _abbrevs = [
     (1 << 50L, "P"),
