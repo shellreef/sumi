@@ -6,7 +6,6 @@
 # Now uses transports/ to communicate with client, and can
 # send data using UDP, ICMP, or raw Ethernet
 
-import string
 import thread
 import base64
 import binascii
@@ -18,7 +17,6 @@ import os
 import md5
 import time
 import Queue
-import struct
 import libsumi
 
 from libsumi import *
@@ -266,10 +264,7 @@ def handle_request(nick, msg):
         clients[nick]["dst_gen"] = rand_pingable_host  # no port
     elif (dchantype == "i"):
          # Type+code used to be in dchantype, now its inside myport, packed
-         #(type, code) = dchantype[1:].split(",")
-         #type = int(type)
-         #code = int(code)
-         type = int(port / 0x100)
+         type = int(port // 0x100)
          code =     port % 0x100
          log("type,code=%s %s" % (type,code))
          clients[nick]["send"] = \
@@ -364,6 +359,7 @@ def send_auth(nick, file_info):
     log(" AUTH PREFIX=%02x%02x%02x" % (ord(pkt[0]), \
         ord(pkt[1]), ord(pkt[2])))
     #send_packet(clients[nick]["asrc"], (ip, port), pkt)
+    return True
 
 def handle_send(nick, msg):
     """Handle sumi send -- setup a new transfer."""
@@ -391,19 +387,40 @@ def handle_send(nick, msg):
     # Build header -- this contains file information.
     # TODO: put more information about the file here. hash?
 
-    # XXX: This should be the encrypted size; size on wire.
-    file_info = struct.pack("!I", \
-        os.path.getsize(cfg["filedb"][clients[nick]["file"]]["fn"]))
+    # This is the size of the cleartext, not necessarily size on the wire
+    clear_size = os.path.getsize(cfg["filedb"][clients[nick]["file"]]["fn"])
+    file_info = struct.pack("!I", clear_size)
+    clients[nick]["clear_size"] = clear_size
 
     # Used for data transfer, may differ from client-chosen auth pkt prefix
     file_info += clients[nick]["prefix"]
+
     file_info += chr(clients[nick]["mcast"])
     if clients[nick].has_key("preauth"):
         file_info += hash160(clients[nick]["nonce"])
     file_info += os.path.basename(cfg["filedb"][clients[nick]["file"]]["fn"]+\
                "\0");  # Null-term'd
 
+    # XXX: broken
+    if False and clients[nick].has_key("crypto_state"):
+        # Outer encryption: CTR mode
+        clients[nick]["ctr"] = unpack_num(clients[nick]["sessiv"]) + 1
+        def ctr_proc():
+            clients[nick]["ctr"] += 1
+            x = pack_num(clients[nick]["ctr"])
+            x = "\0" * (16 - len(x)) + x
+            assert len(x) == 16, "ctr is %s not 16 bytes" % len(x)
+            return x
+        clients[nick]["crypto_obj"] = get_cipher().new(
+                clients[nick]["sesskey"], get_cipher().MODE_CTR,
+                counter=ctr_proc)
+
+        # Inner encryption: package ECB mode
+        from AONT import AON
+        clients[nick]["aon"] = AON(get_cipher(), get_cipher().MODE_ECB)
+
     send_auth(nick, file_info)
+    return True
 
 def handle_auth(nick, msg):
     """Handle sumi auth -- authentication."""
@@ -514,7 +531,7 @@ def handle_done(nick, msg):
     """Handle sumi done -- graceful ending of transfer."""
     # Possible thread concurrency issues here. Client can do sumi done at
     # any time, which will result in accessing nonexistant keys
-    log("Transfer to %s complete\n" % nick)
+    log("Transfer to %s complete (%s)\n" % (nick, msg))
     try:
         casts[clients[nick]["addr"]].remove(nick)
     except:
@@ -529,12 +546,12 @@ def handle_done(nick, msg):
 
 def encrypt(nick, msg):
     """Encrypt msg to nick."""
-    e = encipher(msg, clients[nick]["sesskey"], clients[nick]["sessiv"])
+    e = encrypt_msg(msg, clients[nick]["sesskey"], clients[nick]["sessiv"])
     return e
 
 def decrypt(nick, msg):
     """Decrypt msg from nick."""
-    return decipher(msg, clients[nick]["sesskey"], clients[nick]["sessiv"])
+    return decrypt_msg(msg, clients[nick]["sesskey"], clients[nick]["sessiv"])
 
 def generate_nonce(nick):
     """Generate and encrypt a random nonce (number used only once) for nick.
@@ -624,6 +641,7 @@ def handle_sec(nick, msg):
     log("Waiting to send pk+nonce1/2...")
     thread.start_new_thread(delayed_send, 
                             (nick, b64(str_skeys + nonce_1)))
+    return True
 
 def delayed_send(nick, msg):
     """Send msg to nick after INTERLOCK_DELAY seconds."""
@@ -874,7 +892,8 @@ def handle_nak(nick, msg):
         n<win>,<resend-1>,<resend-2>,...,<resend-N>. We will
         resend the requested packets, as well as any normal
         non-lost packets."""
-    resends = msg[1:].split(",")
+    #resends = msg[1:].split(",")
+    resends = unpack_range(msg[1:])   # Compressed naks
     resends.reverse()
     if (msg == "n"):
         if (not clients[nick].has_key("last_winsz")):
@@ -935,11 +954,11 @@ def datapkt(nick, seqno):
         return sendmsg_error(nick, "file too large: 8-10GB is "+
                 "the limit, depending on MSS")
 
+    blocksz = clients[nick]["mss"] - SUMIHDRSZ
+    
     if cfg["noise"] and random.randint(0, int(cfg["noise"])) == 0:
         # lose packet (for testing purposes)
-        return 1466
-
-    blocksz = clients[nick]["mss"] - SUMIHDRSZ
+        return blocksz
 
     log("Sending to %s #%s %s" % (nick, seqno, blocksz))
     #print "I AM GOING TO SEEK TO ",blocksz*(seqno-1)
@@ -949,9 +968,29 @@ def datapkt(nick, seqno):
     #    return
 
     # Many OS's allow seeking past the end of file
-    clients[nick]["fh"].seek(blocksz * (seqno - 1))
+    file_pos = blocksz * (seqno - 1)
+    clients[nick]["fh"].seek(file_pos)
 
     block = clients[nick]["fh"].read(blocksz)
+
+    # Crypto, anyone?
+    # XXX: broken
+    if False and clients[nick].has_key("crypto_state"):
+        assert blocksz % get_cipher().block_size == 0, \
+                "%s (MSS-%s) is not a multiple of %s, which is required" + \
+                "for crypto. This should've been fixed in cfg validation." % (
+                        blocksz, SUMIHDRSZ, get_cipher().block_size)
+
+        pseudotext = clients[nick]["aon"].digest_next(block)
+        if file_pos > clients[nick]["clear_size"] - blocksz: 
+            # Last packet, so include last block
+            log("(last packet!)")
+            pseudotext += clients[nick]["aon"].digest_last()
+        clients[nick]["ctr"] = (seqno - 1) * blocksz / get_cipher().block_size
+        ciphertext = clients[nick]["crypto_obj"].encrypt(pseudotext)
+        log("(encrypted pkt)")
+
+        block = ciphertext
 
     pkt = clients[nick]["prefix"]        # 3-byte prefix
     pkt += struct.pack("!I", seqno)[1:]  # 3-byte seq no
@@ -1323,13 +1362,15 @@ def build_ethernet_hdr(src_mac, dst_mac, type_code):
            struct.pack("!Q", src_mac)[2:] + \
            struct.pack("!H", type_code)
 
-def send_packet_TCP(src, dst, payload):
+#def send_packet_TCP(src, dst, payload):
     # TODO: TCP aggregates are efficient! So, offer an option to send
     #       spoofed TCP packets, which form streams, so it looks real + valid.
     #       UDP is often discarded more by routers, best of both worlds=TCP!
     #     However, receiving it would require pylibcap, and the extra TCP
     #     segments might confuse the OS TCP stack...
-    log("TODO: implement")
+#    log("TODO: implement")
+#    assert False, "send_packet_TCP not implemented %s %s %s" % \
+#            (src, dst, payload)
 
 def send_packet_UDP_PCAP(src, dst, payload):
     """Send a UDP packet using pcap's pcap_sendpacket.
@@ -1527,7 +1568,7 @@ def sigusr2(a, b):
     # Doesn't work--can't reload __main__
     #for m in sys.modules.values():
     #    reload(m)
-    log("Re-reading config file")
+    log("Re-reading config file: %s %s" % (a, b))
     load_cfg() 
  
 def main(argv):

@@ -59,6 +59,9 @@
 # or choose the first interface if there is only one.
 "interface": "",
 
-# Chance to lose packets
+# Chance to lose packets - useful for testing acknowledgements, 1:noise
 "noise": 100,
+
+# Allow users to use crypto?
+"crypto": True,
 }

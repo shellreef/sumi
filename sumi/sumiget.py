@@ -9,14 +9,11 @@
 import thread
 import binascii
 import base64
-import random
 import socket
-import string
 import struct
 import signal
 import sys
 import os
-import md5
 import time
 import libsumi
 
@@ -280,6 +277,25 @@ class Client:
             # Decrypt payload, THEN hash
             self.senders[nick]["sessiv"] = inc_str(self.senders[nick]["sessiv"])
             data = data[0:SUMIHDRSZ] + self.decrypt(nick, data[SUMIHDRSZ:])
+
+            # Setup data encryption (CTR & package ECB)
+            self.senders[nick]["sessiv"] = inc_str(self.senders[nick]["sessiv"])
+            from AONT import AON
+            self.senders[nick]["aon"] = AON(get_cipher(),
+                    get_cipher().MODE_ECB)
+
+            def ctr_proc():
+                self.senders[nick]["ctr"] += 1
+                x = pack_num(self.senders[nick]["ctr"])
+                x = "\0" * (16 - len(x)) + x
+                assert len(x) == 16, "ctr_proc len %s not 16" % len(x)
+                return x
+            self.senders[nick]["crypto_obj"] = get_cipher().new(
+                    self.senders[nick]["sesskey"],
+                    get_cipher().MODE_CTR,
+                    self.senders[nick]["sessiv"],
+                    counter=ctr_proc)
+
             #log("Decrypted payload: %s" % ([data],))
         
         hashcode = b64(hash128(data))
@@ -345,8 +361,8 @@ class Client:
         auth = pack_args({"m":self.mss,
                "s":addr[0], "h":hashcode, "o":self.senders[nick]["at"] + 1})
         if self.senders[nick].has_key("crypto_state"):
-            self.senders[nick]["sessiv"] = inc_str(
-                    self.senders[nick]["sessiv"])
+            #self.senders[nick]["sessiv"] = inc_str(
+            #        self.senders[nick]["sessiv"])
             auth = b64(self.encrypt(nick, auth))
             log("Encrypted sumi auth: %s" % auth)
         else:
@@ -375,7 +391,6 @@ class Client:
                 d4 = g - self.senders[nick]["sent_req2"]
                 if d4 >= 2*INTERLOCK_DELAY-0.1:
                     log("POTENTIAL MITM ATTACK DETECTED--DELAY TOO LONG. %s"%d4)
-                    import os
                     os._exit(-1)
                     return
                 else:
@@ -387,8 +402,33 @@ class Client:
         self.senders[nick]["last_msg"] = time.time()
 
         offset = (seqno - 1) * (self.mss - SUMIHDRSZ)
+        # XXX: broken
+        if False and self.senders[nick].has_key("crypto_state"):
+            # Outer crypto: CTR mode (XXX: is this ctr right?)
+            self.senders[nick]["ctr"] = offset / get_cipher().block_size
+            pseudotext = self.senders[nick]["crypto_obj"].decrypt(data)
+
+            # Inner crypto: ECB package mode, step 1 (gathering)
+            self.senders[nick]["aon"].gather(pseudotext, seqno)
+
+            if len(data) != self.mss - SUMIHDRSZ:
+                # Pass last block to gather_last(), then can decrypt
+                last_block = data[-get_cipher().block_size:]
+                pseudotext = data[0:get_cipher().block_size]
+                self.senders[nick]["aon"].gather_last(last_block)
+                log("Gathered last block!")
+                self.senders[nick]["can_undigest"] = True
+
+            # Save data in file and unpackage after finished
+            data = pseudotext
+
         self.senders[nick]["fh"].seek(offset)
         self.senders[nick]["fh"].write(data)
+
+        if self.senders[nick].has_key("can_undigest"):
+            # TODO: undigest all blocks from file
+            log("TODO: undigest the file! key=%s" % \
+                    ([self.senders[nick]["aon"]],))
 
         # Mark down each packet in our receive window
         if self.senders[nick]["rwin"].has_key(seqno):
@@ -405,10 +445,11 @@ class Client:
         # New data (not duplicate) - add to running total
         self.senders[nick]["bytes"] += len(data) 
 
+        # Note: callback called every packet; might be too excessive
         self.callback(nick, "write", offset, self.senders[nick]["bytes"],
             self.senders[nick]["size"], addr)
 
-        #Check previous packets, see if they were lost (unless first packet)
+        # Check previous packets, see if they were lost (unless first packet)
         if (seqno > 1):
             i = 1 
             # Nice little algorithm. Work backwards, searching for gaps.
@@ -439,10 +480,9 @@ class Client:
                 log("NON-FULLSIZED: %d != %d" 
                         % (len(data), self.mss - SUMIHDRSZ))
                 self.senders[nick]["gotlast"] = 1
-                # File size is now sent in auth packet so no need to calc it here
+                # File size is now sent in auth packet so no need to calc it
                 #self.senders[nick]["size"] = self.senders[nick]["fh"].tell()
                 self.on_timer()     # have it check if finished
-
 
         if self.senders.has_key(nick):
             self.save_lost(nick)  # for resuming
@@ -558,7 +598,10 @@ class Client:
                 alost = [ _y for _y in alost if _y >= ss ]
 
                 log("ALOST2 (ss=%s): %s" % (ss, len(alost)))
-                lost = ",".join(map(str, alost))
+                #lost = ",".join(map(str, alost))
+                # XXX: Compressed NAKs
+                lost = pack_range(alost)
+
                 # Compress by omitting redundant elements to ease bandwidth
                 if self.rwinsz_old == self.rwinsz and lost == "":
                     self.sendmsg(x, "n")
@@ -578,6 +621,7 @@ class Client:
 
             except KeyError:   # sender ceased existance
                 pass
+        return None
 
     def finish_xfer(self, nick):
         """Finish the file transfer."""
@@ -713,7 +757,8 @@ class Client:
                 except IndexError:
                     log("Usage: sumiget <transport> <server_nick> <file>")
             else:
-                self.sendmsg(irc_chan, line)
+                log("Unrecognized command: %s" % line)
+                #self.sendmsg(irc_chan, line)
         # DO SUMI SEC THEN ENCRYPT MSGS & PACKETS
         # Pre-auth. aes'd sumi send > irc_maxlen
         # MAX IRC PRIVMSG IN XCHAT: 452 in #sumi, 454 in #a (??) 462 in #a*31
@@ -726,7 +771,7 @@ class Client:
         # sumi login can be implemented later; allowing remote admin.
         # TODO: Actually, why not simply extend sumi send to allow remote admn.
 
-    def crypto_thread(self, nick, ckeys):
+    def crypto_thread(self, nick):
         """Thread to wait for messages from server to setup crypto.
         Passes messages to handle_server_message."""
         def crypto_callback(user_nick, msg):
@@ -740,13 +785,13 @@ class Client:
     
     def encrypt(self, nick, msg):
         """Encrypt a message using nick's key and IV."""
-        e = encipher(msg, self.senders[nick]["sesskey"], 
+        e = encrypt_msg(msg, self.senders[nick]["sesskey"], 
                 self.senders[nick]["sessiv"])
         return e
 
     def decrypt(self, nick, msg):
         """Decrypt a message using nick's key and IV."""
-        return decipher(msg, self.senders[nick]["sesskey"], 
+        return decrypt_msg(msg, self.senders[nick]["sesskey"], 
                 self.senders[nick]["sessiv"])
 
     def handle_server_message(self, nick, msg):
@@ -860,6 +905,8 @@ class Client:
         # Generate our keys
         ckeys = []
         for i in range(3):
+            log("Generating key #%s" % i)
+            # XXX: ECC key generation crashes on amd64
             ckeys.append(ecc(ord(random_bytes(1))))
        
         # Send our public keys to server
@@ -876,7 +923,7 @@ class Client:
         # because setting up crypto is the only time we receive transport
         # messages from the server. 
         log(">>>>> %s" % nick)
-        thread.start_new_thread(self.crypto_thread, (nick, ckeys))
+        thread.start_new_thread(self.crypto_thread, (nick, ))
         #thread.start_new_thread(self.wrap_thread, 
         #        (self.crypto_thread, (nick, ckeys)))
         # Uncomment to run without a thread for better error reporting
@@ -1121,12 +1168,10 @@ class Client:
         t.log = log
         t.capture = capture
         t.get_tcp_data = get_tcp_data
+    
+        print "t=",t
 
         self.senders[nick]["sendmsg"] = t.sendmsg
-
-        if hasattr(t, "recvmsg"):
-            # If can't receive messages, crypto not available
-            self.senders[nick]["recvmsg"] = t.recvmsg
 
         self.senders[nick]["transport_init"] = t.transport_init
 
@@ -1138,6 +1183,10 @@ class Client:
             self.senders[nick]["transport_init"]()
             transports[transport] = 1   # Initialize only once
             log("Just inited %s" % transport)
+
+        if hasattr(t, "recvmsg"):
+            # If can't receive messages, crypto not available
+            self.senders[nick]["recvmsg"] = t.recvmsg
 
     def main(self, transport, nick, file):
         self.senders[nick] = {}
@@ -1257,16 +1306,8 @@ def pre_main(invoke_req_handler):
     #pidf.write(str(os.getpid()))
     #pidf.close() 
 
-# Save pid. This was used for local IPC, but now sockets are used
-#def save_pid(pid):
-#    pidf = open(base_path + "sumiget.pid", "wb")
-#    pidf.write(str(pid))
-#    pidf.close()
-
 if __name__ == "__main__":
     pre_main(on_sigusr1)
-
-    #save_pid(os.getpid())
 
     transport, nick, filename = sys.argv[1], sys.argv[2], sys.argv[3]
 

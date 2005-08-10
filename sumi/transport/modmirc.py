@@ -11,8 +11,10 @@ import win32gui
 import mmap
 import sys
 
+global recvmsg
+
 def transport_init():
-    global g_mem, g_mIRC
+    global g_mem, g_mIRC, recvmsg
 
     g_mem = mmap.mmap(0, 4096, "mIRC")
     try:
@@ -22,6 +24,13 @@ def transport_init():
                 "running?")
         sys.exit(-1)
     log("Located mIRC, running...")
+
+    # Our transport_init is called after all these calls were imported
+    import capture_irc
+    recvmsg = capture_irc.recvmsg
+    capture_irc.capture = capture
+    capture_irc.cfg = cfg
+    capture_irc.get_tcp_data = get_tcp_data
 
 
 def sendmsg(nick, msg):
@@ -53,38 +62,4 @@ def sendmsg_1(nick, msg):
     g_mem.seek(0)
     g_mem.write("/msg %s %s" % (nick, msg) + "\0" * 100)
     win32api.SendMessage(g_mIRC, win32con.WM_USER + 200, 0, 0)
-
-def recvmsg(callback):
-    """Capture receiving messages using pcap. Won't work with encrypted IRC, 
-    or ports outside 6000-8000."""
-    def decoder(pkt_data):
-        return decode_irc(get_tcp_data(pkt_data))
-    
-    # Ports 6660-6669, 7000. Fairly conservative range. Can't filter PRIVMSG,
-    # because its location within TCP packet varies with a source prefix.
-    filter = "tcp and ("
-    s = 6660
-    e = 6669
-    if cfg.has_key("irc_port_range"):
-        # Some IRC servers use odd ports, allow configurable range
-        s, e = map(int, sumiserv.cfg["irc_port_range"].split("-"))
-    for i in range(6660, 6669):
-        filter += "port %s or " % i
-    filter += "port 7000)"
-    # Never returns
-    capture(decoder, filter, callback)
-
-def decode_irc(data):
-    """Decode IRC data, returning nickname and message of private messages."""
-    if len(data) == 0 or data[0] != ":" or not " " in data: 
-        return (None, "not incoming")
-    source, cmd, args = data.split(" ", 2)
-    if cmd != "PRIVMSG":
-        return (None, "not message")
-    nick, host = source[1:].split("!")
-    dest, msg = args.split(" ", 1)
-    if msg[0] != ":":
-        return (None, "unexpected missing :") 
-    return (nick, msg[1:])
-
 

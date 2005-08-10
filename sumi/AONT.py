@@ -34,11 +34,11 @@ class AONException:
         return "AONException: %s" % self.msg
 
 class AON:
-    def __init__(self, cipher, mode, IV, hash=None):
+    def __init__(self, cipher, mode, IV=None, hash=None):
         """Initialize all-or-nothing transform.
 
         cipher: PEP272 compliant cipher module, for example. Crypto.Cipher.AES
-        mode, IV: cipher mode and IV, passed to cipher.new()
+        mode, IV: cipher mode and IV (optional), passed to cipher.new()
         hash: hash module, defaults to SHA-1
         """
 
@@ -85,7 +85,10 @@ class AON:
         if not self.digesting:
             self.k = random_bytes(self.block_size) 
             #print "=====k=",[self.k]
-            self.crypt = self.cipher.new(self.k, self.mode, self.IV)
+            if self.IV:
+                self.crypt = self.cipher.new(self.k, self.mode, self.IV)
+            else:
+                self.crypt = self.cipher.new(self.k, self.mode) 
             self.digesting = True
             self.last_block = self.k  # will be updated each with block
 
@@ -137,8 +140,8 @@ class AON:
         return self.hash.new(xor_str(msg, i)).digest()[0:self.block_size]
 
     # == untransformation routines ==
-    def gather_block(self, block, i):
-        """First-pass of untransformation. Hash block number i and
+    def gather_next(self, block, i):
+        """First-pass of untransformation. Hash block number i (first is 1) and
         update k."""
 
         if not self.gathering:
@@ -161,7 +164,7 @@ class AON:
             self.block_no = start
         for block in self.split_blocks(blocks):
             self.block_no += 1
-            self.gather_block(block, self.block_no)
+            self.gather_next(block, self.block_no)
 
     def gather_last(self, block):
         """First-pass of last block. After this call, the package encryption
@@ -171,7 +174,7 @@ class AON:
         self.k = xor_str(self.k, block)
         #print "k last=",[self.k]
         self.can_undigest = True
-        return self.k
+        #return self.k
 
     def undigest(self, blocks, start=None):
         """Undigest a string of blocks, returning cleartext."""
@@ -185,7 +188,10 @@ class AON:
             self.can_digest = True
 
         if not self.undigesting:
-            self.crypt = self.cipher.new(self.k, self.mode, self.IV)
+            if self.IV:
+                self.crypt = self.cipher.new(self.k, self.mode, self.IV)
+            else:
+                self.crypt = self.cipher.new(self.k, self.mode)
             self.block_no = 0
             self.undigesting = True
 
@@ -198,7 +204,7 @@ class AON:
             clear += self.xor_block(block, self.make_block(self.block_no))
         return clear
 
-    def undigest_block(self, block, i):
+    def undigest_next(self, block, i):
         """Undigest a single block."""
         return xor_str(block, self.crypt.encrypt(self.make_block(i)))
 
@@ -244,9 +250,9 @@ def main():
 
     # Obtain key
     b=AON(ciph,mode,iv,sha)
-    #b.gather_block(p0,1)
-    #b.gather_block(p1,2)
-    #b.gather_block(p2,3)
+    #b.gather_next(p0,1)
+    #b.gather_next(p1,2)
+    #b.gather_next(p2,3)
     b.gather(p0+p1+p2)
     b.gather_last(p3)
     k=b.k

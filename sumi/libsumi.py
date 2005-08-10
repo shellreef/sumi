@@ -108,6 +108,7 @@ def capture(decoder, filter, callback):
             ret = callback(user, msg)
             if ret:
                 return ret
+    return 1
 
 def get_tcp_data(pkt_data):
     """Returns the TCP data of an Ethernet frame, or None."""
@@ -137,12 +138,12 @@ def b64(data):
     b = b.replace("\n", "")   # annoying...
     return b
 
-def decipher(msg, k, iv):
+def decrypt_msg(msg, k, iv):
     """Symmetric decipher msg with k and IV iv."""
     a = cipher_mod.new(k, cipher_mod.MODE_CBC, iv)
     return a.decrypt(msg) 
 
-def encipher(msg, k, iv):
+def encrypt_msg(msg, k, iv):
     """Symmetric encipher msg with k and IV iv."""
     # Why create a new AES object for every encryption? Its only used
     # once per packet/message, since the IV changes. So we have to 
@@ -202,4 +203,98 @@ def take(data, n, at):
     at += n
     return (x, at)
 
+def pack_range(a):
+    """Pack a list of lost packets sorted ascending, a, 
+    into a compact string with ranges. For example:
+        
+        pack_range([1,2,3,4,5,7,10,12,13,14) => "1-5,7,10,12-14"
+    """
+    if len(a) == 0: return ""
+    s = str(a[0])
+    run = False
+    for i in range(1, len(a)):
+        this = a[i]
+        prev = a[i - 1]
+        change = this - prev
+        # a-b indicates an inclusive range, [a,b]
+        if change == 1: run = True
+        if change != 1 and run: s += "-%s" % prev; run = False
+        if change != 1 and not run: s += ",%s" % this
+        if i == len(a) - 1 and run: s += "-%s" % this
+    return s
+
+def unpack_range(s):
+    """Unpack a string packed with pack_range into a corresponding list.
+    The string may contain multiple integers separated by commas, and 
+    inclusive ranges specified by start-end. For example:
+
+        unpack_range("1-5,7,10,12-14") => [1,2,3,4,5,7,10,12,13,14]
+    """
+    a = []
+    # This kind of compression is used within some print dialogs for the
+    # page range, and also in the HTTP spec to request partial data
+    for p in s.split(","):
+        if "-" in p:
+            start, end = map(int, p.split("-"))
+            a += range(start, end + 1)
+        elif len(p) != 0:
+            a.append(int(p))
+    return a
+
+# TLV routines for working with binary packed requests/auth responses
+# Currently this isn't used, but its here.
+
+global code2name, name2code
+
+def init_tlv():
+    global code2name, name2code
+    # List of codes. r=used in request (sumi send), a=used in sumi auth
+    name2code = {
+        # "name": [code, how_to_pack]
+        "none": [0, None],    # (r) not used
+        "file": [1, str],     # (r) filename to request
+        "ip": [2, "I"],       # (r) IP address to send to
+        "port": [3, "H"],     # (r) port to send to
+        "mss": [4, "H"],      # (ra)Maximum Segment Size
+        "prefix": [5, str],   # (r) prefix on data packets
+        "bandwidth": [6, "I"],# (r) allowable bandwidth (bps)
+        "rwinsz": [7, "B"],   # (r) receive window size (secs)
+        "dchantype": [8, "B"],# (r) data channel type
+        "source": [9, "I"],   # (a) source address of authentication packet
+        "hashcode": [10, str],# (a) hash code of authentication packet
+        "offset": [11, "I"],  # (a) requested resume offset
+        # Add new codes here
+        }
+    code2name = [None] * len(name2code.values())
+    for k in name2code:
+        code2name[name2code[k][0]] = [k, name2code[k][1]]
+
+init_tlv()
+
+def pack_tlv(d):
+    """Pack a dictionary into Mini-TLV format."""
+    s = ""
+    for k in d:
+        if name2code[k][1] != str:
+            v = struct.pack(name2code[k][1], d[k])
+        else:
+            v = d[k]
+        s += struct.pack("!BB", name2code[k][0], len(v)) + v
+    return s
+
+def unpack_tlv(s):
+    """Unpack a Mini-TLV string into a dictionary."""
+    i = 0
+    d = {}
+    while i < len(s):
+        t, l = struct.unpack("!BB", s[i:i + 2])
+        i += 2
+        v_str = s[i:i + l]
+        i += l
+        if code2name[t][1] != str:
+            v = struct.unpack(code2name[t][1], v_str)[0]
+        else:
+            v = v_str
+        d[code2name[t][0]] = v
+    return d
 

@@ -1,3 +1,7 @@
+2005-08-10 Jeff Connelly <jeffconnelly@users.sourceforge.net>
+	* General code cleanup (pychecker again)
+	* NAK lost packets are compressed, ex: 1-5,8,10 instead of 1,2,3,..
+
 2005-07-31 Jeff Connelly <jeffconnelly@users.sourceforge.net> - 0.8.11
 	* Auth packet includes hash of nonce for client to verify
 	* Completely redone crypto implementation from 0.8.10

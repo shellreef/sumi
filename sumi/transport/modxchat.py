@@ -9,6 +9,10 @@
 import os
 import sys
 
+import capture_irc
+
+recvmsg = capture_irc.recvmsg
+
 XCHAT_FILE = "/tmp/xchat"
 
 def transport_init():

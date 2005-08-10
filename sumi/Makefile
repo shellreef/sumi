@@ -23,3 +23,13 @@ package:
 clean::
 	rm -f /home/jeff/p2p/sumi/incoming/*
 	rm -rf *.pyc
+	rm -rf cfastxor.o
+	rm -rf cfastxor_wrap.o
+	rm -rf cfastxor.so
+	rm -rf _cfastxor.so
+
+cfastxor::
+	swig -python cfastxor.i
+	gcc -c cfastxor.c cfastxor_wrap.c -I/usr/local/include/python2.3
+	ld -shared cfastxor.o cfastxor_wrap.o -o _cfastxor.so
+
