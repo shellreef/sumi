@@ -401,8 +401,7 @@ def handle_send(nick, msg):
     file_info += os.path.basename(cfg["filedb"][clients[nick]["file"]]["fn"]+\
                "\0");  # Null-term'd
 
-    # XXX: broken
-    if False and clients[nick].has_key("crypto_state"):
+    if clients[nick].has_key("crypto_state"):
         # Outer encryption: CTR mode
         clients[nick]["ctr"] = unpack_num(clients[nick]["sessiv"]) + 1
         def ctr_proc():

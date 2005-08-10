@@ -70,15 +70,27 @@ class AON:
         part by part, use digest_next() and digest_last() instead.""" 
         return self.digest_next(msg) + self.digest_last()
 
-    def digest_next(self, msg):
+    def redigest_next(self, msg, start):
+        """Digest a message without updating the last block. This allows
+        you to digest a plaintext message after calling digest_last(), for
+        example, for retransmission. This is useful because the pseudomessage
+        doesn't have to be stored; it can be recalculated when needed.
+
+        a.redigest_next(msg, n) == b.digest_next(msg, n)
+
+        Same as digest_next(self, msg, start, True).
+        """
+        return self.digest_next(msg, start, True)
+
+    def digest_next(self, msg, start=None, repeat=False):
         """Given a string of cleartext blocks, create and return the
         corresponding pseudomessage. msg must be a multiple of the block
         size of the block cipher, and the return value will be a string of
         pseudoblocks.
         
-        Cannot be called after last()."""
+        Cannot be called after digest_last() unless repeat is True."""
 
-        if self.done:
+        if self.done and not repeat:
             raise AONException("called digest_next() after digest_last()")
 
         # First time encrypting? Setup...
@@ -95,9 +107,13 @@ class AON:
         if len(msg) % self.block_size:
             raise AONException("Message length %s not multiple of %s" %
                     (len(msg), self.block_size))
+        if start != None:
+            self.block_no = start - 1  # will be incremented by 1
+
         pseudo = ""
         for clear_block in self.split_blocks(msg):
-            pseudo += self.next_block(clear_block)
+            self.block_no += 1
+            pseudo += self.next_block(clear_block, self.block_no, repeat)
         return pseudo
 
     def split_blocks(self, s):
@@ -118,17 +134,17 @@ class AON:
         representing the block number, made from self.make_block()."""
         return xor_str(block, self.crypt.encrypt(i_str))
 
-    def next_block(self, clear_block):
+    def next_block(self, clear_block, i, repeat=False):
         """Transform one message block into a pseudomessage block."""
-        self.block_no += 1
-        block_no = self.make_block(self.block_no)
+        i_str = self.make_block(i)
         #print "Block %s" % self.block_no
         # m'[i] = m[i] xor E(K',i) for i=1,2,3,...,s
-        pseudo_block = self.xor_block(clear_block, block_no)
+        pseudo_block = self.xor_block(clear_block, i_str)
         #print "pseudo_block of %s = %s" % (clear_block, [pseudo_block])
         # m'[s'] = K' xor h[1] xor h[2] xor ... h[s]
-        self.last_block = xor_str(self.last_block, 
-                self.hash_block(pseudo_block, block_no))
+        if not repeat:
+            self.last_block = xor_str(self.last_block, 
+                    self.hash_block(pseudo_block, i_str))
         #print "k enc =",[self.last_block]
         return pseudo_block
 
@@ -261,9 +277,9 @@ def main():
     d0=b.undigest(p0)
     d1=b.undigest(p1)
     d2=b.undigest(p2)
-    assert d0=="hi"*8, "undigest part 0 failed: %s" % d0
-    assert d1=="xy"*8, "undigest part 1 failed: %s" % d1
-    assert d2=="."*16, "undigest part 2 failed: %s" % d2
+    assert d0=="hi"*8, "undigest part 0 failed: %s" % ([d0,])
+    assert d1=="xy"*8, "undigest part 1 failed: %s" % ([d1,])
+    assert d2=="."*16, "undigest part 2 failed: %s" % ([d2,])
     print "Undigested: %s" % (d0+d1+d2)
     print "Passed test 1"
 
@@ -292,8 +308,41 @@ def main():
     print "Cleartext:", [ct2]
     assert ct == ct2
     print "Simple API test passed"
+    print
 
-    raise SystemExit
+    # Test out-of-order AONT
+    a=AON(ciph,ciph.MODE_ECB)
+
+    # Cleartext blocks
+    c1 = "x"*16
+    c2 = "y"*16
+    c3 = "z"*16
+
+    # Pseudomessages
+    p1 = a.digest_next(c1, 1)
+    p2 = a.digest_next(c2, 2)
+    p3 = a.digest_next(c3, 3)
+    p4 = a.digest_last()
+
+    b=AON(ciph,ciph.MODE_ECB)
+    assert b.undigest(p1+p2+p3+p4) == c1+c2+c3, "digest_next(cN,N-1) failed"
+    print "digest_next() with explicit block passed"
+    
+    # Gather manually--out of order. Works since XOR is commutative & assoc.
+    # For SUMI, tests ability for client to receive resends
+    b=AON(ciph,ciph.MODE_ECB)
+    b.gather_next(p1, 1)
+    b.gather_next(p3, 3)
+    b.gather_next(p2, 2)
+    b.gather_last(p4)
+    assert b.k == a.k, "gather_next with block number failed: %s != %s" % (
+            [b.k], [a.k])
+    print "gather_next() out-of-order works"
+
+    # Redigest a few blocks. For SUMI, simulates server resends.
+    p2x = a.redigest_next(c2, 2)
+    assert p2x == p2, "redigest failed!"
+    print "redigest works"
 
 if __name__ == "__main__":
-    while 1: main()
+    main()
