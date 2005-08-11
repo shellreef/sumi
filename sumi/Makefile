@@ -23,6 +23,7 @@ package:
 clean::
 	rm -f /home/jeff/p2p/sumi/incoming/*
 	rm -rf *.pyc
+	rm -rf transport/*.pyc
 	rm -rf cfastxor.o
 	rm -rf cfastxor_wrap.o
 	rm -rf cfastxor.so
