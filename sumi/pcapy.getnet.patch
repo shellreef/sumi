@@ -1,0 +1,14 @@
+Common subdirectories: pcapy-0.10.3.orig/build and pcapy-0.10.3/build
+diff -u pcapy-0.10.3.orig/pcapy.cc pcapy-0.10.3/pcapy.cc
+--- pcapy-0.10.3.orig/pcapy.cc	Thu Aug 11 12:17:49 2005
++++ pcapy-0.10.3/pcapy.cc	Thu Aug 11 12:29:52 2005
+@@ -111,7 +111,7 @@
+   pcap_setmintocopy(pt, 0);
+ #endif
+ 
+-  return new_pcapobject( pt );
++  return new_pcapobject( pt, net, mask );
+ }
+ 
+ static PyObject*
+Common subdirectories: pcapy-0.10.3.orig/win32 and pcapy-0.10.3/win32
