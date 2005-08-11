@@ -1,0 +1,4 @@
+python >=2.4                Required since SUMI 0.4
+py24-wxPython >= 2.4        If you want to run the sumigetw.py GUI
+py24-cryptkit >= 0.9        If you want crypto
+py24-pycrypto >= 2.0.1      If you want crypto
