@@ -27,6 +27,10 @@ clean::
 	rm -rf cfastxor_wrap.o
 	rm -rf cfastxor.so
 	rm -rf _cfastxor.so
+	rm -rf build
+	rm -rf dist
+	rm -rf buildsumigetw
+	rm -rf distsumigetw
 
 cfastxor::
 	swig -python cfastxor.i
