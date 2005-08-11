@@ -10,7 +10,8 @@ def recvmsg(callback):
     """Capture receiving messages using pcap. Won't work with encrypted IRC, 
     or ports outside 6000-8000."""
     def decoder(pkt_data):
-        return decode_irc(get_tcp_data(pkt_data))
+        if decode_irc and get_tcp_data:
+            return decode_irc(get_tcp_data(pkt_data))
 
     # Ports 6660-6669, 7000. Fairly conservative range. Can't filter PRIVMSG,
     # because its location within TCP packet varies with a source prefix.

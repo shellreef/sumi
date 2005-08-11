@@ -1139,8 +1139,8 @@ Error: %s: %s""" \
     try:
         p = pcapy.open_live(cfg["interface"], 1500, 1, 0)
     except pcapy.PcapError:
-        log("Error opening %s" % cfg["interface"])
-        select_if()
+        log("Pcap: Error opening %s: %s" % cfg["interface"], pcapy.PcapError)
+        use_new_if()
 
     if not hasattr(p, "sendpacket"):
         fatal(10, """Your pcapy is lacking sendpacket, please use modified
@@ -1436,7 +1436,7 @@ def send_frame_ETHER(src_mac, dst_mac, payload, ethertype=0x0800): # IPv4
     import pcapy
     if not cfg.has_key("interface"):
         log("The 'interface' configuration item is not set. ")
-        select_if() 
+        use_new_if() 
     p = pcapy.open_live(cfg["interface"], 1500, 1, 1)
 
     if not hasattr(p, "sendpacket"):
@@ -1461,19 +1461,33 @@ included with SUMI distribution, or use modified winpcap (see sumiserv.py).""")
     pkt = build_ethernet_hdr(src_mac, dst_mac, ethertype) + payload
     p.sendpacket(pkt)
 
-def select_if():
-    """List all network interfaces and tell user to choose one."""
-    import pcapy
-    #i = 0
-    log("Available network interfaces:")
-    for name in pcapy.findalldevs():
-        #i += 1
-        #print "%d. %s" % (i, name)
-        log(name)
-    log("pcapy error opening interface: %s" % pcapy.PcapError)
-    fatal(20, "Please set 'interface' to one of the values in sumiserv.cfg,"+
-        "\nthen restart sumiserv.")
-    # TODO: GUI to edit configuration file, within program
+def ipmask2cidr(ip, mask):
+    """Given an IP address and mask, in dotted-decimal, return the
+    range it covers in CIDR notation suitable for set_src_allow."""
+    # Count leading bits in mask, ex:
+    # 255.255.0.0 => 16
+    # 255.254.0.0 => 15
+    # Seems to match all test vectors at: http://nic.phys.ethz.ch/readme/66
+    m, = struct.unpack("!I", struct.pack("!BBBB", *map(int, mask.split("."))))
+    leading_bits = 0
+    while m:
+        m <<= 1             # shift over
+        m &= 0xffffffffL    # mask out
+        leading_bits += 1
+
+    return "%s/%s" % (ip, leading_bits)
+
+def use_new_if():
+    """Use select_if() to allow choosing a new interface, then quit."""
+    cfg["interface"], ip, mask, mss_ignored = select_if()
+
+    allow = ipmask2cidr(ip, mask)
+    log("%s+%s => allow %s" % (ip, mask, allow))
+    cfg["src_allow"] = allow
+    set_src_allow(allow)
+
+    log("Please restart and verify the new settings in sumiserv.cfg")
+    on_exit()
 
 def send_packet_UDP_SOCKET(src, dst, payload):
     """Send a UDP packet from src to dst.
@@ -1603,6 +1617,9 @@ def main(argv):
         setup_raw(argv)
     if cfg["dchanmode"] == "pcap" or cfg["transport"] == "aim":
         setup_pcap()
+    
+    if not cfg.has_key("src_allow"):
+        use_new_if()
 
     set_src_allow(cfg["src_allow"])
 
@@ -1631,6 +1648,7 @@ def on_exit():
     sys.exit()
     raise SystemExit
     raise KeyboardInterrupt
+    os._exit(0)
  
 if __name__ == "__main__":
     main(sys.argv)

@@ -19,7 +19,6 @@ import libsumi
 
 from libsumi import *
 from nonroutable import is_nonroutable_ip
-from getifaces import get_ifaces, get_default_ip
 
 def log(msg):
     print msg
@@ -973,47 +972,14 @@ class Client:
                 log("Using IP: %s" % self.myip)
         else:
             log("IP not specified, getting network interface list...")
+            log("\nSelect an interface, or set 'myip' in config.py for auto.")
 
-            # XXX: all 0.0.0.0's on Windows here. Pcapy doesn't provide a MAC
-            # address, nor a definite MTU, but we can use the datalink to
-            # guestimate the MTU.
-            # TODO: I'd like a warning if an interface is used without an IP;
-            # because I do that often (switching between WiFi & Ethernet).
-            import pcapy
-            log("IP\tMask (MTU): Interface")
-            for dev in pcapy.findalldevs():
-                p = pcapy.open_live(dev, 0, 0, 0)
-                mtu = datalink2mtu(p.datalink())
-                log("%s\t%s (%s): %s" % (p.getnet(), p.getmask(), mtu, dev))
-            # TODO: Automatic!
-            log("Please pick the appropriate interface, and set the myip, ")
-            log("src_allow, mss, and interface options, then restart.")
-            log("Alternatively, set myip to '' to autodetect.")
-            raise SystemExit
+            (self.config["interface"], self.config["myip"], ignore,
+                self.config["mss"]) = select_if()
 
-            # Look for an up interface. Use get_ifaces instead of just the
-            # IP so we can also get the netmask, too.
-            # XXX: getifaces.py requires wmi; Win32 only, bulky.
-            #ifaces = get_ifaces()
-            #for name in ifaces:
-            #    if not ifaces[name].has_key("status") or \
-            #       ifaces[name]["status"] != True and \
-            #       ifaces[name]["status"] != "active":
-            #        continue
-            #    if not ifaces[name]["inet"]: continue
-            #
-            #    log("%s %s %s" 
-            #            % (name,ifaces[name]["inet"],ifaces[name]["netmask"]))
-            # TODO: GUI input
-            #log("Which interface? ")
-            #i = sys.stdin.readline()[:-1]
-            #log("Using IP %s" % ifaces[i]["inet"])
-            # XXX: This has potential. Ideally, could find the active
-            # interface, and read the IP, mask (for set_src_allow), and the
-            # MTU (to derive the MSS). However, it needs the wmi module...
-            #self.myip = ifaces[i]["inet"]
-            #self.netmask = ifaces[i]["netmask"]   # save for later
-            #self.mss = int(ifaces[i]["mtu"]) - 28
+            log("Saving settings. Please review them in config.py, edit "+
+                    "as necessary, and restart.")
+            self.on_exit()
 
         if self.config.has_key("myport"):
             self.myport = self.config["myport"]
@@ -1268,9 +1234,10 @@ class Client:
         # Abort all the transfers, be polite. Rudely leaving without aborting
         # will cause the server to time out after not receiving our acks, but
         # it takes a while to time out and wastes bandwidth.
-        for x in self.senders.keys():
-            log("Aborting %s" % x)
-            self.abort(x)
+        if hasattr(self, "senders"):
+            for x in self.senders.keys():
+                log("Aborting %s" % x)
+                self.abort(x)
 
         log("Exiting now")
         sys.exit()

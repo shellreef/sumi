@@ -1,3 +1,7 @@
+2005-08-11 Jeff Connelly <jeffconnelly@users.sourceforge.net>
+	* Partially autoconfigure IP, MSS, src_allow, and interface if
+	  no 'interface' in config.py or no 'src_allow' in sumiserv.cfg.
+
 2005-08-10 Jeff Connelly <jeffconnelly@users.sourceforge.net>
 	* General code cleanup (pychecker again)
 	* NAK lost packets are compressed, ex: 1-5,8,10 instead of 1,2,3,..

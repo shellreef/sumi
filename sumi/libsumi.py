@@ -4,12 +4,15 @@
 
 # Python library for common SUMI functions, shared between client and server
 
+import sys
 import struct 
 import base64
 import sha
 from itertools import izip, chain
 
 SUMIHDRSZ = 6#bytes
+UDPHDRSZ = 8#bytes
+IPHDRSZ = 20#bytes
 SUMIAUTHHDRSZ = 4#bytes
 PKT_TIMEOUT = 3#seconds
 
@@ -448,3 +451,57 @@ def datalink2mtu(d):
         pcapy.DLT_LTALK: 1500,          # Apple LocalTalk            
         }.get(d, 1500)
 
+def select_if():
+    """Display network interfaces, allow user to choose one.
+    
+    Return (interface, ip, mask, mss)."""
+    import pcapy
+
+    # getnet()/getmask() return all 0's in 0.10.3, unless the patch
+    # "pcapy.getnet.patch" is applied, or a newer version fixes it.
+
+    # TODO: I'd like a warning if an interface is used without an IP;
+    # because I do that often (switching between WiFi & Ethernet).
+    import pcapy
+    ifaces = []
+    log("%s. %-16s %-16s %5s\n\t%s\n" % (
+        "#", "IP Address", "Netmask", "MTU?", "Device"))
+    i = 0
+    for dev in pcapy.findalldevs():
+        p = pcapy.open_live(dev, 0, 0, 0)
+        # Pcapy doesn't provide MAC addr, or the real MTU, so we use
+        # the datalink field to guestimate the MTU.
+        mtu = datalink2mtu(p.datalink()) 
+        ip = p.getnet()
+        if ip == "0.0.0.0": 
+            continue            # skip for brevity
+        mask = p.getmask()
+        log("%s. %-16s %-16s %5s\n\t%s\n" % (i, ip, mask, mtu, dev))
+        ifaces.append({"ip": ip, 
+                       "mask": mask, 
+                       "mtu": mtu, 
+                       "dev": dev})
+        i += 1
+    log("Please enter the number of an interface on the console")
+    log("or use Control-C on the console to exit.")
+    while True:
+        print "Which interface? "
+        i = int(sys.stdin.readline().strip())
+        if i < 0 or i > len(ifaces): continue
+        break
+
+    log("Selected interface #%s" % i)
+    interface = ifaces[i]["dev"]
+    log("Using interface %s" % interface)
+
+    myip = ifaces[i]["ip"]
+    log("Using IP %s" % myip)
+
+    # Useful for sumiserv..put this in libsumi, set_src_allow
+    mask = ifaces[i]["mask"]
+    log("Using mask %s" % mask)
+
+    mss = ifaces[i]["mtu"] - IPHDRSZ - UDPHDRSZ
+    log("Using MSS %s" % mss)
+
+    return (interface, myip, mask, mss)
