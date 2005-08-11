@@ -1,0 +1,104 @@
+diff -ur pcapy-0.10.3.orig/pcapobj.cc pcapy-0.10.3/pcapobj.cc
+--- pcapy-0.10.3.orig/pcapobj.cc	Thu Oct 23 17:00:52 2003
++++ pcapy-0.10.3/pcapobj.cc	Thu Jun 16 15:05:20 2005
+@@ -57,7 +57,9 @@
+ static PyObject* p_setnonblock(register pcapobject* pp, PyObject* args);
+ static PyObject* p_getnonblock(register pcapobject* pp, PyObject* args);
+ static PyObject* p_dump_open(register pcapobject* pp, PyObject* args);
+-
++#ifdef WIN32
++static PyObject* p_sendpacket(register pcapobject* pp, PyObject* args);
++#endif
+ 
+ static PyMethodDef p_methods[] = {
+   {"loop", (PyCFunction) p_loop, METH_VARARGS, "loops packet dispatching"},
+@@ -70,6 +72,9 @@
+   {"getnonblock", (PyCFunction) p_getnonblock, METH_VARARGS, "returns the current `non-blocking' state"},
+   {"setnonblock", (PyCFunction) p_setnonblock, METH_VARARGS, "puts into `non-blocking' mode, or take it out, depending on the argument"},
+   {"dump_open", (PyCFunction) p_dump_open, METH_VARARGS, "creates a dumper object"},
++#ifdef WIN32
++  {"sendpacket", (PyCFunction) p_sendpacket, METH_VARARGS, "sends a link-level raw packet"},
++#endif
+   {NULL, NULL}	/* sentinel */
+ };
+ 
+@@ -397,3 +402,31 @@
+ 
+ 	return Py_BuildValue("i", state);
+ }
++
++#ifdef WIN32
++static PyObject*
++p_sendpacket(register pcapobject* pp, PyObject* args)
++{	
++    if (pp->ob_type != &Pcaptype) {
++		PyErr_SetString(PcapError, "Not a pcap object");
++		return NULL;
++	}
++
++    char *buf;
++    int size;
++
++    if (!PyArg_ParseTuple(args, "s#", &buf, &size))
++    {
++        PyErr_SetString(PcapError, "Must pass string to sendpacket");
++        return NULL;
++    }
++
++    int status = pcap_sendpacket(pp->pcap, (unsigned char*)buf, size);
++    
++    if(status)
++    {
++        PyErr_SetString(PcapError, pcap_geterr(pp->pcap));
++    }
++    return Py_BuildValue("i", status);
++}
++#endif 
+diff -ur pcapy-0.10.3.orig/pcapy.cc pcapy-0.10.3/pcapy.cc
+--- pcapy-0.10.3.orig/pcapy.cc	Thu Oct 23 17:00:52 2003
++++ pcapy-0.10.3/pcapy.cc	Thu Jun 16 15:59:34 2005
+@@ -34,7 +34,6 @@
+       PyErr_SetString(PcapError, errbuff);
+       return NULL;
+     }
+-  
+   return Py_BuildValue("u", dev);
+ }
+ 
+@@ -176,7 +175,6 @@
+   
+   return new_bpfobject( bpf );
+ }
+-
+ 
+ static PyMethodDef pcap_methods[] = {
+   {"open_live", open_live, METH_VARARGS, "open_live(device, snaplen, promisc, to_ms) opens a pcap device"},
+diff -ur pcapy-0.10.3.orig/win32/findalldevs.cc pcapy-0.10.3/win32/findalldevs.cc
+--- pcapy-0.10.3.orig/win32/findalldevs.cc	Thu Oct 23 17:00:54 2003
++++ pcapy-0.10.3/win32/findalldevs.cc	Thu Jun 16 15:52:31 2005
+@@ -41,7 +41,8 @@
+   // We have to check the os on which we are running
+   dwVersion=GetVersion();
+   dwWindowsMajorVersion =  (DWORD)(LOBYTE(LOWORD(dwVersion)));
+-  if (!(dwVersion >= 0x80000000 && dwWindowsMajorVersion >= 4))
++  if (!(dwVersion >= 0x80000000 && dwWindowsMajorVersion >= 4)
++          && dwWindowsMajorVersion < 5)
+     {  // Windows NT
+       if(PacketGetAdapterNames((char*)&AdapterName,&AdapterLength)==FALSE){
+ 	PyErr_SetString(PcapError, "Unable to retrieve the list of valid adapters!");
+@@ -64,13 +65,13 @@
+ 	}
+     }
+   
+-  else	//windows 95
++  else	//windows 95, or newer than NT (2000 and XP)
+     {
+       if(PacketGetAdapterNames(AdapterNamea,&AdapterLength)==FALSE){
+ 	PyErr_SetString(PcapError, "Unable to retrieve the list of valid adapters!");
+ 	return NULL;
+       }
+-      tempa=(char*)&AdapterName;
++      tempa=(char*)&AdapterNamea;
+       if(*tempa==NULL)
+ 	{
+ 	  PyErr_SetString(PcapError, "No valid interfaces to open");
