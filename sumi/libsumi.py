@@ -298,3 +298,153 @@ def unpack_tlv(s):
         d[code2name[t][0]] = v
     return d
 
+
+def calc_blockno(seqno, payloadsz):
+    """Calculate the first block cipher block number in the given packet.
+    Data packets consist of a number of smaller blocks, often 16 bytes,
+    which are used for encryption. 
+
+    seqno: packet sequence number, 1-based
+    payloadsz: size of data being sent
+
+    Example:
+    MSS=1462 (payloadsz=1462-SUMIHDRSZ=1462-6=1456) and block_size=16:
+        bytes range   seqno   block range
+         0 - 1456        1       0-91
+         1457 - 2913     2       92-183
+         ...             3       184-275"""
+    bs = get_cipher().block_size
+    return (bs + payloadsz) * (seqno - 1) / bs 
+
+    # Unsimplified version (thanks to Mathematica for simplified eqn, ^^)
+    #clients[nick]["ctr"] = (seqno - 1) * payloadsz / bs + seqno - 1
+
+### Routines to obtain the network interfaces.
+##
+# Currently most are broken.
+
+# While we're at it, also get netmask and offer to use it
+#        <a href="http://tgolden.sc.sabren.com/python/wmi_cookbook.html#ip_addresses">link</a>
+#          has WMI to get IP and MACs of IP-enabled network devices, can
+#          use ioctl for BSD. However, making a remote connection and using
+#          the local sockname works better.</p>
+# http://tgolden.sc.sabren.com/python/wmi_cookbook.html#ip_addresses
+#def get_ifaces_win32():
+#    import wmi
+#    c = wmi.WMI()
+#    ifaces = {}
+#
+#    # Caption, ServiceName
+#    for interface in c.Win32_NetworkAdapterConfiguration():
+#        # Win32 stores a bunch of stuff secondary to the interface config,
+#        # like DHCP, DNS, firewall, IPX, TCP, WINS
+#        ifaces[interface.ServiceName] = {
+#            "media": interface.Caption,
+#            "name": interface.ServiceName,
+#            "description": interface.Description,
+#            "ether": interface.MACAddress,
+#            "inet": interface.IPAddress != None and interface.IPAddress[0],
+#        #   "inets": interface.IPAddress,   # can have >1 IP/subnet?
+#            "netmask": interface.IPSubnet != None and interface.IPSubnet[0],
+#        #    #"netmasks": interface.IPSubnet,
+#            "status": interface.IPEnabled,
+#            "mtu": interface.MTU }
+#    return ifaces
+
+# coded for BSD's ifconfig
+# TODO: port to Linux
+#def get_ifaces_unix():
+#    import os
+#
+#    ifconfig = os.popen("ifconfig")
+#    all_opts = {}
+#    ifaces = {}
+#    while 1:
+#        line = ifconfig.readline()
+#        if line == "": break  
+#        line = line[:-1]
+#        if line[0] != "\t":    # interface name, flags, and mtu line
+#            if (all_opts != {}):
+#                all_opts["mtu"] = mtu 
+#                all_opts["flags"] = flags
+#                ifaces[ifname] = all_opts
+#            (ifname, rest) = line.split(":")
+#            (rest, mtu) = line.split("mtu ")
+#            flags = rest.split("<")[1].split(">")[0].split(",")
+#            all_opts = {}
+#        else:
+#            line = line[1:]
+#            a = line.split(" ")
+#            if (a[0][-1] == ":"):      # media:, status: take a full line
+#                (k, v) = line.split(": ")
+#                all_opts[k] = v
+#            else:                      # list of dict values
+#                opts = dict(zip(*[iter(a)] * 2))
+#                for k in opts:
+#                    if (k == "netmask"):
+#                        # Convert 0x.. netmask to dotted quad
+#                        import socket, struct, string
+#                        opts[k] = socket.inet_ntoa(struct.pack("!L", 
+#                                      string.atoi(opts[k], 16)))
+#                    all_opts[k] = opts[k]
+#            #print "\t", opts 
+#    return ifaces
+
+# broken, need pointers?
+#def get_ifaces_unix_IOCTL():
+#    import socket
+#    import fcntl
+#    import IN
+#    import struct
+#
+#    SIOCGIFCONF = -1073190620   #  FreeBSD
+#    MAX_IFS = 32
+#
+#    sockfd = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, 0)
+#    buf = "\0" * (32 * MAX_IFS)   # 32 = sizeof(ifreq)
+#    ifc = struct.pack("!L", len(buf)) + "\0";
+#    fcntl.ioctl(sockfd, SIOCGIFCONF, ifc)
+
+#def get_ifaces():
+#    if (sys.platform == "win32"):
+#        return get_ifaces_win32()
+#    else:
+#        return get_ifaces_unix()
+
+# Connects to a given host and gets its the address of our side of the socket
+# If behind a NAT this still will return the local IP, not the WAN IP
+# Seems to be easier and work better than get_ifaces(), regrettably, because
+# it may be detectable by a third party.
+def get_default_ip(test_host="google.com", test_port=80):
+    log("WARNING: Connecting to %s to obtain IP." % test_host)
+    log("Please specify your address in the config file to avoid this test.")
+    import socket
+    sockfd = socket.socket()
+    sockfd.connect((test_host, test_port)) 
+    (ip, port) = sockfd.getsockname()
+    sockfd.close()
+    return ip
+
+def datalink2mtu(d):
+    """Given a datalink type pcapy.DLT_*, return a guess at the MTU of the
+    datalink."""
+    import pcapy
+    # These may be 
+    return {pcapy.DLT_NULL: 16384,      # BSD Loopback (may vary)
+        pcapy.DLT_EN10MB: 1500,         # Ethernet
+        pcapy.DLT_IEEE802: 1500,        # 802.5 Token Ring
+        pcapy.DLT_ARCNET: 9072,         # Attached Resource Computer Network
+        pcapy.DLT_SLIP: 1006,           # SLIP
+        pcapy.DLT_PPP: 1452,            # Point-to-Point Protocol
+        pcapy.DLT_FDDI: 4352,           # Fiber Distributed Data Interface
+        pcapy.DLT_ATM_RFC1483: 9180,    # LLC/SLAM-encapsulated ATM
+        pcapy.DLT_RAW: 1500,            # packet begins with IP header
+        pcapy.DLT_PPP_SERIAL: 576,      # PPP in HDLC-like framing
+        pcapy.DLT_PPP_ETHER: 1492,      # PPPoE
+        pcapy.DLT_C_HDLC: 1600,         # Cisco PPP w/ HDLC framing
+        pcapy.DLT_IEEE802_11: 1500,     # Wi-Fi
+        pcapy.DLT_LOOP: 9244,           # OpenBSD loopback
+        pcapy.DLT_LINUX_SLL: 1500,      # Linux cooked capture
+        pcapy.DLT_LTALK: 1500,          # Apple LocalTalk            
+        }.get(d, 1500)
+

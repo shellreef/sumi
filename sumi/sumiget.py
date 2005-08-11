@@ -373,62 +373,45 @@ class Client:
 
         return
 
+    def undigest_file(self, nick):
+        """After a file is complete, undigest (unpackage) it."""
+        print [self.senders[nick]["aon"].undigest(d)]
+
+    def handle_first(self, nick, seqno):
+        """Handle the first packet from the server."""
+        self.senders[nick]["start_seqno"] = seqno
+        log("FIRST PACKET: %s" % seqno)
+
+        self.senders[nick]["got_first"] = True
+
+        if self.senders[nick].has_key("crypto_state"):
+            # Make sure first data packet is received soon enough
+            g = time.time()
+            d4 = g - self.senders[nick]["sent_req2"]
+            if d4 >= 2*INTERLOCK_DELAY-0.1:
+                log("POTENTIAL MITM ATTACK DETECTED--DELAY TOO LONG. %s"%d4)
+                os._exit(-1)
+                return
+            else:
+                log(":) No MITM detected")
+        self.callback(nick, "recv_1st")
+
     def handle_data(self, nick, prefix, addr, seqno, data):
         """Handle data packets."""
 
         # Prefix has been checked, seqno calculated, so just get to the data
         data = data[SUMIHDRSZ:]
 
+        payloadsz = len(data)
+        full_payload = self.mss - SUMIHDRSZ
+
         if not self.senders[nick].has_key("got_first"):
-            self.senders[nick]["start_seqno"] = seqno
-            log("FIRST PACKET: %s" % seqno)
-
-            self.senders[nick]["got_first"] = True
-
-            if self.senders[nick].has_key("crypto_state"):
-                # Make sure first data packet is received soon enough
-                g = time.time()
-                d4 = g - self.senders[nick]["sent_req2"]
-                if d4 >= 2*INTERLOCK_DELAY-0.1:
-                    log("POTENTIAL MITM ATTACK DETECTED--DELAY TOO LONG. %s"%d4)
-                    os._exit(-1)
-                    return
-                else:
-                    log(":) No MITM detected")
-            self.callback(nick, "recv_1st")
+            self.handle_first(nick, seqno)
 
         # All file data is received here
 
         self.senders[nick]["last_msg"] = time.time()
-
         offset = (seqno - 1) * (self.mss - SUMIHDRSZ)
-        # XXX: broken
-        if False and self.senders[nick].has_key("crypto_state"):
-            # Outer crypto: CTR mode (XXX: is this ctr right?)
-            self.senders[nick]["ctr"] = offset / get_cipher().block_size
-            pseudotext = self.senders[nick]["crypto_obj"].decrypt(data)
-
-            # Inner crypto: ECB package mode, step 1 (gathering)
-            self.senders[nick]["aon"].gather(pseudotext, seqno)
-
-            if len(data) != self.mss - SUMIHDRSZ:
-                # Pass last block to gather_last(), then can decrypt
-                last_block = data[-get_cipher().block_size:]
-                pseudotext = data[0:get_cipher().block_size]
-                self.senders[nick]["aon"].gather_last(last_block)
-                log("Gathered last block!")
-                self.senders[nick]["can_undigest"] = True
-
-            # Save data in file and unpackage after finished
-            data = pseudotext
-
-        self.senders[nick]["fh"].seek(offset)
-        self.senders[nick]["fh"].write(data)
-
-        if self.senders[nick].has_key("can_undigest"):
-            # TODO: undigest all blocks from file
-            log("TODO: undigest the file! key=%s" % \
-                    ([self.senders[nick]["aon"]],))
 
         # Mark down each packet in our receive window
         if self.senders[nick]["rwin"].has_key(seqno):
@@ -436,14 +419,57 @@ class Client:
         else:
             self.senders[nick]["rwin"][seqno] = 1    # create
 
-        if (self.senders[nick]["rwin"][seqno] >= 2):
+        if self.senders[nick]["rwin"][seqno] >= 2:
             log("(DUPLICATE PACKET %d, IGNORED)" % seqno)
             return
 
         #print "THIS IS RWIN: ", self.senders[nick]["rwin"]
 
-        # New data (not duplicate) - add to running total
+        if not self.senders[nick].has_key("crypto_state"):
+            # Without crypto (AONT), last packet is when completes file
+            if offset + payloadsz >= self.senders[nick]["size"]:
+                self.senders[nick]["got_last"] = True
+        elif False: #XXX:broken
+            # With crypto (AONT), last packet goes OVER the end of the file,
+            # specifically, by one block--the last block, encoding K'.
+            if offset + payloadsz > self.senders[nick]["size"]:
+                self.senders[nick]["got_last"] = True
+            # XXX(disabled) Outer crypto: CTR mode
+
+            ctr = calc_blockno(seqno, payloadsz)
+            self.senders[nick]["ctr"] = ctr
+            #pseudotext = self.senders[nick]["crypto_obj"].decrypt(data)
+            pseudotext = data
+
+            # Inner "crypto": ECB package mode, step 1 (gathering)
+
+            if self.senders[nick].has_key("got_last"):
+                # Pass last block to gather_last(), then can decrypt
+                last_block = data[-get_cipher().block_size:]
+                pseudotext = data[0:-get_cipher().block_size]
+
+                self.senders[nick]["aon"].gather(pseudotext)
+                self.senders[nick]["aon"].gather_last(last_block)
+
+                self.senders[nick]["aon_last"] = last_block
+
+                log("Gathered last block!")
+                self.senders[nick]["can_undigest"] = True
+            else:
+                self.senders[nick]["aon"].gather(pseudotext, ctr)
+
+            # Save data in file and unpackage after finished
+            print "LEN:%s vs. %s" % (len(data), len(pseudotext))
+            #data = pseudotext
+
+        # New data (not duplicate, is cleartext) - add to running total
         self.senders[nick]["bytes"] += len(data) 
+
+        self.senders[nick]["fh"].seek(offset)
+        self.senders[nick]["fh"].write(data)
+
+        if self.senders[nick].has_key("can_undigest"):
+            self.undigest_file(nick)
 
         # Note: callback called every packet; might be too excessive
         self.callback(nick, "write", offset, self.senders[nick]["bytes"],
@@ -475,11 +501,9 @@ class Client:
                 log("(rexmits = %s" % self.senders[nick]["rexmits"])
                 self.callback(nick, "rexmits", self.senders[nick]["rexmits"])
                 #on_timer()   # Maybe its all we need
-            # Less than full sized packet = last
-            if (len(data) != self.mss - SUMIHDRSZ):
-                log("NON-FULLSIZED: %d != %d" 
+            if self.senders[nick].has_key("got_last"):
+                log("LAST PACKET: %d =? %d" 
                         % (len(data), self.mss - SUMIHDRSZ))
-                self.senders[nick]["gotlast"] = 1
                 # File size is now sent in auth packet so no need to calc it
                 #self.senders[nick]["size"] = self.senders[nick]["fh"].tell()
                 self.on_timer()     # have it check if finished
@@ -568,9 +592,9 @@ class Client:
                 else:
                     self.senders[x]["last_bytes"] = self.senders[x]["bytes"]
 
-            # Old way: EOF if nothing missing and gotlast
+            # Old way: EOF if nothing missing and got_last
             #if (len(self.senders[x]["lost"]) == 0 and 
-            #    self.senders[x].has_key("gotlast")):
+            #    self.senders[x].has_key("got_last")):
             #    return self.finish_xfer(x) # there's nothing left, we're done!
             # New way: EOF if total bytes recv >= size and nothing missing
             if self.senders[x]["bytes"] >= self.senders[x]["size"] and \
@@ -950,25 +974,46 @@ class Client:
         else:
             log("IP not specified, getting network interface list...")
 
-            # Look for an up interface. Use get_ifaces instead of just the
-            # IP so we can also get the netmask, too
-            ifaces = get_ifaces()
-            for name in ifaces:
-                if not ifaces[name].has_key("status") or \
-                   ifaces[name]["status"] != True and \
-                   ifaces[name]["status"] != "active":
-                    continue
-                if not ifaces[name]["inet"]: continue
+            # XXX: all 0.0.0.0's on Windows here. Pcapy doesn't provide a MAC
+            # address, nor a definite MTU, but we can use the datalink to
+            # guestimate the MTU.
+            # TODO: I'd like a warning if an interface is used without an IP;
+            # because I do that often (switching between WiFi & Ethernet).
+            import pcapy
+            log("IP\tMask (MTU): Interface")
+            for dev in pcapy.findalldevs():
+                p = pcapy.open_live(dev, 0, 0, 0)
+                mtu = datalink2mtu(p.datalink())
+                log("%s\t%s (%s): %s" % (p.getnet(), p.getmask(), mtu, dev))
+            # TODO: Automatic!
+            log("Please pick the appropriate interface, and set the myip, ")
+            log("src_allow, mss, and interface options, then restart.")
+            log("Alternatively, set myip to '' to autodetect.")
+            raise SystemExit
 
-                log("%s %s %s" 
-                        % (name,ifaces[name]["inet"],ifaces[name]["netmask"]))
-            # XXX: This is a problem for the GUI! It needs input!
-            log("Which interface? ")
-            i = sys.stdin.readline()[:-1]
-            log("Using IP %s" % ifaces[i]["inet"])
-            self.myip = ifaces[i]["inet"]
-            self.netmask = ifaces[i]["netmask"]   # save for later
-            self.netmask = int(ifaces[i]["mtu"]) - 28
+            # Look for an up interface. Use get_ifaces instead of just the
+            # IP so we can also get the netmask, too.
+            # XXX: getifaces.py requires wmi; Win32 only, bulky.
+            #ifaces = get_ifaces()
+            #for name in ifaces:
+            #    if not ifaces[name].has_key("status") or \
+            #       ifaces[name]["status"] != True and \
+            #       ifaces[name]["status"] != "active":
+            #        continue
+            #    if not ifaces[name]["inet"]: continue
+            #
+            #    log("%s %s %s" 
+            #            % (name,ifaces[name]["inet"],ifaces[name]["netmask"]))
+            # TODO: GUI input
+            #log("Which interface? ")
+            #i = sys.stdin.readline()[:-1]
+            #log("Using IP %s" % ifaces[i]["inet"])
+            # XXX: This has potential. Ideally, could find the active
+            # interface, and read the IP, mask (for set_src_allow), and the
+            # MTU (to derive the MSS). However, it needs the wmi module...
+            #self.myip = ifaces[i]["inet"]
+            #self.netmask = ifaces[i]["netmask"]   # save for later
+            #self.mss = int(ifaces[i]["mtu"]) - 28
 
         if self.config.has_key("myport"):
             self.myport = self.config["myport"]

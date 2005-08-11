@@ -95,7 +95,8 @@ class AON:
 
         # First time encrypting? Setup...
         if not self.digesting:
-            self.k = random_bytes(self.block_size) 
+            #self.k = random_bytes(self.block_size) 
+            self.k = "0" * self.block_size#XXX XXX XXX XYZ debugging
             #print "=====k=",[self.k]
             if self.IV:
                 self.crypt = self.cipher.new(self.k, self.mode, self.IV)
@@ -117,10 +118,16 @@ class AON:
         return pseudo
 
     def split_blocks(self, s):
-        """Split s into an array of blocks of cipher block size."""
+        """Split s into an array of blocks of cipher block size.
+        
+        Incomplete-sized blocks will be padded with 0xFFs."""
         blocks = []
-        for i in range(len(s) / self.block_size):
+        for i in range((len(s) + self.block_size - 1) / self.block_size):
             blocks.append(s[i * self.block_size:(i + 1) * self.block_size])
+
+        # Pad incomplete-sized blocks. Up to client to unpad.
+        if blocks and len(blocks[-1]) < self.block_size:
+            blocks[-1] += "\xFF" * (self.block_size - len(blocks[-1]))
         return blocks            
 
     def digest_last(self):
@@ -186,6 +193,10 @@ class AON:
         """First-pass of last block. After this call, the package encryption
         key is available in self.k and the second-pass can be used to
         undigest."""
+        assert len(block) == self.block_size, ("gather_last called with " +
+            "an incomplete/overlarge block: %d != %d" % (
+                    len(block), self.block_size))
+
         # K' = m'[s'] ...
         self.k = xor_str(self.k, block)
         #print "k last=",[self.k]
@@ -204,6 +215,7 @@ class AON:
             self.can_digest = True
 
         if not self.undigesting:
+            # Setup
             if self.IV:
                 self.crypt = self.cipher.new(self.k, self.mode, self.IV)
             else:
@@ -341,7 +353,8 @@ def main():
 
     # Redigest a few blocks. For SUMI, simulates server resends.
     p2x = a.redigest_next(c2, 2)
-    assert p2x == p2, "redigest failed!"
+    assert p2x == p2, "redigest differed from normal digest!"
+    assert a.digest_last() == p4, "redigest altered last block!"
     print "redigest works"
 
 if __name__ == "__main__":

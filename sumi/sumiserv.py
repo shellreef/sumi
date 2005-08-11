@@ -20,7 +20,6 @@ import Queue
 import libsumi
 
 from libsumi import *
-from getifaces import get_default_ip, get_ifaces
 
 # Root is exposed here so the config file can use it
 root = os.path.abspath(os.path.dirname(sys.argv[0])) + os.sep
@@ -801,14 +800,13 @@ def xfer_thread(nick):
     log("clients[nick][seqno] exists? %s" % clients[nick].has_key("seqno"))
 
     # Not actually used here.
-    #blocksz = clients[nick]["mss"] - SUMIHDRSZ
     while 1:
         # Resend queued resends if they come up, but don't dwell
         try:
             while 1:
                 resend = resend_queue.get_nowait()   # TODO: multiple users!
                 log("Q: %s %s" % (nick,resend))
-                datapkt(nick, resend)
+                datapkt(nick, resend, True)
         except Queue.Empty:
             log("Q: empty")
             pass
@@ -866,7 +864,7 @@ def xfer_thread(nick):
     while 1:
         try:
             resend = resend_queue.get(True, 2*int(clients[nick]["rwinsz"]))
-            datapkt(nick, resend)
+            datapkt(nick, resend, True)
         except Queue.Empty:
             break 
 
@@ -920,7 +918,7 @@ def handle_nak(nick, msg):
 
     # If any resends, push these onto global resend_queue
     for resend in resends:
-        if len(resend) == 0: continue
+        if not resend: continue
         try:
             resend = int(resend)
         except ValueError:
@@ -943,9 +941,9 @@ def transfer_control(nick, msg):
         log("Aborting transfer to %s" % nick)
         destroy_client(nick)
 
-def datapkt(nick, seqno):
+def datapkt(nick, seqno, is_resend=False):
     """Send data packet number "seqno" to nick, for its associated file. 
-       Returns the length of the block sent.
+       Returns the length of the data sent.
        
        Delegates actual sending to a send_packet_* function."""
     if seqno > 16777216:
@@ -953,49 +951,70 @@ def datapkt(nick, seqno):
         return sendmsg_error(nick, "file too large: 8-10GB is "+
                 "the limit, depending on MSS")
 
-    blocksz = clients[nick]["mss"] - SUMIHDRSZ
+    # Size of data payload in packet            
+    payloadsz = clients[nick]["mss"] - SUMIHDRSZ
     
     if cfg["noise"] and random.randint(0, int(cfg["noise"])) == 0:
         # lose packet (for testing purposes)
-        return blocksz
+        return payloadsz
 
-    log("Sending to %s #%s %s" % (nick, seqno, blocksz))
-    #print "I AM GOING TO SEEK TO ",blocksz*(seqno-1)
+    log("Sending to %s #%s %s" % (nick, seqno, payloadsz))
+    #print "I AM GOING TO SEEK TO ",payloadsz*(seqno-1)
 
-    #if (blocksz * (seqno - 1)) > clients[nick]["size"]:
+    #if (payloadsz * (seqno - 1)) > clients[nick]["size"]:
     #    print nick,"tried to seek past end-of-file"
     #    return
 
-    # Many OS's allow seeking past the end of file
-    file_pos = blocksz * (seqno - 1)
+    # Many OS's allow seeking past the end of file. Preallocate like BT?
+    file_pos = payloadsz * (seqno - 1)
     clients[nick]["fh"].seek(file_pos)
 
-    block = clients[nick]["fh"].read(blocksz)
+    data = clients[nick]["fh"].read(payloadsz)
 
     # Crypto, anyone?
     # XXX: broken
     if False and clients[nick].has_key("crypto_state"):
-        assert blocksz % get_cipher().block_size == 0, \
+        assert payloadsz % get_cipher().block_size == 0, \
                 "%s (MSS-%s) is not a multiple of %s, which is required" + \
                 "for crypto. This should've been fixed in cfg validation." % (
-                        blocksz, SUMIHDRSZ, get_cipher().block_size)
+                        payloadsz, SUMIHDRSZ, get_cipher().block_size)
 
-        pseudotext = clients[nick]["aon"].digest_next(block)
-        if file_pos > clients[nick]["clear_size"] - blocksz: 
-            # Last packet, so include last block
-            log("(last packet!)")
-            pseudotext += clients[nick]["aon"].digest_last()
-        clients[nick]["ctr"] = (seqno - 1) * blocksz / get_cipher().block_size
-        ciphertext = clients[nick]["crypto_obj"].encrypt(pseudotext)
-        log("(encrypted pkt)")
+        ctr = calc_blockno(seqno, payloadsz)
 
-        block = ciphertext
+        if clients[nick].has_key("special_last_seqno") and \
+                clients[nick]["special_last_seqno"] == seqno:
+            # OK to call digest_last() multiple times--won't change
+            data = clients[nick]["aon"].digest_last()
+        else:
+            pseudotext = clients[nick]["aon"].digest_next(data, ctr, is_resend)
+            print "PSEUDOTEXT:%s"%ctr
+            if file_pos > clients[nick]["clear_size"] - payloadsz: 
+                # Last packet, so include last block
+                log("(last data packet!)")
+
+                # If last block can't fit, new packet; otherwise, put at end
+                # of this packet. The new packet is special-cased above.
+                if payloadsz + get_cipher().block_size > full_payload:
+                    log("Last block going into new pkt: %s" % (seqno + 1))
+                    clients[nick]["special_last_seqno"] = seqno + 1
+                    datapkt(nick, seqno + 1)
+                else:
+                    pseudotext += clients[nick]["aon"].digest_last()
+
+            data = pseudotext
+
+        # XXX: no encryption for now, just AONT
+        #clients[nick]["ctr"] = ctr
+        #ciphertext = clients[nick]["crypto_obj"].encrypt(pseudotext)
+        #log("(encrypted pkt)")
+
+        #data = ciphertext
 
     pkt = clients[nick]["prefix"]        # 3-byte prefix
     pkt += struct.pack("!I", seqno)[1:]  # 3-byte seq no
     if (len(pkt) != SUMIHDRSZ):
         fatal(5, "internal failure: header not expected size")
-    pkt += block
+    pkt += data 
     if (len(pkt) > clients[nick]["mss"]):
         fatal(6, "internal: trying to send packet >MSS, should not happen")
 
@@ -1006,7 +1025,7 @@ def datapkt(nick, seqno):
     #print "DATA to %s(%s:%d)<-%s:%d, #%d len=%d (at=%d)" % (nick, clients[nick]["addr"][0], clients[nick]["addr"][1], src[0], src[1], seqno, len(block), clients[nick]["fh"].tell())
     time.sleep(clients[nick]["delay"])
 
-    return len(block)
+    return len(data)
 
 def in_cksum(str): 
   """Calculate the Internet checksum of str. (Note, when packing for
@@ -1600,10 +1619,6 @@ def make_thread(f, arg):
         # Client finished while we were trying to help it, oh well
         log("Lost client")
         pass
-    except:
-        x = sys.exc_info()
-        log("Unhandled exception in %s: %s line %s %s" 
-                % (f, x[0], x[2].tb_lineno, x[1]))
  
 def on_exit():
     global config_file, cfg

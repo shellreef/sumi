@@ -1,6 +1,14 @@
 TO DO   20050802JC
 
+* Pcap: find out if interface is down. If not, refuse to use it.
+* Auto-configure many options:
+ - If only one network interface up, use it (for 'interface')
+ - Use the IP of the interface, if nonroutable, use get_default_ip w/ warning
+ - Use the MTU of the interface, or guess it based on datalink  
+ - For "pcap" dchanmode, use the MAC of the interface for src_mac
+ WMI can handle this on Win32, but currently commented out. TODO: look at it
 * Find out why I have config.html,faq.html in . and doc/, & whats better
+  DONE with faq.html, but still need to merge config.html.
 * Investigate tor (tor.eff.org) for a transport, and AIM over HTTP proxy
 * Encrypt data packets after AONT'd
 * Use LibTomCrypt for everything after wrapping it for Python
