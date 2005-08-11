@@ -1,0 +1,438 @@
+Common subdirectories: libpcap/bpf and libpcap_sendpacket/bpf
+Common subdirectories: libpcap/CVS and libpcap_sendpacket/CVS
+Common subdirectories: libpcap/lbl and libpcap_sendpacket/lbl
+Common subdirectories: libpcap/linux-include and libpcap_sendpacket/linux-include
+Common subdirectories: libpcap/packaging and libpcap_sendpacket/packaging
+diff -c libpcap/pcap-bpf.c libpcap_sendpacket/pcap-bpf.c
+*** libpcap/pcap-bpf.c	2003-12-24 00:26:24.000000000 -0800
+--- libpcap_sendpacket/pcap-bpf.c	2004-03-11 09:54:51.000000000 -0800
+***************
+*** 106,111 ****
+--- 106,112 ----
+  
+  static int pcap_setfilter_bpf(pcap_t *p, struct bpf_program *fp);
+  static int pcap_set_datalink_bpf(pcap_t *p, int dlt);
++ static int pcap_sendpacket_bpf(pcap_t *p, u_char *buf, int size);
+  
+  static int
+  pcap_stats_bpf(pcap_t *p, struct pcap_stat *ps)
+***************
+*** 467,473 ****
+  	 */
+  	do {
+  		(void)snprintf(device, sizeof(device), "/dev/bpf%d", n++);
+! 		fd = open(device, O_RDONLY);
+  	} while (fd < 0 && errno == EBUSY);
+  
+  	/*
+--- 468,474 ----
+  	 */
+  	do {
+  		(void)snprintf(device, sizeof(device), "/dev/bpf%d", n++);
+! 		fd = open(device, O_RDWR);
+  	} while (fd < 0 && errno == EBUSY);
+  
+  	/*
+***************
+*** 902,907 ****
+--- 903,909 ----
+  	p->set_datalink_op = pcap_set_datalink_bpf;
+  	p->getnonblock_op = pcap_getnonblock_fd;
+  	p->setnonblock_op = pcap_setnonblock_fd;
++ 	p->sendpacket_op = pcap_sendpacket_bpf;
+  	p->stats_op = pcap_stats_bpf;
+  	p->close_op = pcap_close_bpf;
+  
+***************
+*** 972,974 ****
+--- 974,983 ----
+  #endif
+  	return (0);
+  }
++ 
++ static int
++ pcap_sendpacket_bpf(pcap_t *p, u_char *buf, int size)
++ {
++ 	return (write(p->fd, buf, size) == size)? 0 : -1;
++ }
++ 
+diff -c libpcap/pcap.c libpcap_sendpacket/pcap.c
+*** libpcap/pcap.c	2004-01-29 02:36:44.000000000 -0800
+--- libpcap_sendpacket/pcap.c	2004-03-11 10:24:32.000000000 -0800
+***************
+*** 576,581 ****
+--- 576,587 ----
+  	return p->setnonblock_op(p, nonblock, errbuf);
+  }
+  
++ int
++ pcap_sendpacket(pcap_t *p, u_char *buf, int size)
++ {
++ 	return (p->sendpacket_op == NULL)? -1 : p->sendpacket_op(p, buf, size);
++ }
++ 
+  #ifndef WIN32
+  /*
+   * Set non-blocking mode, under the assumption that it's just the
+diff -c libpcap/pcap-dlpi.c libpcap_sendpacket/pcap-dlpi.c
+*** libpcap/pcap-dlpi.c	2003-12-18 15:32:32.000000000 -0800
+--- libpcap_sendpacket/pcap-dlpi.c	2004-03-11 10:03:43.000000000 -0800
+***************
+*** 140,145 ****
+--- 140,146 ----
+  #if defined(HAVE_SOLARIS) && defined(HAVE_SYS_BUFMOD_H)
+  static char *get_release(bpf_u_int32 *, bpf_u_int32 *, bpf_u_int32 *);
+  #endif
++ static int pcap_sendpacket_dlpi(pcap_t *p, u_char *buf, int size);
+  static int send_request(int, char *, int, char *, char *);
+  #ifdef HAVE_SYS_BUFMOD_H
+  static int strioctl(int, int, int, char *);
+***************
+*** 734,739 ****
+--- 735,741 ----
+  	p->set_datalink_op = NULL;	/* can't change data link type */
+  	p->getnonblock_op = pcap_getnonblock_fd;
+  	p->setnonblock_op = pcap_setnonblock_fd;
++ 	p->sendpacket_op = pcap_sendpacket_dlpi;
+  	p->stats_op = pcap_stats_dlpi;
+  	p->close_op = pcap_close_dlpi;
+  
+***************
+*** 832,837 ****
+--- 834,845 ----
+  }
+  
+  static int
++ pcap_sendpacket_dlpi(pcap_t *p, u_char *buf, int size)
++ {
++ 	return (write(p->fd, buf, size) == size)? 0 : -1;
++ }
++ 
++ static int
+  send_request(int fd, char *ptr, int len, char *what, char *ebuf)
+  {
+  	struct	strbuf	ctl;
+diff -c libpcap/pcap.h libpcap_sendpacket/pcap.h
+*** libpcap/pcap.h	2004-01-27 01:44:14.000000000 -0800
+--- libpcap_sendpacket/pcap.h	2004-03-11 10:32:59.000000000 -0800
+***************
+*** 55,61 ****
+  #endif
+  
+  #define PCAP_VERSION_MAJOR 2
+! #define PCAP_VERSION_MINOR 4
+  
+  #define PCAP_ERRBUF_SIZE 256
+  
+--- 55,61 ----
+  #endif
+  
+  #define PCAP_VERSION_MAJOR 2
+! #define PCAP_VERSION_MINOR 5
+  
+  #define PCAP_ERRBUF_SIZE 256
+  
+***************
+*** 178,183 ****
+--- 178,184 ----
+  const u_char*
+  	pcap_next(pcap_t *, struct pcap_pkthdr *);
+  int 	pcap_next_ex(pcap_t *, struct pcap_pkthdr **, const u_char **);
++ int	pcap_sendpacket(pcap_t *p, u_char *buf, int size);
+  void	pcap_breakloop(pcap_t *);
+  int	pcap_stats(pcap_t *, struct pcap_stat *);
+  int	pcap_setfilter(pcap_t *, struct bpf_program *);
+***************
+*** 230,236 ****
+  
+  int pcap_setbuff(pcap_t *p, int dim);
+  int pcap_setmode(pcap_t *p, int mode);
+- int pcap_sendpacket(pcap_t *p, u_char *buf, int size);
+  int pcap_setmintocopy(pcap_t *p, int size);
+  
+  #ifdef WPCAP
+--- 231,236 ----
+diff -c libpcap/pcap-int.h libpcap_sendpacket/pcap-int.h
+*** libpcap/pcap-int.h	2003-12-21 14:00:10.000000000 -0800
+--- libpcap_sendpacket/pcap-int.h	2004-03-11 09:45:45.000000000 -0800
+***************
+*** 100,105 ****
+--- 100,106 ----
+  	int timeout;
+  	int nonblock;
+  #else
++ 	char *device;
+  	int fd;
+  	int selectable_fd;
+  #endif /* WIN32 */
+***************
+*** 134,139 ****
+--- 135,141 ----
+  	int	(*set_datalink_op)(pcap_t *, int);
+  	int	(*getnonblock_op)(pcap_t *, char *);
+  	int	(*setnonblock_op)(pcap_t *, int, char *);
++ 	int	(*sendpacket_op)(pcap_t *, u_char *, int);
+  	int	(*stats_op)(pcap_t *, struct pcap_stat *);
+  	void	(*close_op)(pcap_t *);
+  
+diff -c libpcap/pcap-linux.c libpcap_sendpacket/pcap-linux.c
+*** libpcap/pcap-linux.c	2004-01-13 17:56:10.000000000 -0800
+--- libpcap_sendpacket/pcap-linux.c	2004-03-11 09:59:34.000000000 -0800
+***************
+*** 191,196 ****
+--- 191,197 ----
+  static int pcap_stats_linux(pcap_t *, struct pcap_stat *);
+  static int pcap_setfilter_linux(pcap_t *, struct bpf_program *);
+  static void pcap_close_linux(pcap_t *);
++ static int pcap_sendpacket_linux(pcap_t *p, u_char *buf, int size);
+  
+  /*
+   * Wrap some ioctl calls
+***************
+*** 408,413 ****
+--- 409,415 ----
+  	handle->set_datalink_op = NULL;	/* can't change data link type */
+  	handle->getnonblock_op = pcap_getnonblock_fd;
+  	handle->setnonblock_op = pcap_setnonblock_fd;
++ 	handle->sendpacket_op = pcap_sendpacket_linux;
+  	handle->stats_op = pcap_stats_linux;
+  	handle->close_op = pcap_close_linux;
+  
+***************
+*** 672,677 ****
+--- 674,685 ----
+  	return 1;
+  }
+  
++ static int
++ pcap_sendpacket_linux(pcap_t *p, u_char *buf, int size)
++ {
++ 	return (send(p->fd, buf, size, 0) == size)? 0 : -1;
++ }
++ 
+  /*
+   *  Get the statistics for the given packet capture handle.
+   *  Reports the number of dropped packets iff the kernel supports
+diff -c libpcap/pcap-nit.c libpcap_sendpacket/pcap-nit.c
+*** libpcap/pcap-nit.c	2003-12-18 15:32:32.000000000 -0800
+--- libpcap_sendpacket/pcap-nit.c	2004-03-11 10:07:59.000000000 -0800
+***************
+*** 70,75 ****
+--- 70,76 ----
+  
+  /* Forwards */
+  static int nit_setflags(int, int, int, char *);
++ static int pcap_sendpacket_nit(pcap_t *p, u_char *buf, int size);
+  
+  static int
+  pcap_stats_nit(pcap_t *p, struct pcap_stat *ps)
+***************
+*** 226,231 ****
+--- 227,234 ----
+  {
+  	if (p->buffer != NULL)
+  		free(p->buffer);
++ 	if (p->device != NULL)
++ 		free(p->device);
+  	if (p->fd >= 0)
+  		close(p->fd);
+  }
+***************
+*** 310,317 ****
+--- 313,323 ----
+  	p->set_datalink_op = NULL;	/* can't change data link type */
+  	p->getnonblock_op = pcap_getnonblock_fd;
+  	p->setnonblock_op = pcap_setnonblock_fd;
++ 	p->sendpacket_op = pcap_sendpacket_nit;_
+  	p->stats_op = pcap_stats_nit;
+  	p->close_op = pcap_close_nit;
++ 	p->device = malloc(1+strlen(device));
++ 	strcpy(p->device, device);
+  
+  	return (p);
+   bad:
+***************
+*** 326,328 ****
+--- 332,345 ----
+  {
+  	return (0);
+  }
++ 
++ static int
++ pcap_sendpacket_nit(pcap_t *p, u_char *buf, int size)
++ {
++ 	struct sockaddr sa;
++ 
++ 	memset(&sa, 0, sizeof(sa));
++ 	strncpy(sa.sa_data, device, sizeof(sa.sa_data));
++ 
++ 	return (sendto(p->fd, buf, size, 0, &sa, sizeof(sa)) == size)? 0 : -1;
++ }
+diff -c libpcap/pcap-pf.c libpcap_sendpacket/pcap-pf.c
+*** libpcap/pcap-pf.c	2004-02-08 22:24:42.000000000 -0800
+--- libpcap_sendpacket/pcap-pf.c	2004-03-11 09:54:41.000000000 -0800
+***************
+*** 75,80 ****
+--- 75,81 ----
+  #endif
+  
+  static int pcap_setfilter_pf(pcap_t *, struct bpf_program *);
++ static int pcap_sendpacket_pf(pcap_t *, u_char *buf, int size);
+  
+  /*
+   * BUFSPACE is the size in bytes of the packet read buffer.  Most tcpdump
+***************
+*** 306,312 ****
+  	 * "const char *" as its first argument.  That appears to be
+  	 * the case, at least on Digital UNIX 4.0.
+  	 */
+! 	p->fd = pfopen(device, O_RDONLY);
+  	if (p->fd < 0) {
+  		snprintf(ebuf, PCAP_ERRBUF_SIZE, "pf open: %s: %s\n\
+  your system may not be properly configured; see the packetfilter(4) man page\n",
+--- 307,313 ----
+  	 * "const char *" as its first argument.  That appears to be
+  	 * the case, at least on Digital UNIX 4.0.
+  	 */
+! 	p->fd = pfopen(device, O_RDWR);
+  	if (p->fd < 0) {
+  		snprintf(ebuf, PCAP_ERRBUF_SIZE, "pf open: %s: %s\n\
+  your system may not be properly configured; see the packetfilter(4) man page\n",
+***************
+*** 471,476 ****
+--- 472,478 ----
+  	p->set_datalink_op = NULL;	/* can't change data link type */
+  	p->getnonblock_op = pcap_getnonblock_fd;
+  	p->setnonblock_op = pcap_setnonblock_fd;
++ 	p->sendpacket_op = pcap_sendpacket_pf;
+  	p->stats_op = pcap_stats_pf;
+  	p->close_op = pcap_close_pf;
+  
+***************
+*** 568,570 ****
+--- 570,578 ----
+  	p->md.use_bpf = 0;
+  	return (0);
+  }
++ 
++ static int
++ pcap_sendpacket_pf(pcap_t *p, u_char *buf, int size)
++ {
++ 	return (write(p->fd, buf, size) == size)? 0 : -1;
++ }
+diff -c libpcap/pcap-snit.c libpcap_sendpacket/pcap-snit.c
+*** libpcap/pcap-snit.c	2003-12-18 15:32:33.000000000 -0800
+--- libpcap_sendpacket/pcap-snit.c	2004-03-11 10:10:12.000000000 -0800
+***************
+*** 83,88 ****
+--- 83,89 ----
+  
+  /* Forwards */
+  static int nit_setflags(int, int, int, char *);
++ static int pcap_sendpacket_snit(pcap_t *p, u_char *buf, int size);
+  
+  static int
+  pcap_stats_snit(pcap_t *p, struct pcap_stat *ps)
+***************
+*** 243,248 ****
+--- 244,251 ----
+  {
+  	if (p->buffer != NULL)
+  		free(p->buffer);
++ 	if (p->device != NULL)
++ 		free(p->device);
+  	if (p->fd >= 0)
+  		close(p->fd);
+  }
+***************
+*** 271,277 ****
+  		snaplen = 96;
+  
+  	memset(p, 0, sizeof(*p));
+! 	p->fd = fd = open(dev, O_RDONLY);
+  	if (fd < 0) {
+  		snprintf(ebuf, PCAP_ERRBUF_SIZE, "%s: %s", dev,
+  		    pcap_strerror(errno));
+--- 274,280 ----
+  		snaplen = 96;
+  
+  	memset(p, 0, sizeof(*p));
+! 	p->fd = fd = open(dev, O_RDWR);
+  	if (fd < 0) {
+  		snprintf(ebuf, PCAP_ERRBUF_SIZE, "%s: %s", dev,
+  		    pcap_strerror(errno));
+***************
+*** 369,376 ****
+--- 372,382 ----
+  	p->set_datalink_op = NULL;	/* can't change data link type */
+  	p->getnonblock_op = pcap_getnonblock_fd;
+  	p->setnonblock_op = pcap_setnonblock_fd;
++ 	p->sendpacket_op = pcap_sendpacket_snit;
+  	p->stats_op = pcap_stats_snit;
+  	p->close_op = pcap_close_snit;
++ 	p->device = malloc(1+strlen(device));
++ 	strcpy(p->device, device);
+  
+  	return (p);
+   bad:
+***************
+*** 385,387 ****
+--- 391,404 ----
+  {
+  	return (0);
+  }
++ 
++ static int
++ pcap_sendpacket_snit(pcap_t *p, u_char *buf, int size)
++ {
++ 	struct sockaddr sa;
++ 
++ 	memset(&sa, 0, sizeof(sa));
++ 	strncpy(sa.sa_data, p->device, sizeof(sa.sa_data));
++ 
++ 	return (sendto(p->fd, buf, size, 0, &sa, sizeof(sa)) == size)? 0 : -1;
++ }
+diff -c libpcap/pcap-win32.c libpcap_sendpacket/pcap-win32.c
+*** libpcap/pcap-win32.c	2004-01-28 06:06:20.000000000 -0800
+--- libpcap_sendpacket/pcap-win32.c	2004-03-11 10:33:18.000000000 -0800
+***************
+*** 51,56 ****
+--- 51,57 ----
+  static int pcap_setfilter_win32_dag(pcap_t *, struct bpf_program *);
+  static int pcap_getnonblock_win32(pcap_t *, char *);
+  static int pcap_setnonblock_win32(pcap_t *, int, char *);
++ static int pcap_sendpacket_win32(pcap_t *p, u_char *buf, int size);
+  
+  #define	PcapBufSize 256000	/*dimension of the buffer in the pcap_t structure*/
+  #define	SIZE_BUF 1000000
+***************
+*** 572,577 ****
+--- 573,579 ----
+  	p->set_datalink_op = NULL;	/* can't change data link type */
+  	p->getnonblock_op = pcap_getnonblock_win32;
+  	p->setnonblock_op = pcap_setnonblock_win32;
++ 	p->sendpacket_op = pcap_sendpacket_win32;
+  	p->stats_op = pcap_stats_win32;
+  	p->close_op = pcap_close_win32;
+  
+***************
+*** 687,694 ****
+  }
+  
+  /* Send a packet to the network */
+! int 
+! pcap_sendpacket(pcap_t *p, u_char *buf, int size){
+  	LPPACKET PacketToSend;
+  
+  	if (p->adapter==NULL)
+--- 689,696 ----
+  }
+  
+  /* Send a packet to the network */
+! static int 
+! pcap_sendpacket_win32(pcap_t *p, u_char *buf, int size){
+  	LPPACKET PacketToSend;
+  
+  	if (p->adapter==NULL)
+Common subdirectories: libpcap/SUNOS4 and libpcap_sendpacket/SUNOS4
+Common subdirectories: libpcap/Win32 and libpcap_sendpacket/Win32
