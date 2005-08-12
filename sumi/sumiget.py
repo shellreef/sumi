@@ -422,7 +422,7 @@ class Client:
 
         if self.config["crypt_data"]:
             # Outer crypto: CTR mode
-            self.senders[nick]["ctr"] = (calc_blockno(seqno, payloadsz)
+            self.senders[nick]["ctr"] = (calc_blockno(seqno, full_payload)
                     + self.senders[nick]["data_iv"])
             log("CTR:pkt %s -> %s" % (seqno,
                 self.senders[nick]["ctr"]))
@@ -1108,7 +1108,9 @@ class Client:
         return msg
 
     def request(self, transport, nick, file):
-        """Request a file from a server."""
+        """Request a file from a server.
+        
+        Return whether succeeded, but also callsback if fails."""
 
         # command line args are now the sole form of user input;
         self.callback(nick, "t_wait")   # transport waiting, see below
@@ -1124,13 +1126,14 @@ class Client:
             log(self.senders)
             self.callback(nick, "1xferonly")
             #print "Senders: ", self.senders
-            return -1
+            return False
 
         self.senders[nick] = {} 
 
         # Setup transport system
         self.senders[nick]["transport"] = transport
-        self.load_transport(transport, nick)
+        if not self.load_transport(transport, nick):
+            return False
 
         self.senders[nick]["handshake_count"] = 0
         self.senders[nick]["handshake_status"] = "Handshaking"
@@ -1140,7 +1143,7 @@ class Client:
                 log("Sorry, this transport lacks a recvmsg, so " +
                         "transport encryption is not available.")
                 sys.exit(-1)
-                return
+                return False
             # Store request since its sent in halves
             self.senders[nick]["request_clear"] = \
                     self.make_request(nick, file)
@@ -1163,9 +1166,9 @@ class Client:
         for x in range(maxwait, 0, -1):
             # If received fn in this time, then exists, so stop countdown
             if not self.senders.has_key(nick):
-                return -1    # some other error
+                return False    # some other error
             if self.senders[nick].has_key("fn"):
-                return 0     # don't break - otherwise will timeout
+                return True     # don't break - otherwise will timeout
             self.senders[nick]["handshake_count"] = x 
             self.callback(nick, "req_count", x,
                     self.senders[nick]["handshake_status"])
@@ -1173,7 +1176,7 @@ class Client:
 
         self.callback(nick, "timeout")
         self.senders.pop(nick)
-        return -1
+        return False
 
     def set_callback(self, f):
         """Set callback to be used for handling notifications."""
@@ -1183,6 +1186,11 @@ class Client:
         log("(CB)%s: %s" % (cmd, ",".join(list(map(str, args)))))
 
     def load_transport(self, transport, nick):
+        """Load transport/mod<transport> for nick, and initialize if not
+        already initialized.
+ 
+        Returns whether succeeds."""
+
         global input_lock, sendmsg, transport_init, transports
         # Import the transport. This may fail, if, for example, there is
         # no such transport module.
@@ -1196,7 +1204,7 @@ class Client:
             # So more transfers can come from the same users.
             self.senders.pop(nick)
             self.callback(nick, "t_fail", sys.exc_info())
-            return
+            return False
 
         t.segment = segment
         t.cfg = self.config
@@ -1223,9 +1231,12 @@ class Client:
             # If can't receive messages, crypto not available
             self.senders[nick]["recvmsg"] = t.recvmsg
 
+        return True
+
     def main(self, transport, nick, file):
         self.senders[nick] = {}
-        self.load_transport(transport, nick)
+        if not self.load_transport(transport, nick):
+            return
 
         thread.start_new_thread(self.thread_timer, ())
         #senders[nick]["transport_init"] = t.transport_init
