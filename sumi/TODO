@@ -1,5 +1,10 @@
 TO DO   20050802JC
 
+**** Work on modtor.py, and have a flag for secure/insecure transports,
+     and if insecure, automatically enable crypt_req if crypto enabled, other-
+     wise can rely on transport to provide the transport security, but always
+     enable crypt_data if user wants crypto.
+**** GET crypt_data WORKING! Currently corrupts last packet.
 * Pcap: find out if interface is down. If not, refuse to use it.
 * Auto-configure many options:
  - If only one network interface up, use it (for 'interface')

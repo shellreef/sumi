@@ -74,7 +74,6 @@ def segment(nick, msg, max, callback):
         #print(prefix + msg[n:n+MAX_LEN])
         n += max
 
-
 class Client:
 
     def __init__(self):
@@ -273,30 +272,22 @@ class Client:
                 log("Your request may have been intercepted.")
                 # only a warning because first data packet should catch it
 
-            # Decrypt payload, THEN hash
-            self.senders[nick]["sessiv"] = inc_str(self.senders[nick]["sessiv"])
-            data = data[0:SUMIHDRSZ] + self.decrypt(nick, data[SUMIHDRSZ:])
-
             # Setup data encryption (CTR & package ECB)
             self.senders[nick]["sessiv"] = inc_str(self.senders[nick]["sessiv"])
             from AONT import AON
             self.senders[nick]["aon"] = AON(get_cipher(),
                     get_cipher().MODE_ECB)
 
-            def ctr_proc():
-                self.senders[nick]["ctr"] += 1
-                x = pack_num(self.senders[nick]["ctr"])
-                x = "\0" * (16 - len(x)) + x
-                assert len(x) == 16, "ctr_proc len %s not 16" % len(x)
-                return x
-            self.senders[nick]["crypto_obj"] = get_cipher().new(
-                    self.senders[nick]["sesskey"],
-                    get_cipher().MODE_CTR,
-                    self.senders[nick]["sessiv"],
-                    counter=ctr_proc)
-
             #log("Decrypted payload: %s" % ([data],))
         
+        if self.config["crypt_data"]:
+            # Decrypt payload, THEN hash. Note that crypt_data enables auth
+            # pkt to be encrypted, since it goes over the data channel.
+            self.senders[nick]["ctr"] = self.senders[nick]["data_iv"]
+            log("DEC AP WITH: %s" % self.senders[nick]["ctr"])
+            data = data[0:SUMIHDRSZ] + self.senders[nick]["crypto_obj"].decrypt(
+                    data[SUMIHDRSZ:])
+
         hashcode = b64(hash128(data))
 
         # File length, new prefix, flags, filename
@@ -428,17 +419,21 @@ class Client:
             # Without crypto (AONT), last packet is when completes file
             if offset + payloadsz >= self.senders[nick]["size"]:
                 self.senders[nick]["got_last"] = True
-        elif False: #XXX:broken
+
+        if self.config["crypt_data"]:
+            # Outer crypto: CTR mode
+            self.senders[nick]["ctr"] = (calc_blockno(seqno, payloadsz)
+                    + self.senders[nick]["data_iv"])
+            log("CTR:pkt %s -> %s" % (seqno,
+                self.senders[nick]["ctr"]))
+            data = self.senders[nick]["crypto_obj"].decrypt(data)
+        
+        # XXX: broken
+        if False and self.senders[nick].has_key("crypto_state"):
             # With crypto (AONT), last packet goes OVER the end of the file,
             # specifically, by one block--the last block, encoding K'.
             if offset + payloadsz > self.senders[nick]["size"]:
                 self.senders[nick]["got_last"] = True
-            # XXX(disabled) Outer crypto: CTR mode
-
-            ctr = calc_blockno(seqno, payloadsz)
-            self.senders[nick]["ctr"] = ctr
-            #pseudotext = self.senders[nick]["crypto_obj"].decrypt(data)
-            pseudotext = data
 
             # Inner "crypto": ECB package mode, step 1 (gathering)
 
@@ -849,10 +844,12 @@ class Client:
             # First message...its pubkeys + nonce1/2
             skeys = unpack_keys(raw[0:32*3])
             log("skeys=%s" % skeys)
-            nonce_1 = raw[32*3:]
-            # can't decrypt now, since only have half; keep it
-            log("nonce_1=%s" % ([nonce_1,]))
-            self.senders[nick]["nonce_1"] = nonce_1
+
+            if True:#self.config.get("crypt_active"):
+                nonce_1 = raw[32*3:]
+                # can't decrypt now, since only have half; keep it
+                log("nonce_1=%s" % ([nonce_1,]))
+                self.senders[nick]["nonce_1"] = nonce_1
 
             # Find out shared/private keys (pkeys)
             ckeys = self.senders[nick]["ckeys"]
@@ -870,6 +867,7 @@ class Client:
             enc_req = self.encrypt(nick, clear_req)
             log("ENC REQ: %s" % ([enc_req],))
             self.senders[nick]["request_enc"] = enc_req
+
             req1 = enc_req[0::2]   # even
             req2 = enc_req[1::2]   # odd 
             self.senders[nick]["request_1"] = req1
@@ -878,8 +876,9 @@ class Client:
             # Send 1/2 of encrypted sumi send request 
             self.senders[nick]["sent_req1"] = time.time()
             self.sendmsg(nick, b64(req1))
-
+        
             self.senders[nick]["crypto_state"] = 1
+
         elif self.senders[nick]["crypto_state"] == 1:   # nonce2/2->req2/2
             g = time.time()
             self.senders[nick]["got_nonce2"] = g
@@ -915,7 +914,7 @@ class Client:
             self.senders[nick]["handshake_count"],
             self.senders[nick]["handshake_status"])
 
-    def setup_crypto(self, nick):
+    def setup_transport_crypto(self, nick):
         """Send sumi sec (secure) command, setting up an encrypted channel."""
         log("Setting up cryptography...")
 
@@ -936,6 +935,7 @@ class Client:
         raw = ""
         for k in ckeys:
             raw += "".join(k.publicKey())
+
         log("Our keys: %s" % b64(raw))
         self.senders[nick]["ckeys"] = ckeys
 
@@ -946,11 +946,16 @@ class Client:
         # because setting up crypto is the only time we receive transport
         # messages from the server. 
         log(">>>>> %s" % nick)
-        thread.start_new_thread(self.crypto_thread, (nick, ))
-        #thread.start_new_thread(self.wrap_thread, 
-        #        (self.crypto_thread, (nick, ckeys)))
-        # Uncomment to run without a thread for better error reporting
-        #self.crypto_thread(nick, ckeys)
+        def wrap():
+            try:
+                self.crypto_thread(nick)
+            except None: #Exception, x:
+                raise x
+                print "(thread) Exception: %s at %s" % (x,
+                        sys.exc_info()[2].tb_lineno)
+        #thread.start_new_thread(self.crypto_thread, (nick, ))
+        thread.start_new_thread(wrap, ())
+
 
     def validate_config(self):
         """Validate configuration after loading it, possibly modifying it
@@ -1011,8 +1016,9 @@ class Client:
                 self.mss
             except:
                 return "MSS was not set, please set it in the Client tab."
-        if self.config.has_key("crypto") and self.config["crypto"]:
+        if self.config.get("crypt_data") or self.config.get("crypt_req"):
             random_init()
+        if self.config.get("crypt_data"):
             bs = get_cipher().block_size
             if (self.mss - SUMIHDRSZ) % bs:
                 self.mss -= (self.mss - SUMIHDRSZ) % 16
@@ -1071,12 +1077,34 @@ class Client:
         """Build a message to request file and generate a random prefix."""
         prefix = random_bytes(3)
         self.senders[nick]["prefix"] = prefix
+
+        if self.config["crypt_data"]:
+            # Choose the 256-bit symmetric key and 128-bit IV, which will be
+            # sent over the transport channel. The transport channel should be
+            # secure. TODO: mark transports secure (Tor), crypt_req if not.
+            data_key = random_bytes(32)
+            data_iv = random_bytes(16)
+            self.senders[nick]["data_key"] = data_key
+            self.senders[nick]["data_iv"] = unpack_num(data_iv)
+            def ctr_proc():
+                self.senders[nick]["ctr"] += 1
+                x = pack_num(self.senders[nick]["ctr"] % 2**128)
+                x = "\0" * (16 - len(x)) + x
+                assert len(x) == 16, "ctr_proc len %s not 16" % len(x)
+                return x
+            self.senders[nick]["crypto_obj"] = get_cipher().new(
+                    data_key, get_cipher().MODE_CTR, counter=ctr_proc)
+        else:
+            data_key = data_iv = ""
+
         msg = "sumi send " + pack_args({"f":file,
             #"o":offset,  # offset moved to sumi auth (know file size)
             "i":self.myip, "n":self.myport, "m":self.mss,
             "p":b64(prefix),
             "b":self.bandwidth,
-            "w":self.rwinsz, "d":self.config["data_chan_type"]})
+            "w":self.rwinsz, 
+            "x":b64(data_key + data_iv),
+            "d":self.config["data_chan_type"]})
         return msg
 
     def request(self, transport, nick, file):
@@ -1107,21 +1135,17 @@ class Client:
         self.senders[nick]["handshake_count"] = 0
         self.senders[nick]["handshake_status"] = "Handshaking"
 
-        if self.config["crypto"]:
-            if not self.senders[nick].has_key("recvmsg"):
-                log("Sorry, this transport lacks a recvmsg, so crypto "+\
-                        "is not available.")
+        if self.config.get("crypt_req"):
+            if not "recvmsg" in self.senders[nick]:
+                log("Sorry, this transport lacks a recvmsg, so " +
+                        "transport encryption is not available.")
                 sys.exit(-1)
                 return
             # Store request since its sent in halves
             self.senders[nick]["request_clear"] = \
                     self.make_request(nick, file)
-            self.setup_crypto(nick)
-
-        log("You want %s from %s" % (nick, file))
-
-        # Cleartext request is sent now
-        if not self.config["crypto"]:
+            self.setup_transport_crypto(nick)
+        else:
             msg = self.make_request(nick, file)
             self.sendmsg(nick, msg) 
 
@@ -1132,7 +1156,7 @@ class Client:
         # senders, so the user isn't left hanging.
         maxwait = self.config["maxwait"]
 
-        if self.config["crypto"]:
+        if self.config["crypt_req"]:
             # Factor in time to interlock (2*T, plus another T for safety)
             maxwait += 3 * INTERLOCK_DELAY
 

@@ -193,7 +193,8 @@ def handle_request(nick, msg):
         b64prefix= args["p"] 
         speed    = int(args["b"])   # b=bandwidth
         rwinsz   = int(args["w"])
-        dchantype= args["d"]            
+        dchantype= args["d"]
+        data_key_and_iv = args["x"]        # Data encryption
     except KeyError:
         log("not enough fields/missing fields")
         return sendmsg_error(nick, "not enough fields/missing fields")
@@ -246,6 +247,17 @@ def handle_request(nick, msg):
     clients[nick]["xfer_lock"] = thread.allocate_lock()  # lock to pause
     clients[nick]["rwinsz"] = rwinsz 
     clients[nick]["dchantype"] = dchantype
+
+    if data_key_and_iv:
+        all = base64.decodestring(data_key_and_iv)
+        assert len(all) == 32 + 16, "bad data key/IV len: %s" % len(all)
+        data_key = all[0:32]
+        data_iv = all[32:64]
+
+        clients[nick]["data_key"] = data_key
+        clients[nick]["data_iv"] = unpack_num(data_iv)
+        log("Using DATA CHANNEL encryption")
+        log("key=%s, IV=%s" % ([data_key], [data_iv]))
 
     # The data channel type determines how to send, and make src & dst addrs
     # of the sent packets
@@ -337,10 +349,11 @@ def send_auth(nick, file_info):
             "bad pkt generation: %d != %d" % (len(clear_pkt), mss)
     clients[nick]["authpkt"] = clear_pkt   # Save so can hash when find out MSS
 
-    if clients[nick].has_key("preauth"):
+    if clients[nick].has_key("data_key"):
         # Encrypt payload--after saved in "authpkt" for hashing.
-        clients[nick]["sessiv"] = inc_str(clients[nick]["sessiv"])
-        payload = encrypt(nick, payload)
+        clients[nick]["ctr"] = clients[nick]["data_iv"]
+        log("ENC AP WITH: %s" % clients[nick]["ctr"])
+        payload = clients[nick]["crypto_obj"].encrypt(payload)
     pkt += payload
 
     clients[nick]["authpkt_enc"] = pkt
@@ -401,21 +414,22 @@ def handle_send(nick, msg):
                "\0");  # Null-term'd
 
     if clients[nick].has_key("crypto_state"):
-        # Outer encryption: CTR mode
-        clients[nick]["ctr"] = unpack_num(clients[nick]["sessiv"]) + 1
-        def ctr_proc():
-            clients[nick]["ctr"] += 1
-            x = pack_num(clients[nick]["ctr"])
-            x = "\0" * (16 - len(x)) + x
-            assert len(x) == 16, "ctr is %s not 16 bytes" % len(x)
-            return x
-        clients[nick]["crypto_obj"] = get_cipher().new(
-                clients[nick]["sesskey"], get_cipher().MODE_CTR,
-                counter=ctr_proc)
-
         # Inner encryption: package ECB mode
         from AONT import AON
         clients[nick]["aon"] = AON(get_cipher(), get_cipher().MODE_ECB)
+
+    if clients[nick].has_key("data_key"):
+        # Outer encryption: CTR mode
+        def ctr_proc():
+            clients[nick]["ctr"] += 1
+            x = pack_num(clients[nick]["ctr"] % 2**128)
+            x = "\0" * (16 - len(x)) + x
+            assert len(x) == 16, "ctr is %s not 16 bytes" % len(x)
+            return x
+
+        clients[nick]["crypto_obj"] = get_cipher().new(
+                clients[nick]["data_key"], get_cipher().MODE_CTR,
+                counter=ctr_proc)
 
     send_auth(nick, file_info)
     return True
@@ -568,7 +582,7 @@ def generate_nonce(nick):
 def handle_sec(nick, msg):
     """Receive sumi sec messages from client. These contain client's public
     key, which will cause us to respond with our public key and the first
-    half of the encrypted prefix. Uses Elliptic Curve Diffie-Hellman (EC-DH)
+    half of the encrypted nonce. Uses Elliptic Curve Diffie-Hellman (EC-DH)
     and the Interlock Protocol.
 
     A                   B
@@ -614,7 +628,7 @@ def handle_sec(nick, msg):
     for k in skeys:
         str_skeys += "".join(k.publicKey())
 
-    # Calculate private (but shared) keys using Diffie-Hellman
+    # Calculate "private" (but shared) keys using Diffie-Hellman
     pkeys = []
     for i in range(3):
         pkeys.append(skeys[i].DH_recv(ckeys[i]))
@@ -629,7 +643,7 @@ def handle_sec(nick, msg):
     clients[nick]["nonce"] = nonce
     clients[nick]["nonce_1"] = nonce_1
     clients[nick]["nonce_2"] = nonce_2
-    clients[nick]["preauth"] = True
+    clients[nick]["preauth"] = True   # means encrypted before authorized
 
     # We rarely send messages to the client over the transport, but it is
     # necessary here, because the data channel isn't setup yet (we want to
@@ -808,7 +822,7 @@ def xfer_thread(nick):
                 log("Q: %s %s" % (nick,resend))
                 datapkt(nick, resend, True)
         except Queue.Empty:
-            log("Q: empty")
+            #log("Q: empty")
             pass
 
         if (clients[nick]["seqno"]):
@@ -972,7 +986,7 @@ def datapkt(nick, seqno, is_resend=False):
     data = clients[nick]["fh"].read(payloadsz)
 
     # Crypto, anyone?
-    # XXX: broken
+    # XXX: broken, no AONT for now
     if False and clients[nick].has_key("crypto_state"):
         assert payloadsz % get_cipher().block_size == 0, \
                 "%s (MSS-%s) is not a multiple of %s, which is required" + \
@@ -1003,12 +1017,15 @@ def datapkt(nick, seqno, is_resend=False):
 
             data = pseudotext
 
-        # XXX: no encryption for now, just AONT
-        #clients[nick]["ctr"] = ctr
-        #ciphertext = clients[nick]["crypto_obj"].encrypt(pseudotext)
-        #log("(encrypted pkt)")
+    # AES CTR encryption
+    if clients[nick].has_key("data_key"):
+        clients[nick]["ctr"] = (calc_blockno(seqno, payloadsz) +
+            + clients[nick]["data_iv"])
+        log("CTR:pkt #%s -> %s" % (seqno, clients[nick]["ctr"]))
+        # XXX XXX Something broken here? Last packet corrupted.
+        ciphertext = clients[nick]["crypto_obj"].encrypt(data)
 
-        #data = ciphertext
+        data = ciphertext
 
     pkt = clients[nick]["prefix"]        # 3-byte prefix
     pkt += struct.pack("!I", seqno)[1:]  # 3-byte seq no
@@ -1064,7 +1081,7 @@ def sendto_raw(s, data, dst):
     try:
         if raw_proxy == None:
             r=s.sendto(data, dst)
-            log("RET=%s" % r)
+            #log("RET=%s" % r)
         else:
             #print "USING RAW PROXY"
             raw_proxy.send("RP" + struct.pack("!H", len(data)) + data)

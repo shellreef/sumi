@@ -83,4 +83,13 @@
 # Otherwise, sumigetw will only run sumiget. (Does not affect standalone
 # sumiget or sumiserv.)
 "share": True,
+
+# Encrypt your requests. 
+# Includes protection against active attacks. Enables interlock (~3s delay in
+# handshaking) and (in the future, maybe all-or-nothing transform (wait for 
+# entire file to decode)).
+"crypt_req": True,
+
+# Encrypt the data stream.
+"crypt_data": False,
 }

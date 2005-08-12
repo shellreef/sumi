@@ -148,11 +148,15 @@ def decrypt_msg(msg, k, iv):
 
 def encrypt_msg(msg, k, iv):
     """Symmetric encipher msg with k and IV iv."""
+    assert cipher_mod, "encrypt_msg called before random_init"
     # Why create a new AES object for every encryption? Its only used
     # once per packet/message, since the IV changes. So we have to 
-    # recreate the object with a new IV. I think this is better than
-    # CTR mode since it uses cipherblocks. LibTomCrypt might not require
-    # recreating new object each time, look into it.
+    # recreate the object with a new IV. 
+    # XXX: Using counter for IV in CBC mode is a bad idea--see:
+    # http://www.cs.ucdavis.edu/~rogaway/papers/draft-rogaway-ipsec-comments-00.txt
+    # (LibTomCrypt might not require
+    # recreating new object each time, look into it.)
+    # ECB mode *may* be OK, since the data is so small. Look into this!
     a = cipher_mod.new(k, cipher_mod.MODE_CBC, iv)
     # Pad to multiple of block size
     pad = "\0" * ((cipher_mod.block_size - len(msg) 
@@ -300,7 +304,6 @@ def unpack_tlv(s):
             v = v_str
         d[code2name[t][0]] = v
     return d
-
 
 def calc_blockno(seqno, payloadsz):
     """Calculate the first block cipher block number in the given packet.
