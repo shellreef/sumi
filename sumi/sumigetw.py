@@ -1047,11 +1047,11 @@ class SUMIApp(wx.wxApp):
         if (evt != 0): evt.Skip()
 
 def main(argv):
-    if (len(sys.argv) < 4):
+    if len(sys.argv) < 4:
         print "Usage: %s transport nick fn" % sys.argv[0]
-        #sys.argv = ['fake'] * 4
-        sys.argv = ['sumigetw', 'fake', 'no_user', 'no_file']
-        #return
+        print "Using debug transport"
+        sys.argv = ['sumigetw', 'debug', 'no_user', 'no_file']
+    
 
     print "Loading app..."
     app = SUMIApp()
