@@ -11,26 +11,29 @@ Transports implement the small message covert channel. To make a transport:
 
 def transport_init():      - sumiget will call this before doing anything
 def sendmsg(id, msg):      - send a one-way message to a server identifier
+def recvmsg(callback):     - (optional) call callback(nick, msg) on reception
+
+Both clients and servers now use transports.
 
 Current transports:
 
-modfake.py: Dummy
+moddebug.py: Dummy
 modirclib.py: Uses Python's own irclib (irclib.sf.net) module to communicate.
     Useful if you don't have an IRC client, or don't want to use it.
 modmirc.py: Integrates with the Win32 mIRC program, see client-side/mirc.txt.
 modxchat.py: Integrate with the Unix xchat program, see client-side/xchat.txt.
-    Using this transport requires patching your xchat to accept SIGUSR2's.
+    Using this transport requires loading a script into xchat2
+modaim.py: Integrate with AOL Instant Messenger
 
 Suggested transports:
+modtor.py: Use http://tor.eff.org/, The Onion Router
 modmute.py: TODO: use mute-net.sf.net's anonymous routing system
 modaim.py: AOL Instant Messenger TODO: 2-way, and sumiserv
 modgaim.py: Plugin for GAIM, so can use AIM, MSN, Y!, ICQ, IRC, etc.
  Note, gaim-remote won't suffice as it can only handle URIs. Requires plugin.
 modwaste.py: Nullsoft WASTE. Uses IRC? TODO: talk to WASTE devs (Shared) (Eric)
+ Probably wouldn't work too well, since uses direct connections...
 modants.py: antsp2p.sf.net
-
-TODO: Right now, sumiserv only does its own IRC. Extend this so it can use a
-      transport here, and receive incoming messages as well as send messages.
 
 Below is from an older file, integ.txt, which foreshadowed transports:
 ** mIRC Integration 20040120JC
