@@ -1,0 +1,4 @@
+PyTomCrypt -- a Python wrapper for LibTomCrypt
+
+First you need to build LibTomCrypt with -fPIC. I had to also define 
+LTC_NO_ASM to get it to build properly on amd64. Then run make build.
