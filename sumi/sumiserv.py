@@ -140,7 +140,7 @@ def set_src_allow(allow_cidr):
     log("Allowing: %s, mask=%.8x, allow=%.8x" % (allow_cidr, SRC_IP_MASK,
         SRC_IP_ALLOW))
 
-def recv_multipart(nick, msg):
+def recv_multipart(u, msg):
     """Accumulate a continued message (beginning with >), returning
     True if the message is currently incomplete or False if the message
     is complete and should be processed.
@@ -148,41 +148,42 @@ def recv_multipart(nick, msg):
     In order to handle messages which may be too long for the transport,
     we allow splitting up the message by beginning all parts except
     the last with >. For example, >foo\n>bar\nbaz = foobarbaz."""
-    if (msg[0] == ">"):
-        if (not clients[nick].has_key("msg")): 
-            clients[nick]["msg"] = msg[1:]
+
+    if msg[0] == ">":
+        if not u.has_key("msg"):
+            u["msg"] = msg[1:]
         else:
-            clients[nick]["msg"] += msg[1:]
-        log("ACCUMULATED MSG: %s" % clients[nick]["msg"])
+            u["msg"] += msg[1:]
+        log("ACCUMULATED MSG: %s" % u["msg"])
         return True
     else:
-        if clients[nick].has_key("msg"):
-            msg = clients[nick]["msg"] + msg
-            clients[nick]["msg"] = ""
+        if u.has_key("msg"):
+            msg = u["msg"] + msg
+            u["msg"] = ""
         log("COMPLETE MSG:  %s" % msg)   # Now handle
         return False
 
-def handle_dir(nick, msg):
+def handle_dir(u, msg):
     """Handle sumi dir -- send directory list."""
-    log("%s is calling sumi dir" % nick)
+    log("%s is calling sumi dir" % u["nick"])
 
-    handle_request(nick, msg)
+    handle_request(u, msg)
     
     # TODO
     # How should sumi dir work? Can we authenticate only once, then
     # allow multiple transfers (including sends and dirs)? Also, we
     # should allow multiple simultaneous transfers, so one can browse
     # while transferring large files.
-    send_auth(nick, "")
+    send_auth(u, "")
 
-def handle_request(nick, msg):
+def handle_request(u, msg):
     """Handle a generic transfer request, returning arguments dictionary.
     
     Setup basic fields, MSS, communication channel, prefix, and IP
     (possibly multicast)."""
-    if (clients.has_key(nick) and not clients[nick].has_key("preauth")):
+    if not u.has_key("preauth"):
         log("CLEARING LEFT OVERS")
-        clients[nick].clear()
+        clear_client(u)
     args = unpack_args(msg)
     log("ARGS=%s" % args)
     try:
@@ -197,9 +198,9 @@ def handle_request(nick, msg):
         data_key_and_iv = args["x"]        # Data encryption
     except KeyError:
         log("not enough fields/missing fields")
-        return sendmsg_error(nick, "not enough fields/missing fields")
+        return sendmsg_error(u, "not enough fields/missing fields")
 
-    # Verify MSS. A packet is sent with size clients[nick]["mss"]
+    # Verify MSS. A packet is sent with size u["mss"]
     # Limit minimum MSS to 256 (in reality, it has a minimum of ~548)
     # This is done to block an attack whereby the attacker chooses a MSS
     # very small MSS, so only the non-random data fits in the packet.
@@ -207,13 +208,13 @@ def handle_request(nick, msg):
     # transmission. If we allow this to happen, then we may be sending UDP
     # packets to a host that didn't request them -- DoS attack. Stop that.
     # This check is also repeated in the second stag            
-    ##clients[nick]["last_winsz"] = winsz
+    ##u["last_winsz"] = winsz
     #     256 MSS has to be small enough for anybody.
     log("Verifying MSS")
-    if (mss < 256):
-        return sendmsg_error(nick, "MSS too small: %d" % (mss,))
-    if (mss > cfg["global_mss"]):
-        return sendmsg_error(nick, "MSS too large")
+    if mss < 256:
+        return sendmsg_error(u, "MSS too small: %d" % (mss,))
+    if mss > cfg["global_mss"]:
+        return sendmsg_error(u, "MSS too large")
 
     # Prefix is base64-encoded for IRC transport
     # Note: There is no need to use Base85 - Base94 (RFC 1924) because
@@ -225,28 +226,27 @@ def handle_request(nick, msg):
     # Prefix has to be 3 bytes, because if we allow larger, then clients
     # will choose larger prefixes filling up the auth packet with data
     # of their choice, circumventing the auth process
-    if (len(prefix) != 3):   # b64-encoded:4 decoded:3
-        return sendmsg_error(nick, "prefix length != 3, but %d" % (
-                                   len(prefix)))
+    if len(prefix) != 3:   # b64-encoded:4 decoded:3
+        return sendmsg_error(u, "prefix length != 3, but %d" % (len(prefix)))
     #b64prefix = base64.encodestring(prefix)
 
     try:
         socket.inet_aton(ip)
     except:
-        return sendmsg_error(nick, "invalid IP address: %s" % ip)
+        return sendmsg_error(u, "invalid IP address: %s" % ip)
 
     log("nick=%s,IP=%s:%d MSS=%d PREFIX=%02x%02x%02x" % (
-          nick, ip, port, mss, ord(prefix[0]), \
+          u["nick"], ip, port, mss, ord(prefix[0]), \
           ord(prefix[1]), ord(prefix[2])))
 
-    clients[nick]["addr"] = (ip, port)
-    clients[nick]["mss"] = int(mss)
-    clients[nick]["prefix"] = prefix
-    clients[nick]["speed"] = int(speed)
-    clients[nick]["authenticated"] = 1   # first step complete
-    clients[nick]["xfer_lock"] = thread.allocate_lock()  # lock to pause
-    clients[nick]["rwinsz"] = rwinsz 
-    clients[nick]["dchantype"] = dchantype
+    u["addr"] = (ip, port)
+    u["mss"] = int(mss)
+    u["prefix"] = prefix
+    u["speed"] = int(speed)
+    u["authenticated"] = 1   # first step complete
+    u["xfer_lock"] = thread.allocate_lock()  # lock to pause
+    u["rwinsz"] = rwinsz 
+    u["dchantype"] = dchantype
 
     if data_key_and_iv:
         all = base64.decodestring(data_key_and_iv)
@@ -254,190 +254,188 @@ def handle_request(nick, msg):
         data_key = all[0:32]
         data_iv = all[32:64]
 
-        clients[nick]["data_key"] = data_key
-        clients[nick]["data_iv"] = unpack_num(data_iv)
+        u["data_key"] = data_key
+        u["data_iv"] = unpack_num(data_iv)
         log("Using DATA CHANNEL encryption")
         log("key=%s, IV=%s" % ([data_key], [data_iv]))
 
     # The data channel type determines how to send, and make src & dst addrs
     # of the sent packets
-    if (dchantype == "u"):
+    if dchantype == "u":
         # The normal, spoofed UDP transfer
-        clients[nick]["send"] = send_packet_UDP
-        clients[nick]["src_gen"] = randip
-        clients[nick]["dst_gen"] = lambda : clients[nick]["addr"]
-    elif (dchantype == "e"):
-     # "echo mode" (which uses this) can be very laggy! Many lost packets.
-     # Transfer speed is limited by the weakest link; the ping proxy. 
-        clients[nick]["send"] = \
+        u["send"] = send_packet_UDP
+        u["src_gen"] = randip
+        u["dst_gen"] = lambda : u["addr"]
+    elif dchantype == "e":
+        # "echo mode" (which uses this) can be very laggy! Many lost packets.
+        # Transfer speed is limited by the weakest link; the ping proxy. 
+        u["send"] = \
              lambda s,d,p: send_packet_ICMP(s, d, p, 8, 0)
-        clients[nick]["src_gen"] = lambda : clients[nick]["addr"]
-        clients[nick]["dst_gen"] = rand_pingable_host  # no port
-    elif (dchantype == "i"):
+        u["src_gen"] = lambda : u["addr"]
+        u["dst_gen"] = rand_pingable_host  # no port
+    elif dchantype == "i":
          # Type+code used to be in dchantype, now its inside myport, packed
          type = int(port // 0x100)
          code =     port % 0x100
          log("type,code=%s %s" % (type,code))
-         clients[nick]["send"] = \
-             lambda s,d,p: send_packet_ICMP(s, d, p, type, code)
-         clients[nick]["src_gen"] = randip
-         clients[nick]["dst_gen"] = lambda : clients[nick]["addr"]
+         u["send"] = lambda s,d,p: send_packet_ICMP(s, d, p, type, code)
+         u["src_gen"] = randip
+         u["dst_gen"] = lambda : u["addr"]
     else:
-         sendmsg_error(nick, "invalid dchantype")
+         sendmsg_error(u, "invalid dchantype")
     # TODO:others: t (TCP)
 
-    clients[nick]["ack_ts"] = time.time()
+    u["ack_ts"] = time.time()
 
     # 24-bit prefix. The server decides on the prefix to use for the auth
     # packet, but here we embed the prefix that we, the server, decide to
     # use for the data transfer. 
-    clients[nick]["prefix1"] = clients[nick]["prefix"]   # first prefix
+    u["prefix1"] = u["prefix"]   # first prefix
 
-    if casts.has_key(clients[nick]["addr"]):
+    if casts.has_key(u["addr"]):
         # Use prefix of client already sending to
-        log("Multicast detected: %s:%s" % (clients[nick]["addr"],
-              casts[clients[nick]["addr"]]))
+        log("Multicast detected: %s:%s" % (u["addr"], casts[u["addr"]]))
 
-        cs = casts[clients[nick]["addr"]]
+        cs = casts[u["addr"]]
         found = 0
         for c in cs:
-            if clients.has_key(c) and clients[c].has_key("authenticated") and clients[c]["authenticated"] == 2:
-                clients[nick]["prefix"] = clients[c]["prefix"]
+            if clients.has_key(c) and clients[c].get("authenticated") == 2:
+                u["prefix"] = clients[c]["prefix"]
                 found = 1
                 break
 
         if found == 0:
             log("No transferring clients found, assuming unicast")
-            casts[clients[nick]["addr"]] = { nick: 1 }
+            casts[u["addr"]] = { u["nick"]: 1 }
             mcast = 0
         else:
-            casts[clients[nick]["addr"]][nick] = 1
+            casts[u["addr"]][u["nick"]] = 1
 
             log("    Using old prefix: %02x%02x%02x" % \
-                (ord(clients[nick]["prefix"][0]), \
-                 ord(clients[nick]["prefix"][1]), \
-                 ord(clients[nick]["prefix"][2])))
+                (ord(u["prefix"][0]), \
+                 ord(u["prefix"][1]), \
+                 ord(u["prefix"][2])))
             mcast = 1
     else:
         # An array would do here, but a hash easily removes the possibility
         # of duplicate keys. List of clients that have the same address.
-        casts[clients[nick]["addr"]] = { nick: 1 }
+        casts[u["addr"]] = { u["nick"]: 1 }
         mcast = 0
-    clients[nick]["mcast"] = mcast
+    u["mcast"] = mcast
 
     return args
 
-def send_auth(nick, file_info):
-    """Send authentication packet to nick.
+def send_auth(u, file_info):
+    """Send authentication packet to given user.
 
     file_info contains information on the file."""
-    if not clients[nick].has_key("prefix"):
-        return sendmsg_error(nick, "missing prefix")
+    if not u.has_key("prefix"):
+        return sendmsg_error(u, "missing prefix")
 
     # Build the authentication packet using the client-requested prefix
     # 3-byte prefix, 3-byte seqno (0)
-    pkt = "%s\0\0\0" % clients[nick]["prefix"]
+    pkt = "%s\0\0\0" % u["prefix"]
     assert len(pkt) == SUMIHDRSZ, "pkt + seqno != SUMIHDRSZ";
 
     # Payload is file information, followed by random data, up to MSS
     payload = file_info
-    mss = clients[nick]["mss"]
+    mss = u["mss"]
     payload += random_bytes(mss - SUMIHDRSZ - len(file_info))
 
     clear_pkt = pkt + payload
     assert len(clear_pkt) == mss, \
             "bad pkt generation: %d != %d" % (len(clear_pkt), mss)
-    clients[nick]["authpkt"] = clear_pkt   # Save so can hash when find out MSS
+    u["authpkt"] = clear_pkt   # Save so can hash when find out MSS
 
-    if clients[nick].has_key("data_key"):
+    if u.has_key("data_key"):
         # Encrypt payload--after saved in "authpkt" for hashing.
-        clients[nick]["ctr"] = clients[nick]["data_iv"]
-        log("ENC AP WITH: %s" % clients[nick]["ctr"])
-        payload = clients[nick]["crypto_obj"].encrypt(payload)
+        u["ctr"] = u["data_iv"]
+        log("ENC AP WITH: %s" % u["ctr"])
+        payload = u["crypto_obj"].encrypt(payload)
     pkt += payload
 
-    clients[nick]["authpkt_enc"] = pkt
+    u["authpkt_enc"] = pkt
 
     # Send raw UDP from: src_gen(), to: dst_gen()
     # This will trigger client to send sumi auth
-    clients[nick]["asrc"] = clients[nick]["src_gen"]()
+    u["asrc"] = u["src_gen"]()
     # Note, if execution reaches here and then stops, its a problem
     # with a) the server sending the packet b) the client receiving the
     # packet (in both cases, the authentication packet). Some ICMP codes
     # blocked/handled by kernel, for example, or src may be blocked.
     log("Sending auth packet now.")
-    clients[nick]["send"](clients[nick]["asrc"], \
-                          clients[nick]["dst_gen"](), pkt)
+    u["send"](u["asrc"], u["dst_gen"](), pkt)
     log(" AUTH PREFIX=%02x%02x%02x" % (ord(pkt[0]), \
         ord(pkt[1]), ord(pkt[2])))
-    #send_packet(clients[nick]["asrc"], (ip, port), pkt)
     return True
 
-def handle_send(nick, msg):
+def handle_send(u, msg):
     """Handle sumi send -- setup a new transfer."""
-    log("%s is sumi sending" % nick)
+    log("%s is sumi sending" % u["nick"])
 
-    args = handle_request(nick, msg)
+    args = handle_request(u, msg)
 
     try: 
         #(file, offset, ip, port, mss, b64prefix, speed)=msg.split("\t") 
         filename = args["f"]
     except:
-        return sendmsg_error(nick, "not enough fields for send")
+        return sendmsg_error(u, "not enough fields for send")
 
     log("FILE=%s" % filename)
 
     if (filename[0] == "#"):
-        clients[nick]["file"] = int(filename[1:]) - 1
+        u["file"] = int(filename[1:]) - 1
     else:
-        return sendmsg_error(nick, "file must be integer") 
+        return sendmsg_error(u, "file must be integer") 
 
     # Make sure the filename/pack number is valid
-    if not clients[nick]["file"] in range(len(cfg["filedb"])):
-        return sendmsg_error(nick, "no such pack number")
+    if not u["file"] in range(len(cfg["filedb"])):
+        return sendmsg_error(u, "no such pack number")
     
     # Build header -- this contains file information.
     # TODO: put more information about the file here. hash?
 
     # This is the size of the cleartext, not necessarily size on the wire
-    clear_size = os.path.getsize(cfg["filedb"][clients[nick]["file"]]["fn"])
+    clear_size = os.path.getsize(cfg["filedb"][u["file"]]["fn"])
     file_info = struct.pack("!I", clear_size)
-    clients[nick]["clear_size"] = clear_size
+    u["clear_size"] = clear_size
+
+    # Note: concatenating like this is inefficient!
 
     # Used for data transfer, may differ from client-chosen auth pkt prefix
-    file_info += clients[nick]["prefix"]
+    file_info += u["prefix"]
 
-    file_info += chr(clients[nick]["mcast"])
-    if clients[nick].has_key("preauth"):
-        file_info += hash160(clients[nick]["nonce"])
-    file_info += os.path.basename(cfg["filedb"][clients[nick]["file"]]["fn"]+\
-               "\0");  # Null-term'd
+    file_info += chr(u["mcast"])
+    if u.has_key("preauth"):
+        file_info += hash160(u["nonce"])
 
-    if clients[nick].has_key("crypto_state"):
+    # Null-terminated filename
+    file_info += os.path.basename(cfg["filedb"][u["file"]]["fn"] + "\0")
+
+    if u.has_key("crypto_state"):
         # Inner encryption: package ECB mode
         from AONT import AON
-        clients[nick]["aon"] = AON(get_cipher(), get_cipher().MODE_ECB)
+        u["aon"] = AON(get_cipher(), get_cipher().MODE_ECB)
 
-    if clients[nick].has_key("data_key"):
+    if u.has_key("data_key"):
         # Outer encryption: CTR mode
         def ctr_proc():
-            clients[nick]["ctr"] += 1
-            x = pack_num(clients[nick]["ctr"] % 2**128)
+            u["ctr"] += 1
+            x = pack_num(u["ctr"] % 2**128)
             x = "\0" * (16 - len(x)) + x
             assert len(x) == 16, "ctr is %s not 16 bytes" % len(x)
             return x
 
-        clients[nick]["crypto_obj"] = get_cipher().new(
-                clients[nick]["data_key"], get_cipher().MODE_CTR,
-                counter=ctr_proc)
+        u["crypto_obj"] = get_cipher().new(u["data_key"],
+                get_cipher().MODE_CTR, counter=ctr_proc)
 
-    send_auth(nick, file_info)
+    send_auth(u, file_info)
     return True
 
-def handle_auth(nick, msg):
+def handle_auth(u, msg):
     """Handle sumi auth -- authentication."""
-    if (not clients.has_key(nick) or clients[nick]["authenticated"] != 1):
-        return sendmsg_error(nick, "step 1 not complete")
+    if u.get("authenticated") != 1:
+        return sendmsg_error(u, "step 1 not complete")
 
     log("message: %s" % msg)
     #(their_mss, asrc, hash) = msg.split("\t")
@@ -449,22 +447,22 @@ def handle_auth(nick, msg):
     offset    = int(args["o"])
 
     if offset: 
-        clients[nick]["seqno"] = offset   # resume here
+        u["seqno"] = offset   # resume here
     else:
-        clients[nick]["seqno"] = 1
+        u["seqno"] = 1
 
-    clients[nick]["last_rwinsz"] = 1024   # initial, if needed
+    u["last_rwinsz"] = 1024   # initial, if needed
 
-    if (clients[nick]["mss"] != their_mss):
-        if (their_mss < 256):
-            return sendmsg_error(nick, "MSS too small: %d" % their_mss)
-        if (their_mss > clients[nick]["mss"]): 
-            return sendmsg_error(nick, "MSS too high (%d>%d)!" % (their_mss, clients[nick]["mss"]))
+    if u["mss"] != their_mss:
+        if their_mss < 256:
+            return sendmsg_error(u, "MSS too small: %d" % their_mss)
+        if their_mss > u["mss"]: 
+            return sendmsg_error(u, "MSS too high (%d>%d)!" % (their_mss, u["mss"]))
         # Client might have received less than full packet; this says they
         # require a smaller packet size
-        log("Downgrading MSS of %s: %d->%d" % (nick, clients[nick]["mss"],
+        log("Downgrading MSS of %s: %d->%d" % (u["nick"], u["mss"],
             their_mss))
-        clients[nick]["mss"] = their_mss
+        u["mss"] = their_mss
 
     # Now we know MSS, so calculate send delay (in seconds)
     # delay = MTU / bandwidth
@@ -472,51 +470,49 @@ def handle_auth(nick, msg):
     # MTU = MSS + 28
     # bytes/sec = bits/sec / 8
     # min(their_dl_bw, our_ul_bw) = transfer speed
-    clients[nick]["delay"] =  \
-        (clients[nick]["mss"] + 28.) / \
-        (min(clients[nick]["speed"], cfg["our_bandwidth"])/8)  
+    u["delay"] =  \
+        (u["mss"] + 28.) / \
+        (min(u["speed"], cfg["our_bandwidth"])/8)  
          # ^^^  whichever slower
-    log("Using send delay: %s" % clients[nick]["delay"])
+    log("Using send delay: %s" % u["delay"])
        
     log("Verifying spoofing capabilities...")
-    if (clients[nick]["asrc"][0] != asrc):
+    if u["asrc"][0] != asrc:
         log("*** Warning: Possible spoof failure! We sent from %s,\n"\
               "but client says we sent from %s. If this happens often,"\
               "either its a problem with your ISP, or the work of\n"\
               "mischevious clients. Dropping connection." %
-              (clients[nick]["asrc"][0], asrc))
-        #return sendmsg_error(nick, "srcip")
+              (u["asrc"][0], asrc))
+        #return sendmsg_error(u, "srcip")
     
     log("Verifying authenticity of client...")
     # The hash has to be calculated AFTER the auth string is received so
     # we know how much of it to hash (number of bytes: the MSS)
-    if (their_mss > len(clients[nick]["authpkt"])):   # trying to overflow, eh..
-        return sendmsg_error(nick, "claimed MSS > pktlength!")
+    if their_mss > len(u["authpkt"]):   # trying to overflow, eh..
+        return sendmsg_error(u, "claimed MSS > pktlength!")
 
     # The client (or really, the transmission medium) may have truncated 
     # the datagram to match their MSS, so only hash up to their MSS. Similar
     # to MTU path discovery?
-    derived_hash = b64(hash128(clients[nick]["authpkt"]\
-        [0:clients[nick]["mss"]]))
-    #log("Clear payload: %s" % ([clients[nick]["authpkt"]],))
-    if (derived_hash != hashcode):
-        return sendmsg_error(nick, "hashcode: %s != %s" % 
+    derived_hash = b64(hash128(u["authpkt"][0:u["mss"]]))
+    
+    if derived_hash != hashcode:
+        return sendmsg_error(u, "hashcode: %s != %s" % 
                 (derived_hash, hashcode))
 
-    clients[nick]["fh"] = \
-        open(cfg["filedb"][clients[nick]["file"]]["fn"], "rb")
+    u["fh"] = open(cfg["filedb"][u["file"]]["fn"], "rb")
 
     # Find size...
-    clients[nick]["fh"].seek(0, 2)   # SEEK_END
-    clients[nick]["size"] = clients[nick]["fh"].tell()
-    clients[nick]["fh"].seek(0, 0)   # SEEK_SET
+    u["fh"].seek(0, 2)   # SEEK_END
+    u["size"] = u["fh"].tell()
+    u["fh"].seek(0, 0)   # SEEK_SET
 
-    log("Starting transfer to %s..." % nick)
-    log("Sending: %s" % cfg["filedb"][clients[nick]["file"]]["fn"])
+    log("Starting transfer to %s..." % u["nick"])
+    log("Sending: %s" % cfg["filedb"][u["file"]]["fn"])
     ##
 
-    log("%s is fully verified!" % nick)
-    clients[nick]["authenticated"] = 2    # fully authenticated, let xfer
+    log("%s is fully verified!" % u["nick"])
+    u["authenticated"] = 2    # fully authenticated, let xfer
 
     # When multicasting, the same address is sent by multiple clients.
     # Only send to mcast address once. TODO: full multicast support
@@ -526,51 +522,49 @@ def handle_auth(nick, msg):
     # and the client reject it (not ack the auth packet, but redo sumi send
     # again) if the prefix conflicts. This way the server can assign 
     # multiple clients the same prefix, and they all can get it!
-    if clients[nick]["mcast"]:
+    if u["mcast"]:
         log("Since multicast, not starting another transfer")
         return
     else:
         log("Unicast - starting transfer")
 
     # In a separate thread to allow multiple transfers
-    #thread.start_new_thread(xfer_thread, (nick,))
-    thread.start_new_thread(make_thread, (xfer_thread_loop, nick,))
-        #make_thread(xfer_thread, nick)
+    #thread.start_new_thread(xfer_thread, (u,))
+    thread.start_new_thread(make_thread, (xfer_thread_loop, u))
+        #make_thread(xfer_thread, u)
 
     return True
 
-def handle_done(nick, msg):
+def handle_done(u, msg):
     """Handle sumi done -- graceful ending of transfer."""
     # Possible thread concurrency issues here. Client can do sumi done at
     # any time, which will result in accessing nonexistant keys
-    log("Transfer to %s complete (%s)\n" % (nick, msg))
+    log("Transfer to %s complete (%s)\n" % (u["nick"], msg))
     try:
-        casts[clients[nick]["addr"]].remove(nick)
+        casts[u["addr"]].remove(u["nick"])
     except:
         pass
-    if (clients[nick].has_key("file")):
-        cfg["filedb"][clients[nick]["file"]]["gets"] += 1
-        log("NUMBER OF GETS: %s" %
-                cfg["filedb"][clients[nick]["file"]]["gets"])
+    if u.has_key("file"):
+        cfg["filedb"][u["file"]]["gets"] += 1
+        log("NUMBER OF GETS: %s" % cfg["filedb"][u["file"]]["gets"])
     else:
         log("Somehow lost filename")
-    destroy_client(nick)
+    destroy_client(u)
 
-def encrypt(nick, msg):
-    """Encrypt msg to nick."""
-    e = encrypt_msg(msg, clients[nick]["sesskey"], clients[nick]["sessiv"])
-    return e
+def encrypt(u, msg):
+    """Encrypt msg to a user."""
+    return encrypt_msg(msg, u["sesskey"], u["sessiv"])
 
-def decrypt(nick, msg):
-    """Decrypt msg from nick."""
-    return decrypt_msg(msg, clients[nick]["sesskey"], clients[nick]["sessiv"])
+def decrypt(u, msg):
+    """Decrypt msg from a user."""
+    return decrypt_msg(msg, u["sesskey"], u["sessiv"])
 
-def generate_nonce(nick):
+def generate_nonce(u):
     """Generate and encrypt a random nonce (number used only once) for nick.
-    Returns two cleartext and two encrypted halves."""
+    Returns cleartext and two encrypted halves."""
 
     nonce = random_bytes(32)
-    nonce_enc = encrypt(nick, nonce)
+    nonce_enc = encrypt(u, nonce)
 
     # Split into even and odd bytes for interlock protocol. Better than
     # beginning and end because can't be decrypted as easily.
@@ -579,7 +573,7 @@ def generate_nonce(nick):
    
     return (nonce, nonce_1, nonce_2)
 
-def handle_sec(nick, msg):
+def handle_sec(u, msg):
     """Receive sumi sec messages from client. These contain client's public
     key, which will cause us to respond with our public key and the first
     half of the encrypted nonce. Uses Elliptic Curve Diffie-Hellman (EC-DH)
@@ -604,11 +598,11 @@ def handle_sec(nick, msg):
     #from Crypto.PublicKey import RSA
     # EC-DH instead of RSA, since it has smaller keys for same security.
     from ecc.ecc import ecc   # cryptkit library has ECC, PyCrypto doesn't
-    print "%s's key: %s" % (nick, msg)
+    print "%s's key: %s" % (u["nick"], msg)
     try:
         raw = base64.decodestring(msg)
     except (binascii.Error, IndexError):
-        return sendmsg_error(nick, "invalid public triple-key")
+        return sendmsg_error(u, "invalid public triple-key")
 
     ckeys = unpack_keys(raw)
     print ckeys
@@ -618,11 +612,11 @@ def handle_sec(nick, msg):
     skeys = []
     for i in range(3):
         skeys.append(ecc(ord(random_bytes(1))))
-    
-    clients[nick] = {}   # Remember nothing
+   
+    clear_client(u)   # Remember nothing
     # Save client and server keys
-    clients[nick]["ckeys"] = ckeys
-    clients[nick]["skeys"] = skeys
+    u["ckeys"] = ckeys
+    u["skeys"] = skeys
 
     str_skeys = ""
     for k in skeys:
@@ -632,18 +626,17 @@ def handle_sec(nick, msg):
     pkeys = []
     for i in range(3):
         pkeys.append(skeys[i].DH_recv(ckeys[i]))
-    clients[nick]["sesskey"] = hash128(pkeys[0]) + hash128(pkeys[1])
-    clients[nick]["sessiv"] = pkeys[2]
-    log("session key/iv: %s" % ([clients[nick]["sesskey"],
-        clients[nick]["sessiv"]],))
+    u["sesskey"] = hash128(pkeys[0]) + hash128(pkeys[1])
+    u["sessiv"] = pkeys[2]
+    log("session key/iv: %s" % (u["sesskey"], u["sessiv"]))
 
     # Calculate and save unencrypted nonce (nonce), and two halves encrypted.
-    nonce, nonce_1, nonce_2 = generate_nonce(nick)
-    clients[nick]["crypto_state"] = 1
-    clients[nick]["nonce"] = nonce
-    clients[nick]["nonce_1"] = nonce_1
-    clients[nick]["nonce_2"] = nonce_2
-    clients[nick]["preauth"] = True   # means encrypted before authorized
+    nonce, nonce_1, nonce_2 = generate_nonce(u)
+    u["crypto_state"] = 1
+    u["nonce"] = nonce
+    u["nonce_1"] = nonce_1
+    u["nonce_2"] = nonce_2
+    u["preauth"] = True   # means encrypted before authorized
 
     # We rarely send messages to the client over the transport, but it is
     # necessary here, because the data channel isn't setup yet (we want to
@@ -651,66 +644,65 @@ def handle_sec(nick, msg):
 
     # Send our public keys + 1/2 encrypted nonce after INTERLOCK_DELAY
     log("Waiting to send pk+nonce1/2...")
-    thread.start_new_thread(delayed_send, 
-                            (nick, b64(str_skeys + nonce_1)))
+    thread.start_new_thread(delayed_send, (u, b64(str_skeys + nonce_1)))
     return True
 
-def delayed_send(nick, msg):
-    """Send msg to nick after INTERLOCK_DELAY seconds."""
+def delayed_send(u, msg):
+    """Send msg to user after INTERLOCK_DELAY seconds."""
     time.sleep(INTERLOCK_DELAY)
     log("Sending delayed message: %s" % msg)
-    sendmsg(nick, msg)
+    sendmsg(u, msg)
 
-def recvmsg_secure(nick, msg):
+def recvmsg_secure(u, msg):
     """Handle an encrypted message from the client. Return a cleartext
     message, or None if we handled the message."""
 
     if "sumi sec " in msg:
         # Not meant for us; restarting crypto
         return msg
-    if clients[nick]["crypto_state"] == 1:       # 1/2 request->nonce 2/2
+    if u["crypto_state"] == 1:       # 1/2 request->nonce 2/2
         print "msg=%s"%msg
         try:
-            clients[nick]["req1"] = base64.decodestring(msg)
+            u["req1"] = base64.decodestring(msg)
         except binascii.Error:
-            del clients[nick]["crypto_state"]
-            return sendmsg_error(nick, "bad encoding of req 1/2+nonce 2/2")
+            del u["crypto_state"]
+            return sendmsg_error(u, "bad encoding of req 1/2+nonce 2/2")
         # Send 2/2 nonce
         log("Got 1/2 request--delaying")
         time.sleep(INTERLOCK_DELAY)
-        sendmsg(nick, b64(clients[nick]["nonce_2"]))
+        sendmsg(u, b64(u["nonce_2"]))
         log("Got 1/2 request, sent 2/2 nonce")
-        clients[nick]["crypto_state"] = 2
-    elif clients[nick]["crypto_state"] == 2:     # 2/2 request->auth pkt
-        req1 = clients[nick]["req1"]
+        u["crypto_state"] = 2
+    elif u["crypto_state"] == 2:     # 2/2 request->auth pkt
+        req1 = u["req1"]
         try:
             req2 = base64.decodestring(msg)
         except binascii.Error:
-            del clients[nick]["crypto_state"]
-            return sendmsg_error(nick, "bad encoding of req 2/2")
+            del u["crypto_state"]
+            return sendmsg_error(u, "bad encoding of req 2/2")
         req_enc = interleave(req1, req2)
         #log("REQ_ENC=%s" % ([req_enc],))
-        req = decrypt(nick, req_enc)
+        req = decrypt(u, req_enc)
         log("Got 2/2 request: %s" % ([req,]))
         # (No delay here--immediate; if client detects a delay=MITM)
-        clients[nick]["crypto_state"] = 3
+        u["crypto_state"] = 3
         # Have recvmsg handle it
         return req
-    elif clients[nick]["crypto_state"] == 3:      # sumi auth->data
+    elif u["crypto_state"] == 3:      # sumi auth->data
         try:
             auth_enc = base64.decodestring(msg)
         except binascii.Error:
-            del clients[nick]["crypto_state"]
-            return sendmsg_error(nick, "bad encoding of auth")
-        clients[nick]["sessiv"] = inc_str(clients[nick]["sessiv"])
-        auth = decrypt(nick, auth_enc)
+            del u["crypto_state"]
+            return sendmsg_error(u, "bad encoding of auth")
+        u["sessiv"] = inc_str(u["sessiv"])
+        auth = decrypt(u, auth_enc)
         if not auth:
             log("Failed to decrypt auth %s" % auth_enc)
             return
         auth = "sumi auth " + auth
         log("DECRYPTED AUTH: %s" % auth)
 
-        clients[nick]["crypto_state"] = 4
+        u["crypto_state"] = 4
         # Handled in recvmsg
         return auth
     # crypto_state == 4 is file transfer
@@ -718,7 +710,8 @@ def recvmsg_secure(nick, msg):
     return None
 
 def recvmsg(nick, msg):
-    """Handle an incoming message.
+    """Handle an incoming message from nick (one of the few
+       functions that directly accepts a nickname).
 
        Returns True if successful, False if unsuccessful, or
        None if neither (multipart continuation)."""
@@ -729,19 +722,21 @@ def recvmsg(nick, msg):
     log("<%s>%s" % (nick, msg))
 
     if not clients.has_key(nick):
-        clients[nick] = {}
+        clients[nick] = {}   # create (note: use clear_client() to clear)
+        clients[nick]["nick"] = nick
 
-    if recv_multipart(nick, msg):
+    u = clients[nick]
+
+    if recv_multipart(u, msg):
         return None    # neither success or failure
 
     # If transfer in progress, allowed to use abbreviated protocol
-    if  clients[nick].has_key("authenticated") and \
-        clients[nick]["authenticated"] == 2:
-        transfer_control(nick, msg)
+    if  u.has_key("authenticated") and u["authenticated"] == 2:
+        transfer_control(u, msg)
 
     # Encrypted messages
-    if clients.has_key(nick) and clients[nick].has_key("crypto_state"):
-        cleartext = recvmsg_secure(nick, msg)
+    if u.has_key("crypto_state"):
+        cleartext = recvmsg_secure(u, msg)
         if not cleartext:
             return    # handled (key exchange, etc.)
         msg = cleartext.replace("\0", "")
@@ -759,7 +754,7 @@ def recvmsg(nick, msg):
         "dir":  handle_dir,
         "done": handle_done}
     if table.has_key(cmd):
-        table[cmd](nick, arg)
+        table[cmd](u, arg)
 
     return True
 
@@ -767,7 +762,7 @@ def load_transport(transport):
     """Load the transport module used for the backchannel. This is similar
     to sumiget's load_transport, but the transport is used for ALL transfers;
     not on a per-user basis as with sumiget."""
-    global sendmsg
+    global sendmsg_real
     # Import the transport. This may fail, if, for example, there is
     # no such transport module.
     log(sys.path)
@@ -789,46 +784,44 @@ def load_transport(transport):
     t.human_readable_size = human_readable_size
     t.log = log
 
-    #clients[nick]["sendmsg"] = t.sendmsg
-    #clients[nick]["recvmsg"] = t.recvmsg
-    #clients[nick]["transport_init"] = t.transport_init
+    # We only use one transport; they aren't per-user as in sumiget
     t.transport_init()
-    sendmsg = t.sendmsg
+    sendmsg_real = t.sendmsg
     t.recvmsg(recvmsg)
 
-def xfer_thread_loop(nick):
+def xfer_thread_loop(u):
     """Transfer the file, possibly in a loop for multicast."""
-    if clients[nick]["mcast"]: 
+    if u["mcast"]: 
        i = 0
-       while 1:
+       while True:
            log("Multicast detected - loop #%d" % i)  # "data carousel"
            i += 1
-           xfer_thread(nick)
+           xfer_thread(u)
     else:
-       xfer_thread(nick)
+       xfer_thread(u)
 
 # TODO: The following conditions need to be programmed in:
 # * If peer QUITs, kill transfer
-def xfer_thread(nick):
+def xfer_thread(u):
     """File transfer thread, called for each file transfer."""
-    log("clients[nick][seqno] exists? %s" % clients[nick].has_key("seqno"))
+    log("u[seqno] exists? %s" % u.has_key("seqno"))
 
     # Not actually used here.
-    while 1:
+    while True:
         # Resend queued resends if they come up, but don't dwell
         try:
-            while 1:
+            while True:
                 resend = resend_queue.get_nowait()   # TODO: multiple users!
-                log("Q: %s %s" % (nick,resend))
-                datapkt(nick, resend, True)
+                log("Q: %s %s" % (u["nick"],resend))
+                datapkt(u, resend, True)
         except Queue.Empty:
             #log("Q: empty")
             pass
 
-        if (clients[nick]["seqno"]):
-            blocklen = datapkt(nick, clients[nick]["seqno"])
+        if u["seqno"]:
+            blocklen = datapkt(u, u["seqno"])
 
-        d = time.time() - clients[nick]["ack_ts"]
+        d = time.time() - u["ack_ts"]
 
         # * If peer doesn't send NAK within 2*RWINSZ, pause transfer (allocate_lock?)
         # * If above, and peer sends a NAK again, release the lock allowing to resume
@@ -836,69 +829,77 @@ def xfer_thread(nick):
         # RWINSZ*2, and then resume if we received a message within RWINSZ*5.
         # This may help SUMI withstand temporary congestion problems, but I
         # haven't been able to get it working well.
-        #if (float(d) >= float(clients[nick]["rwnisz"] * 2)):
+        #if (float(d) >= float(u["rwnisz"] * 2)):
         #    print "Since we haven't heard from %s in %f (> %d), PAUSING" % \
-        #           (nick, int(d), float(clients[nick]["rwinsz"] * 2))
-        #     clients[nick]["xfer_lock"].acquire()
+        #           (u["nick"], int(d), float(u["rwinsz"] * 2))
+        #     u["xfer_lock"].acquire()
 
         # If haven't received ack from user since RWINSZ*5, stop.
-        if (float(d) >= float(clients[nick]["rwinsz"] * 5)):
-            #clients[nick]["xfer_lock"].acquire() 
+        if float(d) >= float(u["rwinsz"] * 5):
+            #u["xfer_lock"].acquire() 
             log("Since we haven't heard from %s in %f (> %d), stopping" %  \
-                (nick, int(d), float(clients[nick]["rwinsz"] * 5)))
-            clients[nick]["xfer_stop"] = 1
+                (u["nick"], int(d), float(u["rwinsz"] * 5)))
+            u["xfer_stop"] = 1
 
         # If transfer lock is locked (pause), then wait until unpaused
         #  might be better for us to stop transfer in 2*RWINSZ, but be polite
-        if (clients[nick]["xfer_lock"].locked()):
-            log("TRANSFER TO %s PAUSED" % nick)
-            clients[nick]["xfer_lock"].acquire()
-            log("TRANSFER TO %s RESUMED" % nick)
+        if u["xfer_lock"].locked():
+            log("TRANSFER TO %s PAUSED" % u["nick"])
+            u["xfer_lock"].acquire()
+            log("TRANSFER TO %s RESUMED" % u["nick"])
 
-        if (clients[nick].has_key("xfer_stop")):
-            #print "TRANSFER TO",nick,"STOPPED:",clients[nick]["xfer_stop"]
-            log("TRANSFER TO %s STOPPED: %s" % (nick,
-                clients[nick]["xfer_stop"]))
-            clients[nick] = {}
+        if u.has_key("xfer_stop"):
+            #print "TRANSFER TO",u["nick"],"STOPPED:",u["xfer_stop"]
+            log("TRANSFER TO %s STOPPED: %s" % (u["nick"], u["xfer_stop"]))
+            clear_client(u)
             return
 
         # End of file if short block. Second case is redundant but will
         # occur if file size is an exact multiple of MSS.
-        if (not clients[nick].has_key("seqno")):
+        if not u.has_key("seqno"):
             # TODO: Allow multiple transfers per server? No, queue instead.
-            fatal(4, ("Client %s has no seqno" % nick) +
+            fatal(4, ("Client %s has no seqno" % u["nick"]), 
                 "\nMost likely client is trying to get >1 files at once.")
-        #print "#%d, len=%d" % (clients[nick]["seqno"], blocklen)
-        if (blocklen < clients[nick]["mss"] - SUMIHDRSZ or blocklen == 0):
-            clients[nick]["seqno"] = None  # no more sending, but can resend
+        #print "#%d, len=%d" % (u["seqno"], blocklen)
+        if blocklen < u["mss"] - SUMIHDRSZ or blocklen == 0:
+            u["seqno"] = None  # no more sending, but can resend
             break
-        clients[nick]["seqno"] += 1
+        u["seqno"] += 1
 
     # Wait for any more resends until 2*RWINSZ
     while 1:
         try:
-            resend = resend_queue.get(True, 2*int(clients[nick]["rwinsz"]))
-            datapkt(nick, resend, True)
+            resend = resend_queue.get(True, 2 * int(u["rwinsz"]))
+            datapkt(u, resend, True)
         except Queue.Empty:
             break 
 
     log("Transfer complete.")
 
-def destroy_client(nick):
+def destroy_client(u):
     """Clear all information about a client."""
-    log("Severing all ties to %s" % nick)
+    log("Severing all ties to %s" % u["nick"])
     try:
-        casts[clients[nick]["addr"]].pop(nick)
-        if len(casts[clients[nick]["addr"]]) == 0:
-            log("Last client for %s exited: %s" %
-                (clients[nick]["addr"], nick))
+        casts[u["addr"]].pop(u["nick"])
+        if len(casts[u["addr"]]) == 0:
+            log("Last client for %s exited: %s" % (u["addr"], u["nick"]))
             # TODO: stop all transfers to this address
-            casts.pop(clients[nick]["addr"])
-        clients.pop(nick)
+            casts.pop(u["addr"])
+        clients.pop(u["nick"])
+        clear_client(u)
     except:
         pass
 
-def handle_nak(nick, msg):
+def clear_client(u):
+    """Clear all fields about the user u, except for their nickname."""
+
+    # Use .clear() instead of {}
+    nick = u["nick"]
+    u.clear()
+    u["nick"] = nick
+    return u
+
+def handle_nak(u, msg):
     """Handle a negative acknowledgement, of the form
         n<win>,<resend-1>,<resend-2>,...,<resend-N>. We will
         resend the requested packets, as well as any normal
@@ -906,18 +907,15 @@ def handle_nak(nick, msg):
     #resends = msg[1:].split(",")
     resends = unpack_range(msg[1:])   # Compressed naks
     resends.reverse()
-    if (msg == "n"):
-        if (not clients[nick].has_key("last_winsz")):
-            winsz = 1024
-        else:
-            winsz = clients[nick]["last_winsz"]
+    if msg == "n":
+        winsz = u.get("last_winsz", 1024)
     else:
         winsz = int(resends.pop())
-        clients[nick]["last_winsz"] = winsz
+        u["last_winsz"] = winsz
 
-    clients[nick]["ack_ts"] = time.time()   # got ack within timeframe
-    if (clients[nick]["xfer_lock"].locked()):
-        clients[nick]["xfer_lock"].release()
+    u["ack_ts"] = time.time()   # got ack within timeframe
+    if u["xfer_lock"].locked():
+        u["xfer_lock"].release()
         log("Lock released by control message.")
 
     # TODO: Slow bandwidth (increase delay) based on lost packets. The
@@ -928,7 +926,7 @@ def handle_nak(nick, msg):
     # conditions and no/little losses. TCP has a "slow start" where it
     # starts out with low bandwidth and increases until too much. Consid.
     # TODO: How about this... set bandwidth requested to actual bandwidth
-    #print "Lost bytes: ", clients[nick]["mss"] * len(resends)
+    #print "Lost bytes: ", u["mss"] * len(resends)
 
     # If any resends, push these onto global resend_queue
     for resend in resends:
@@ -941,53 +939,55 @@ def handle_nak(nick, msg):
         log("Queueing resend of %d" % resend)
         resend_queue.put(resend)
 
-def transfer_control(nick, msg):
+def transfer_control(u, msg):
     """Handle an in-transfer control message.
     
     In-transfer messages use an abbreviated protocol."""
     global resend_queue
-    log("(authd)%s: %s" % (nick, msg))
-    if msg[0] == "k":     # TFTP-style transfer, no longer supported here
+    log("(authd)%s: %s" % (u["nick"], msg))
+    if msg[0] == "k":     
+        # TFTP-style transfer, no longer supported here (TODO)
+        # TODO: look into FSP and TFTP again, and implement it
         pass 
     elif msg[0] == "n":          
-        handle_nak(nick, msg)
+        handle_nak(u, msg)
     elif msg[0] == '!':        # abort transfer
-        log("Aborting transfer to %s" % nick)
-        destroy_client(nick)
+        log("Aborting transfer to %s" % u["nick"])
+        destroy_client(u)
 
-def datapkt(nick, seqno, is_resend=False):
+def datapkt(u, seqno, is_resend=False):
     """Send data packet number "seqno" to nick, for its associated file. 
        Returns the length of the data sent.
        
        Delegates actual sending to a send_packet_* function."""
     if seqno > 16777216:
-        destroy_client(nick)
-        return sendmsg_error(nick, "file too large: 8-10GB is "+
+        destroy_client(u)
+        return sendmsg_error(u, "file too large: 8-10GB is " +
                 "the limit, depending on MSS")
 
     # Size of data payload in packet            
-    payloadsz = clients[nick]["mss"] - SUMIHDRSZ
+    payloadsz = u["mss"] - SUMIHDRSZ
     
     if cfg["noise"] and random.randint(0, int(cfg["noise"])) == 0:
         # lose packet (for testing purposes)
         return payloadsz
 
-    log("Sending to %s #%s %s" % (nick, seqno, payloadsz))
+    log("Sending to %s #%s %s" % (u["nick"], seqno, payloadsz))
     #print "I AM GOING TO SEEK TO ",payloadsz*(seqno-1)
 
-    #if (payloadsz * (seqno - 1)) > clients[nick]["size"]:
+    #if (payloadsz * (seqno - 1)) > u["size"]:
     #    print nick,"tried to seek past end-of-file"
     #    return
 
     # Many OS's allow seeking past the end of file. Preallocate like BT?
     file_pos = payloadsz * (seqno - 1)
-    clients[nick]["fh"].seek(file_pos)
+    u["fh"].seek(file_pos)
 
-    data = clients[nick]["fh"].read(payloadsz)
+    data = u["fh"].read(payloadsz)
 
     # Crypto, anyone?
     # XXX: broken, no AONT for now
-    if False and clients[nick].has_key("crypto_state"):
+    if False and u.has_key("crypto_state"):
         assert payloadsz % get_cipher().block_size == 0, \
                 "%s (MSS-%s) is not a multiple of %s, which is required" + \
                 "for crypto. This should've been fixed in cfg validation." % (
@@ -995,14 +995,14 @@ def datapkt(nick, seqno, is_resend=False):
 
         ctr = calc_blockno(seqno, payloadsz)
 
-        if clients[nick].has_key("special_last_seqno") and \
-                clients[nick]["special_last_seqno"] == seqno:
+        if u.has_key("special_last_seqno") and \
+                u["special_last_seqno"] == seqno:
             # OK to call digest_last() multiple times--won't change
-            data = clients[nick]["aon"].digest_last()
+            data = u["aon"].digest_last()
         else:
-            pseudotext = clients[nick]["aon"].digest_next(data, ctr, is_resend)
+            pseudotext = u["aon"].digest_next(data, ctr, is_resend)
             print "PSEUDOTEXT:%s"%ctr
-            if file_pos > clients[nick]["clear_size"] - payloadsz: 
+            if file_pos > u["clear_size"] - payloadsz: 
                 # Last packet, so include last block
                 log("(last data packet!)")
 
@@ -1010,37 +1010,33 @@ def datapkt(nick, seqno, is_resend=False):
                 # of this packet. The new packet is special-cased above.
                 if payloadsz + get_cipher().block_size > full_payload:
                     log("Last block going into new pkt: %s" % (seqno + 1))
-                    clients[nick]["special_last_seqno"] = seqno + 1
-                    datapkt(nick, seqno + 1)
+                    u["special_last_seqno"] = seqno + 1
+                    datapkt(u, seqno + 1)
                 else:
-                    pseudotext += clients[nick]["aon"].digest_last()
+                    pseudotext += u["aon"].digest_last()
 
             data = pseudotext
 
     # AES CTR encryption
-    if clients[nick].has_key("data_key"):
-        clients[nick]["ctr"] = (calc_blockno(seqno, payloadsz) +
-            + clients[nick]["data_iv"])
-        log("CTR:pkt #%s -> %s" % (seqno, clients[nick]["ctr"]))
-        # XXX XXX Something broken here? Last packet corrupted.
-        ciphertext = clients[nick]["crypto_obj"].encrypt(data)
+    if u.has_key("data_key"):
+        u["ctr"] = (calc_blockno(seqno, payloadsz) +
+            + u["data_iv"])
+        log("CTR:pkt #%s -> %s" % (seqno, u["ctr"]))
+        ciphertext = u["crypto_obj"].encrypt(data)
 
         data = ciphertext
 
-    pkt = clients[nick]["prefix"]        # 3-byte prefix
+    pkt = u["prefix"]        # 3-byte prefix
     pkt += struct.pack("!I", seqno)[1:]  # 3-byte seq no
     if (len(pkt) != SUMIHDRSZ):
         fatal(5, "internal failure: header not expected size")
     pkt += data 
-    if (len(pkt) > clients[nick]["mss"]):
+    if (len(pkt) > u["mss"]):
         fatal(6, "internal: trying to send packet >MSS, should not happen")
 
-    #src = randip()
-    clients[nick]["send"](clients[nick]["src_gen"](), \
-                          clients[nick]["dst_gen"](), pkt)
-    #send_packet(src, clients[nick]["addr"], pkt, clients[nick]["dchanmode"])
-    #print "DATA to %s(%s:%d)<-%s:%d, #%d len=%d (at=%d)" % (nick, clients[nick]["addr"][0], clients[nick]["addr"][1], src[0], src[1], seqno, len(block), clients[nick]["fh"].tell())
-    time.sleep(clients[nick]["delay"])
+    u["send"](u["src_gen"](), u["dst_gen"](), pkt)
+
+    time.sleep(u["delay"])
 
     return len(data)
 
@@ -1560,18 +1556,19 @@ def rand_pingable_host():
     l = cfg["icmp_proxies"]
     return (l[random.randint(0, len(l) - 1)], 0)
 
-def sendmsg(nick, msg):
-    """Dummy function, replaced by the transport to send messages."""
-    fatal(24, "somehow sendmsg wasn't set by transport (%s: %s)" % (nick, msg))
+def sendmsg(u, msg):
+    """Send a message to a user using the loaded transport (load_transport).
+    The user's nickname is used for identification to the transport."""
+    sendmsg_real(u["nick"], msg)
 
-def sendmsg_error(nick, msg):
+def sendmsg_error(u, msg):
     """Report an error message, if not in quiet mode. Returns False.
     Also destroys client information, assuming a fatal error."""
-    if (not cfg["quiet_mode"]):
-        sendmsg(nick, "error: %s" % msg)
-    log("%s -> error: %s" % (nick, msg))
+    if not cfg["quiet_mode"]:
+        sendmsg(u, "error: %s" % msg)
+    log("%s -> error: %s" % (u["nick"], msg))
 
-    clients[nick] = {}
+    clear_client(u)
     return False
 
 def human_readable_size(size):

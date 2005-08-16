@@ -12,6 +12,11 @@ from twisted.internet import protocol, reactor
 from twisted.protocols import basic
 from twisted.python import threadable
 import thread
+import sys
+
+# Tor offers a SOCKS server to allow entry into the network
+sys.path.append("..")
+import socks5
 
 PORT = 2773
 
@@ -33,8 +38,9 @@ class SUMIProtocol(basic.LineReceiver):
         # \r\n is standard, but \n allows using netcat easily for debugging
         self.delimiter = "\n"
 
-        source = self.transport.getHandle().getpeername()
-        dest = self.transport.getHandle().getsockname()
+        h = self.transport.getHandle()
+        source, dest = h.getpeername(), h.getsockname()
+
         # We may have been exposed!
         assert source[0] == "127.0.0.1", \
                 "Non-local connection from %s!" % (source, )
@@ -44,6 +50,8 @@ class SUMIProtocol(basic.LineReceiver):
             self.nick = "tor-%s" % source[1]
         else:
             self.nick = dest[0]
+            # SOCKS5 request. We're actually connected to a proxy...
+            #TODO socks5.connect_via( (
        
         if cli_locks.has_key(self.nick):
             cli_locks[self.nick].release()
@@ -80,13 +88,12 @@ def recvmsg(callback=default_cb):
 
     tor_callback = callback
 
-    # Make sure this is exposed in torrc, for example:
+    # Note: make sure this is exposed in torrc, for example:
     # /usr/local/etc/tor/torrc:
     #  HiddenServiceDir /usr/local/etc/tor/hidden_service
     #  HiddenServicePort 2773 127.0.0.1:2773
 
-    # XXX: Make sure to only listen on localhost!
-    print "Starting server on %s" % PORT
+    print "Starting local server on %s" % PORT
     reactor.listenTCP(PORT, SUMIServerFactory(), interface="localhost")
     reactor.run(installSignalHandlers=False)
 
@@ -100,7 +107,8 @@ def user_init(nick):
 
     # Start thread for reactor
     def t():
-        reactor.connectTCP(nick, PORT, SUMIClientFactory())
+        #reactor.connectTCP("localhost", 9050, SUMIClientFactory())
+        reactor.connectTCP(nick, PORT, SUMIClientFactory()) # w/o proxy
         reactor.run(installSignalHandlers=False)
 
     thread.start_new_thread(t, ())

@@ -105,13 +105,16 @@ def request(s, cmd, hostname, port):
 
     return (address, port)
 
-def connect_via(address, proxy):
+def connect_via(address, proxy=None, s=None):
     """Negotiate and send a connect request to address = (hostname, port).
-    Provides a similar address to socket's connect()."""
+    Provides a similar address to socket's connect(). If proxy=None,
+    socket is assumed to already be connected to a SOCKS server."""
     hostname, port = address
 
-    s = socket.socket()
-    s.connect(proxy)
+    if proxy:
+        s = socket.socket()
+        s.connect(proxy)
+
     negotiate(s)
 
     # Return value not usually meaningful for connect command

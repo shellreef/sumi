@@ -1,5 +1,9 @@
 TO DO   20050802JC
 
+* Look into FSP - http://cvs.sourceforge.net/viewcvs.py/fsp/fsp/INFO?view=auto
+  it is slower than TCP, but can adapt very quickly to changing conditions
+  see also: http://fsp.sourceforge.net/faq/index.html . its based on UDP, may
+  be usable for a control algorithm. Also reinstate TFTP mode.
 **** Work on modtor.py, and have a flag for secure/insecure transports,
      and if insecure, automatically enable crypt_req if crypto enabled, other-
      wise can rely on transport to provide the transport security, but always

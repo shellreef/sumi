@@ -95,8 +95,8 @@ class AON:
 
         # First time encrypting? Setup...
         if not self.digesting:
-            #self.k = random_bytes(self.block_size) 
-            self.k = "0" * self.block_size#XXX XXX XXX XYZ debugging
+            self.k = random_bytes(self.block_size) 
+            #self.k = "0" * self.block_size#XXX XXX XXX XYZ debugging
             #print "=====k=",[self.k]
             if self.IV:
                 self.crypt = self.cipher.new(self.k, self.mode, self.IV)
