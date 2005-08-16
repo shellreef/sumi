@@ -8,7 +8,7 @@
  'crypt_req': False,
  'data_chan_type': 'u',
  'dchanmode': 'socket',
- 'dl_dir': '/tmp',
+ 'dl_dir': 'X:/p2p/sumi/incoming',
  'interface': 'ndis0',
  'interface2': '\\Device\\NPF_{FDA97C53-F88D-486E-82B6-FBBD969F0F59}',
  'interface3': '\\Device\\NPF_{3530F223-8959-4928-88A5-1672C094D6A8}',

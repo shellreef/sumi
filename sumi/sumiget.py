@@ -1119,7 +1119,7 @@ class Client:
         # transport_init() to return, but we already wait for it 
         #input_lock.acquire()   # wait for transport connection
 
-        if (self.senders.has_key(nick)):
+        if self.senders.has_key(nick):
             # TODO: Index senders based on unique key..instead of nick
             # Then we could have multiple transfers from same user, same time!
             log("Already have an in-progress transfer from %s" % nick)
@@ -1234,12 +1234,13 @@ class Client:
         return True
 
     def main(self, transport, nick, file):
-        self.senders[nick] = {}
-        if not self.load_transport(transport, nick):
-            return
-
+        """Text-mode client. There isn't much user-friendliness here--the
+        callbacks simply dump the passed arguments to stdout. There used to
+        be an interactive interface, cli_user_input, but it is no longer
+        supported.
+        
+        In the future, this interface should be more usable."""
         thread.start_new_thread(self.thread_timer, ())
-        #senders[nick]["transport_init"] = t.transport_init
         thread.start_new_thread(self.request, (transport, nick, file))
 
         # This thread will release() input_lock, letting thread_request to go
@@ -1250,8 +1251,7 @@ class Client:
         input_lock.release()
 
         # Main thread is UDP server. There is no transport thread, its sendmsg
-        self.thread_recv_packets()
-   # start waiting before requesting
+        self.thread_recv_packets()   # start waiting before requesting
 
     def on_exit(self):    # GUI uses this on_exit
         log("Cleaning up...")
