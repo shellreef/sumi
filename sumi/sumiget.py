@@ -89,55 +89,61 @@ class Client:
 
         self.set_callback(self.default_cb)   # override me please
 
+    # Not used anymore--see handle_server_message
     def on_msg(self, nick, msg):
         """Handle incoming messages."""
         log("<%s> %s" % (nick, msg))
         # This isn't used anymore - its in the auth packet instead
-        if (msg.find("sumi start ") == 0):
+        if msg.find("sumi start ") == 0:
             args = unpack_args(msg[len("sumi start "):])
             (filename, offset, size) = (args["f"], args["o"], args["l"])
 
             offset = int(offset)
             size = int(size)
 
-            if (self.senders.has_key(nick)):
-                self.sendmsg(nick, "n%d" % self.rwinsz)
+            if self.senders.has_key(nick):
+                self.sendmsg(self.senders[nick], "n%d" % self.rwinsz)
                 self.rwinsz_old = self.rwinsz
                 log("Starting n%d %s for %s,%d,%d" % (self.rwinsz, nick,
                     filename, offset, size))
             else:
                 log("ERROR: user not known, stranger trying to sumi start!")
                 log("Senders: %s" % self.senders)
-        elif (msg.find("error: ") == 0):
+        elif msg.find("error: ") == 0:
             errmsg = msg[len("error: "):]
             log("*** Error: " % errmsg)
 
-    def save_lost(self, x, finished=0):
-        """Write the resume file for transfer from nick."""
+    def save_lost(self, u, finished=0):
+        """Write the resume file for transfer from the user."""
         finished=0    # no special case
-        self.senders[x]["fs"].seek(0)    
-        self.senders[x]["fs"].truncate()    # Clear
-        self.senders[x]["fs"].flush()
+
+        if not u.has_key("fs"):
+            log("Not saving resuming file for %s" % u["nick"])
+            return
+
+        u["fs"].seek(0)    
+        u["fs"].truncate()    # Clear
+        u["fs"].flush()
         if not finished:
             # .sumi file format: lostpkt1,lostpkt2,...,lostpktn,current_pkt
-            lost = ",".join(map(str, self.senders[x]["lost"].keys()))
-            lost += "," + str(self.senders[x]["at"])   # last is at, cur/last
-            self.senders[x]["fs"].write(lost)   # Overwrite with new lostdata
-            self.senders[x]["fs"].flush()
+            lost = ",".join(map(str, u.get("lost", {}).keys()))
+            lost += "," + str(u["at"])   # last is at, cur/last
+            u["fs"].write(lost)   # Overwrite with new lostdata
+            u["fs"].flush()
             #print "WROTE LOST: ",lost
         else:    # NOT REACHED
             # Don't remove the resume file. Leave it around so know finished.
             #lfn = self.config["dl_dir"] + os.path.sep \
-            #      + self.senders[x]["fn"] + ".sumi"
+            #      + u["fn"] + ".sumi"
             #print "Removing resume file ",lfn
             #os.unlink(lfn) 
             # Mark as finished
-            self.senders[x]["fs"].write("FIN")
-            self.senders[x]["fs"].flush() 
+            u[x]["fs"].write("FIN")
+            u[x]["fs"].flush() 
 
-    def prefix2nick(self, prefix):
-        """Find nick that is associated with the random prefix; which is the
-        only way to identify the source."""
+    def prefix2user(self, prefix):
+        """Find user that is associated with the random prefix; which is the
+        only way to identify the source. Return None if no user."""
        
         # The data structures aren't setup very efficiently.
         for x in self.senders:
@@ -145,63 +151,62 @@ class Client:
                self.senders[x]["prefix"] == prefix:
                 #xprint "DATA:Prefix=%02x%02x%02x its %s" %\
                 #    (tuple(map(ord, prefix)) + (x, ))
-                return x
+                return self.senders[x]
         return None
 
-        #print "Incoming:",len(data),"bytes from",addr,"=",nick," #",seqno
+        #print "Incoming:",len(data),"bytes from",addr,"=",u["nick"]," #",seqno
 
-    def setup_resuming(self, nick, lostdata):
+    def setup_resuming(self, u, lostdata):
         """Setup data structures to resume a file."""
 
-        self.senders[nick]["at"] = int(lostdata.pop())
+        u["at"] = int(lostdata.pop())
 
-        log("RESUMING AT %s" % self.senders[nick]["at"])
+        log("RESUMING AT %s" % u["at"])
         log("IS_RESUMING: LOST: %s" % lostdata)
-        self.senders[nick]["lost"] = {}
+        u["lost"] = {}
         for x in lostdata:
             try:
-                self.senders[nick]["lost"][int(x)] = 1
+                u["lost"][int(x)] = 1
             except ValueError:
                 pass    # don't add non-ints
-        log("LOADED LOSTS: %s" % self.senders[nick]["lost"])
+        log("LOADED LOSTS: %s" % u["lost"])
 
         # Initialize the rwin with empty hashes, mark off missings
-        self.senders[nick]["rwin"] = {}
-        for x in range(1, self.senders[nick]["at"] + 1):
-            self.senders[nick]["rwin"][int(x)] = 1   # received 
+        u["rwin"] = {}
+        for x in range(1, u["at"] + 1):
+            u["rwin"][int(x)] = 1   # received 
 
-        for L in self.senders[nick]["lost"]:    # mark losses
-            self.senders[nick]["rwin"][int(L)] = 0
+        for L in u["lost"]:    # mark losses
+            u["rwin"][int(L)] = 0
 
-        #print "RESUME RWIN: ", self.senders[nick]["rwin"]
+        #print "RESUME RWIN: ", u["rwin"]
 
         # Formula below is WRONG. Last packet is not size of MSS.
         # Bytes received = (MSS * at) - (MSS * numlost)
         # XXX: MSS's may be inconsistant across users! Corruption
-        #self.senders[nick]["bytes"] = \
-        #    (self.mss * self.senders[nick]["at"]) - \
-        #    (self.mss * len(self.senders[nick]["lost"].keys()))
-        s = self.senders[nick]["fh"].tell()
-        self.senders[nick]["fh"].seek(0, 2)   # SEEK_END
-        self.senders[nick]["bytes"] = \
-            self.senders[nick]["fh"].tell()
-        self.senders[nick]["fh"].seek(s, 0)
+        #u["bytes"] = \
+        #    (self.mss * u["at"]) - \
+        #    (self.mss * len(u["lost"].keys()))
+        s = u["fh"].tell()
+        u["fh"].seek(0, 2)   # SEEK_END
+        u["bytes"] = u["fh"].tell()  # OK? Earlier was a total?
+        u["fh"].seek(s, 0)
 
-        #print "STORED BYTES: ", self.senders[nick]["bytes"]
-        #print "AND THE SIZE: ", self.senders[nick]["size"]
+        #print "STORED BYTES: ", u["bytes"]
+        #print "AND THE SIZE: ", u["size"]
 
         # Files don't store statistics like these
-        self.senders[nick]["all_lost"] = []  # blah
-        self.senders[nick]["rexmits"] = 0
+        u["all_lost"] = []  # blah
+        u["rexmits"] = 0
 
-    def setup_non_resuming(self, nick):
+    def setup_non_resuming(self, u):
         """Setup data structures for a new file."""
         # Initialize
-        self.senders[nick]["at"] = 0
-        self.senders[nick]["rexmits"] = 0
-        self.senders[nick]["all_lost"] = []
-        self.senders[nick]["bytes"] = 0  # bytes received
-        self.senders[nick]["lost"] = {}    # use: keys(), pop()..
+        u["at"] = 0
+        u["rexmits"] = 0
+        u["all_lost"] = []
+        u["bytes"] = 0  # bytes received
+        u["lost"] = {}    # use: keys(), pop()..
         # RWIN is a list of all the packets, and if they occured (0=no),
         # incremented each time a packet of that seqno is received. Since
         # Python arrays don't automatically grow with assignment, a hash
@@ -209,32 +214,31 @@ class Client:
         # cause an IndexError. See
         #http://mail.python.org/pipermail/python-list/2003-May/165484.html
         # for rationale and some other class implementations
-        self.senders[nick]["rwin"] = {}
+        u["rwin"] = {}
 
-    def setup_file(self, nick):
+    def setup_file(self, u):
         """Setup the file to save to."""
-        fn = self.config["dl_dir"] + os.path.sep + \
-            self.senders[nick]["fn"]
-        log("Opening %s for %s..." % (fn, nick))
-        self.senders[nick]["start"] = time.time()
+        fn = self.config["dl_dir"] + os.path.sep + u["fn"]
+        log("Opening %s for %s..." % (fn, u["nick"]))
+        u["start"] = time.time()
 
         # These try/except blocks try to open the file rb+, but if
         # it fails with 'no such file', create them with wb+ and
         # open with rb+. Good candidate for a function!
         try:
-            self.senders[nick]["fh"] = open(fn, "rb+")
+            u["fh"] = open(fn, "rb+")
         except IOError:
             open(fn, "wb+").close()
-            self.senders[nick]["fh"] = open(fn, "rb+")
+            u["fh"] = open(fn, "rb+")
         log("open")
 
         # Open a new resuming file (create if needed)
         try:
-            self.senders[nick]["fs"] = open(fn + ".sumi", "rb+")
+            u["fs"] = open(fn + ".sumi", "rb+")
             is_resuming = 1  # unless proven otherwise
         except IOError:
             open(fn + ".sumi", "wb+").close()
-            self.senders[nick]["fs"] = open(fn + ".sumi", "rb+")
+            u["fs"] = open(fn + ".sumi", "rb+")
             is_resuming = 0   # empty resume file, new download
 
         # Lost data format: lostpkt1,lostpkt2,...,current_pkt
@@ -243,29 +247,30 @@ class Client:
         # Check if the data file exists, and if so, resume off it
         if os.access(fn, os.R_OK):
             # The data file is readable, read lost data 
-            lostdata = self.senders[nick]["fs"].read().split(",")
+            lostdata = u["fs"].read().split(",")
         else: 
             is_resuming = 0     # Can't read data file, so can't resume
 
         # Need at least an offset to resume...
-        if (len(lostdata) <= 1): is_resuming = 0
+        if len(lostdata) <= 1: 
+            is_resuming = 0
         log("LEN LOSTDATA=%s" % len(lostdata))#,"and lostdata=",lostdata
 
         #is_resuming=0#FORCE
 
         # Setup lost packets
-        if (is_resuming):   # this works
-            self.setup_resuming(nick, lostdata)
+        if is_resuming:   # this works
+            self.setup_resuming(u, lostdata)
         else:
-            self.setup_non_resuming(nick)
+            self.setup_non_resuming(u)
 
-    def handle_auth(self, nick, prefix, addr, data):
+    def handle_auth(self, u, prefix, addr, data):
         """Handle the authentication packet."""
-        log("Got auth packet from %s for %s" % (addr,nick))
+        log("Got auth packet from %s for %s" % (addr,u["nick"]))
 
-        if self.senders[nick].has_key("crypto_state"):
+        if u.has_key("crypto_state"):
             g = time.time()
-            d3 = g - self.senders[nick]["sent_req2"]
+            d3 = g - u["sent_req2"]
             if d3 >= INTERLOCK_DELAY:  # really 2*INTERLOCK_DELAY
                 log("WARNING: POSSIBLE MITM ATTACK! %s seconds is too long."\
                         % d3)
@@ -273,19 +278,18 @@ class Client:
                 # only a warning because first data packet should catch it
 
             # Setup data encryption (CTR & package ECB)
-            self.senders[nick]["sessiv"] = inc_str(self.senders[nick]["sessiv"])
+            u["sessiv"] = inc_str(u["sessiv"])
             from AONT import AON
-            self.senders[nick]["aon"] = AON(get_cipher(),
-                    get_cipher().MODE_ECB)
+            u["aon"] = AON(get_cipher(), get_cipher().MODE_ECB)
 
             #log("Decrypted payload: %s" % ([data],))
         
         if self.config["crypt_data"]:
             # Decrypt payload, THEN hash. Note that crypt_data enables auth
             # pkt to be encrypted, since it goes over the data channel.
-            self.senders[nick]["ctr"] = self.senders[nick]["data_iv"]
-            log("DEC AP WITH: %s" % self.senders[nick]["ctr"])
-            data = data[0:SUMIHDRSZ] + self.senders[nick]["crypto_obj"].decrypt(
+            u["ctr"] = u["data_iv"]
+            log("DEC AP WITH: %s" % u["ctr"])
+            data = data[0:SUMIHDRSZ] + u["crypto_obj"].decrypt(
                     data[SUMIHDRSZ:])
 
         hashcode = b64(hash128(data))
@@ -296,41 +300,39 @@ class Client:
         new_prefix, i = take(data, 3, i)
         flags_str, i = take(data, 1, i)
 
-        (self.senders[nick]["size"], ) = struct.unpack("!I", size_str)
-        log("SIZE:%s" % self.senders[nick]["size"])
+        u["size"], = struct.unpack("!I", size_str)
+        log("SIZE:%s" % u["size"])
         assert len(new_prefix) == 3, "Missing new_prefix in auth packet!"
         flags = ord(flags_str)
         log("FLAGS:%s" % flags)
-        self.senders[nick]["mcast"] = flags & 1
-        if self.senders[nick].has_key("crypto_state"):
+        u["mcast"] = flags & 1
+        if u.has_key("crypto_state"):
             recvd_hash, i = take(data, 20, i)
-            derived_hash = self.senders[nick]["nonce_hash"]
+            derived_hash = u["nonce_hash"]
             if recvd_hash != derived_hash:
                 log("Server verification failed! %s != %s" % (\
                         ([recvd_hash], [derived_hash])))
-                self.senders[nick] = {}
+                clear_server(u)
                 return
             log("Server verified: interlock nonce matches auth pkt nonce")
 
         filename = data[i:data[i:].find("\0") + i]
 
-        self.senders[nick]["fn"] = filename
+        u["fn"] = filename
         log("Filename: <%s>" % filename)
 
         # Server can change prefix we suggested (negotiated).
-        log("OLD PREFIX: %02x%02x%02x" % 
-            (tuple(map(ord, self.senders[nick]["prefix"]))))
-        log("NEW PREFIX: %02x%02x%02x" % 
-            (tuple(map(ord, new_prefix))))
+        log("OLD PREFIX: %02x%02x%02x" % (tuple(map(ord, u["prefix"]))))
+        log("NEW PREFIX: %02x%02x%02x" % (tuple(map(ord, new_prefix))))
 
-        if new_prefix != self.senders[nick]["prefix"]:
+        if new_prefix != u["prefix"]:
             # May be already being used by server
             log("Switching to a new prefix!")
-        self.senders[nick]["prefix"] = new_prefix
+        u["prefix"] = new_prefix
 
-        self.callback(nick, "info", self.senders[nick]["size"], \
+        self.callback(u["nick"], "info", u["size"], \
             b64(prefix), filename, \
-            self.senders[nick]["transport"], \
+            u["transport"], \
             self.config["data_chan_type"])
 
         if (self.mss != len(data)):
@@ -342,51 +344,51 @@ class Client:
                 sys.exit(-1)
 
         # Open the file and set it up
-        if not self.senders[nick].has_key("fh"):  #  file not open yet
-            self.setup_file(nick)
+        if not u.has_key("fh"):  #  file not open yet
+            self.setup_file(u)
 
         # Tell the sender to start sending, we're ok
         # Resume /after/ our current offset: at + 1
         log("Sending sumi auth")
         auth = pack_args({"m":self.mss,
-               "s":addr[0], "h":hashcode, "o":self.senders[nick]["at"] + 1})
-        if self.senders[nick].has_key("crypto_state"):
-            #self.senders[nick]["sessiv"] = inc_str(
-            #        self.senders[nick]["sessiv"])
-            auth = b64(self.encrypt(nick, auth))
+               "s":addr[0], "h":hashcode, "o":u["at"] + 1})
+        if u.has_key("crypto_state"):
+            #u["sessiv"] = inc_str(u["sessiv"])
+            auth = b64(self.encrypt(u["nick"], auth))
             log("Encrypted sumi auth: %s" % auth)
         else:
             auth = "sumi auth " + auth
-        self.sendmsg(nick, auth)
+        self.sendmsg(u, auth)
 
         self.on_timer()    # instant update
 
         return
 
-    def undigest_file(self, nick):
+    def undigest_file(self, u):
         """After a file is complete, undigest (unpackage) it."""
-        print [self.senders[nick]["aon"].undigest(d)]
+        # Something is broken
+        print [u["aon"].undigest(d)]
 
-    def handle_first(self, nick, seqno):
+    def handle_first(self, u, seqno):
         """Handle the first packet from the server."""
-        self.senders[nick]["start_seqno"] = seqno
+        u["start_seqno"] = seqno
         log("FIRST PACKET: %s" % seqno)
 
-        self.senders[nick]["got_first"] = True
+        u["got_first"] = True
 
-        if self.senders[nick].has_key("crypto_state"):
+        if u.has_key("crypto_state"):
             # Make sure first data packet is received soon enough
             g = time.time()
-            d4 = g - self.senders[nick]["sent_req2"]
+            d4 = g - u["sent_req2"]
             if d4 >= 2*INTERLOCK_DELAY-0.1:
                 log("POTENTIAL MITM ATTACK DETECTED--DELAY TOO LONG. %s"%d4)
                 os._exit(-1)
                 return
             else:
                 log(":) No MITM detected")
-        self.callback(nick, "recv_1st")
+        self.callback(u["nick"], "recv_1st")
 
-    def handle_data(self, nick, prefix, addr, seqno, data):
+    def handle_data(self, u, prefix, addr, seqno, data):
         """Handle data packets."""
 
         # Prefix has been checked, seqno calculated, so just get to the data
@@ -395,121 +397,118 @@ class Client:
         payloadsz = len(data)
         full_payload = self.mss - SUMIHDRSZ
 
-        if not self.senders[nick].has_key("got_first"):
-            self.handle_first(nick, seqno)
+        if not u.has_key("got_first"):
+            self.handle_first(u, seqno)
 
         # All file data is received here
 
-        self.senders[nick]["last_msg"] = time.time()
+        u["last_msg"] = time.time()
         offset = (seqno - 1) * (self.mss - SUMIHDRSZ)
 
         # Mark down each packet in our receive window
-        if self.senders[nick]["rwin"].has_key(seqno):
-            self.senders[nick]["rwin"][seqno] += 1
+        if u["rwin"].has_key(seqno):
+            u["rwin"][seqno] += 1
         else:
-            self.senders[nick]["rwin"][seqno] = 1    # create
+            u["rwin"][seqno] = 1    # create
 
-        if self.senders[nick]["rwin"][seqno] >= 2:
+        if u["rwin"][seqno] >= 2:
             log("(DUPLICATE PACKET %d, IGNORED)" % seqno)
             return
 
-        #print "THIS IS RWIN: ", self.senders[nick]["rwin"]
+        #print "THIS IS RWIN: ", u["rwin"]
 
-        if not self.senders[nick].has_key("crypto_state"):
+        if not u.has_key("crypto_state"):
             # Without crypto (AONT), last packet is when completes file
-            if offset + payloadsz >= self.senders[nick]["size"]:
-                self.senders[nick]["got_last"] = True
+            if offset + payloadsz >= u["size"]:
+                u["got_last"] = True
 
         if self.config["crypt_data"]:
             # Outer crypto: CTR mode
-            self.senders[nick]["ctr"] = (calc_blockno(seqno, full_payload)
-                    + self.senders[nick]["data_iv"])
-            log("CTR:pkt %s -> %s" % (seqno,
-                self.senders[nick]["ctr"]))
-            data = self.senders[nick]["crypto_obj"].decrypt(data)
+            u["ctr"] = (calc_blockno(seqno, full_payload) + u["data_iv"])
+            log("CTR:pkt %s -> %s" % (seqno, u["ctr"]))
+            data = u["crypto_obj"].decrypt(data)
         
         # XXX: broken
-        if False and self.senders[nick].has_key("crypto_state"):
+        if False and u.has_key("crypto_state"):
             # With crypto (AONT), last packet goes OVER the end of the file,
             # specifically, by one block--the last block, encoding K'.
-            if offset + payloadsz > self.senders[nick]["size"]:
-                self.senders[nick]["got_last"] = True
+            if offset + payloadsz > u["size"]:
+                u["got_last"] = True
 
             # Inner "crypto": ECB package mode, step 1 (gathering)
 
-            if self.senders[nick].has_key("got_last"):
+            if u.has_key("got_last"):
                 # Pass last block to gather_last(), then can decrypt
                 last_block = data[-get_cipher().block_size:]
                 pseudotext = data[0:-get_cipher().block_size]
 
-                self.senders[nick]["aon"].gather(pseudotext)
-                self.senders[nick]["aon"].gather_last(last_block)
+                u["aon"].gather(pseudotext)
+                u["aon"].gather_last(last_block)
 
-                self.senders[nick]["aon_last"] = last_block
+                u["aon_last"] = last_block
 
                 log("Gathered last block!")
-                self.senders[nick]["can_undigest"] = True
+                u["can_undigest"] = True
             else:
-                self.senders[nick]["aon"].gather(pseudotext, ctr)
+                u["aon"].gather(pseudotext, ctr)
 
             # Save data in file and unpackage after finished
             print "LEN:%s vs. %s" % (len(data), len(pseudotext))
             #data = pseudotext
 
         # New data (not duplicate, is cleartext) - add to running total
-        self.senders[nick]["bytes"] += len(data) 
+        u["bytes"] += len(data) 
 
-        self.senders[nick]["fh"].seek(offset)
-        self.senders[nick]["fh"].write(data)
+        u["fh"].seek(offset)
+        u["fh"].write(data)
 
-        if self.senders[nick].has_key("can_undigest"):
-            self.undigest_file(nick)
+        if u.has_key("can_undigest"):
+            self.undigest_file(u)
 
         # Note: callback called every packet; might be too excessive
-        self.callback(nick, "write", offset, self.senders[nick]["bytes"],
-            self.senders[nick]["size"], addr)
+        self.callback(u["nick"], "write", offset, u["bytes"],
+            u["size"], addr)
 
         # Check previous packets, see if they were lost (unless first packet)
-        if (seqno > 1):
+        if seqno > 1:
             i = 1 
             # Nice little algorithm. Work backwards, searching for gaps.
             #print "I'm at ",seqno
             while seqno - i >= 0:
                 #print "?? ", seqno-i
-                if not self.senders[nick]["rwin"].has_key(seqno - i):
-                    self.senders[nick]["lost"][seqno - i] = 1
-                    self.senders[nick]["all_lost"].append(str(seqno - i))
+                if not u["rwin"].has_key(seqno - i):
+                    u["lost"][seqno - i] = 1
+                    u["all_lost"].append(str(seqno - i))
                     i += 1
                 else:
                     #print "ITS THERE!"
                     break  # this one wasn't lost, so already checked
 
-            if self.senders[nick]["mcast"]:
-                log("using mcast, so not re-request these lost pkts")
+            if u["mcast"]:
+                log("using mcast, so not re-requesting these lost pkts")
                 # we'll get these packets next time around 
-            if self.senders[nick]["lost"].has_key(seqno):
-                self.senders[nick]["lost"].pop(seqno)
-                log("Recovered packet %s %s" 
-                        % (seqno, len(self.senders[nick]["lost"])))
-                self.senders[nick]["rexmits"] += 1
-                log("(rexmits = %s" % self.senders[nick]["rexmits"])
-                self.callback(nick, "rexmits", self.senders[nick]["rexmits"])
+            if u.get("lost", {}).has_key(seqno):
+                u["lost"].pop(seqno)
+                log("Recovered packet %s %s" % (seqno, len(u["lost"])))
+                u["rexmits"] += 1
+                log("(rexmits = %s" % u["rexmits"])
+                self.callback(u["nick"], "rexmits", u["rexmits"])
                 #on_timer()   # Maybe its all we need
-            if self.senders[nick].has_key("got_last"):
+            if u.has_key("got_last"):
                 log("LAST PACKET: %d =? %d" 
                         % (len(data), self.mss - SUMIHDRSZ))
                 # File size is now sent in auth packet so no need to calc it
-                #self.senders[nick]["size"] = self.senders[nick]["fh"].tell()
+                #u["size"] = u["fh"].tell()
                 self.on_timer()     # have it check if finished
 
-        if self.senders.has_key(nick):
-            self.save_lost(nick)  # for resuming
+        if u:
+            self.save_lost(u)  # for resuming
 
-        if (self.senders.has_key(nick) and len(self.senders[nick]["lost"])):
-            self.callback(nick, "lost", self.senders[nick]["lost"].keys())
-            #print "These packets are currently lost: ", self.senders[nick]["lost"].keys()
+        if u and u.get("lost"):
+            self.callback(u["nick"], "lost", u["lost"].keys())
+            #print "These packets are currently lost: ", u["lost"].keys()
         else:
-            self.callback(nick, "lost", ())
+            self.callback(u["nick"], "lost", ())
 
     def handle_packet(self, data, addr):
         """Handle received packets."""
@@ -520,20 +519,20 @@ class Client:
         prefix  = data[:3]
         (seqno, ) = struct.unpack("!I", "\0" + data[3:6])
 
-        nick = self.prefix2nick(prefix)
-        if not nick:
+        u = self.prefix2user(prefix)
+        if not u:
             p = "%02x%02x%02x" % (tuple(map(ord, prefix)))
             # On Win32 this takes up a lot of time
             log("DATA:UNKNOWN PREFIX! %s %s bytes from %s"
                     % (p,len(data),addr))
             return None
 
-        self.senders[nick]["retries"] = 0   # acks worked
+        u["retries"] = 0   # acks worked
 
-        self.senders[nick]["last_msg"] = time.time()
+        u["last_msg"] = time.time()
 
         # Last most recently received packet, for resuming
-        self.senders[nick]["at"] = seqno 
+        u["at"] = seqno 
 
         log("PACKET: %s" % seqno)
 
@@ -543,9 +542,9 @@ class Client:
         # Port Address Translation--closely related to NAT, can mangle 
         # the srcport
         if seqno == 0:       # all 0's = auth packet
-            self.handle_auth(nick, prefix, addr, data)
+            self.handle_auth(u, prefix, addr, data)
         else:
-            self.handle_data(nick, prefix, addr, seqno, data)
+            self.handle_data(u, prefix, addr, seqno, data)
 
     def thread_timer(self):
         """Every RWINSZ seconds, send a nak of missing pkts up to that point."""
@@ -563,51 +562,51 @@ class Client:
         """Acknowledge to all senders and update bytes/second."""
         tmp_senders = self.senders.copy()
         for x in tmp_senders:
-            if (not self.senders[x].has_key("lost")):  # not xfering yet
-                self.senders[x]["retries"] = 0   # initialize
+            u = self.senders[x]
+            if not u.has_key("lost"):  # not xfering yet
+                u["retries"] = 0   # initialize
                 continue
 
             # Update rate display
-            if self.senders[x].has_key("bytes"):
-                if self.senders[x].has_key("last_bytes"):
-                    bytes_per_rwinsz = \
-                        self.senders[x]["bytes"] - self.senders[x]["last_bytes"]
+            if u.has_key("bytes"):
+                if u.has_key("last_bytes"):
+                    bytes_per_rwinsz = u["bytes"] - u["last_bytes"]
           
                     rate = float(bytes_per_rwinsz) / float(self.rwinsz) 
                     # rate = delta_bytes / delta_time   (bytes arrived)
                     # eta = delta_bytes * rate          (bytes not arrived)
                     if (rate != 0):
-                        eta = (self.senders[x]["size"] - self.senders[x]["bytes"]) / rate
+                        eta = (u["size"] - u["bytes"]) / rate
                     else:
                         eta = 0
                     # Callback gets raw bits/sec and seconds remaining
                     self.callback(x, "rate", rate, eta)
-                    self.senders[x]["last_bytes"] = self.senders[x]["bytes"]
+                    u["last_bytes"] = u["bytes"]
                 else:
-                    self.senders[x]["last_bytes"] = self.senders[x]["bytes"]
+                    u["last_bytes"] = u["bytes"]
 
             # Old way: EOF if nothing missing and got_last
-            #if (len(self.senders[x]["lost"]) == 0 and 
-            #    self.senders[x].has_key("got_last")):
+            #if (len(u["lost"]) == 0 and 
+            #    usenders[x].has_key("got_last")):
             #    return self.finish_xfer(x) # there's nothing left, we're done!
             # New way: EOF if total bytes recv >= size and nothing missing
-            if self.senders[x]["bytes"] >= self.senders[x]["size"] and \
-               len(self.senders[x]["lost"]) == 0:
-                 return self.finish_xfer(x)
+            if u["bytes"] >= u["size"] and not u.get("lost"):
+                 return self.finish_xfer(u)
 
             try:
                 # Some missing packets, finish it up
     
-                if len(self.senders[x]["lost"]) > 100:
-                    log(self.senders[x]["lost"])
+                if len(u.get("lost", {})) > 100:
+                    log(u["lost"])
                     log("Excessive amount of packet loss!")
                     log("could be a programming error. quitting")
+                    raise SystemExit
 
                 # Join by commas, only lost packets after start_seqno
-                alost = self.senders[x]["lost"].keys()
+                alost = u.get("lost", {}).keys()
                 log("ALOST1: %s" % len(alost))
-                if self.senders[x].has_key("start_seqno"):
-                    ss = self.senders[x]["start_seqno"]
+                if u.has_key("start_seqno"):
+                    ss = u["start_seqno"]
                 else:
                     log("WARNING: NO START_SEQO SET!")
                     ss = 0
@@ -622,14 +621,14 @@ class Client:
 
                 # Compress by omitting redundant elements to ease bandwidth
                 if self.rwinsz_old == self.rwinsz and lost == "":
-                    self.sendmsg(x, "n")
+                    self.sendmsg(u, "n")
                 elif lost == "":
-                    self.sendmsg(x, "n%d" % self.rwinsz)
+                    self.sendmsg(u, "n%d" % self.rwinsz)
                 else:
-                    self.sendmsg(x, ("n%d," % self.rwinsz) + lost)
+                    self.sendmsg(u, ("n%d," % self.rwinsz) + lost)
 
-                self.senders[x]["retries"] += 1
-                if (self.senders[x]["retries"] > 3):
+                u["retries"] += 1
+                if u["retries"] > 3:
                     log("%s exceeded maximum retries (3), cancelling" % x)
                     self.senders.pop(x)
                     self.callback(x, "timeout")
@@ -641,31 +640,32 @@ class Client:
                 pass
         return None
 
-    def finish_xfer(self, nick):
+    def finish_xfer(self, u):
         """Finish the file transfer."""
 
         # Nothing lost anymore, update. Saved as ",X" where X = last packet.
         log("DONE - UPDATING")
-        self.save_lost(nick, 1)
+        self.save_lost(u, 1)
 
-        self.sendmsg(nick, "sumi done")
+        self.sendmsg(u, "sumi done")
 
-        duration = time.time() - self.senders[nick]["start"]
-        self.senders[nick]["fh"].close()
-        self.callback(nick, "fin", duration, self.senders[nick]["size"], \
-              self.senders[nick]["size"] / duration / 1024, \
-              self.senders[nick]["all_lost"])
+        duration = time.time() - u["start"]
+        u["fh"].close()
+        self.callback(u["nick"], "fin", duration, u["size"], \
+              u["size"] / duration / 1024, \
+              u["all_lost"])
         
         #print "Transfer complete in %.6f seconds" % (duration)
-        #print "All lost packets: ", self.senders[nick]["all_lost"]
-        #print str(self.senders[nick]["size"]) + " at " + str(
-        #     self.senders[nick]["size"] / duration / 1024) + " KB/s"
-        self.senders.pop(nick)    # delete the server key
+        #print "All lost packets: ", u["all_lost"]
+        #print str(u["size"]) + " at " + str(
+        #     u["size"] / duration / 1024) + " KB/s"
+        self.clear_server(u)
+        self.senders.pop(u["nick"])    # delete the server key
 
         # Don't raise SystemExit
         #sys.exit(0) # here now for one file xfer per program
 
-    def thread_recv_packets(self):
+    def recv_packets(self):
         """Receive anonymous packets."""
         log("THREAD 1 - PACKET RECV")
         if self.config["dchanmode"] == "socket":
@@ -693,7 +693,8 @@ class Client:
     def server_icmp(self):
         """Receive ICMP packets. Requires raw sockets."""
 
-        thread.start_new_thread(self.server_udp, (self,))
+        #thread.start_new_thread(self.server_udp, (self,))
+        thread.start_new_thread(self.wrap_thread, (self.server_udp, (self,)))
         #print "UID=", os.getuid()
         sock = socket.socket(socket.AF_INET, socket.SOCK_RAW, \
                              socket.IPPROTO_ICMP)
@@ -789,34 +790,35 @@ class Client:
         # sumi login can be implemented later; allowing remote admin.
         # TODO: Actually, why not simply extend sumi send to allow remote admn.
 
-    def crypto_thread(self, nick):
+    def crypto_thread(self, u):
         """Thread to wait for messages from server to setup crypto.
         Passes messages to handle_server_message."""
         def crypto_callback(user_nick, msg):
             return self.handle_server_message(user_nick, msg)
 
-        if not self.senders[nick].has_key("recvmsg"):
-            log("%s is missing recvmsg transport" % nick)
+        if not u.has_key("recvmsg"):
+            log("%s is missing recvmsg transport" % u["nick"])
             log("recvmsg is necessary for crypto (shouldn't happen)")
             sys.exit(-2)
-        self.senders[nick]["recvmsg"](crypto_callback)
+        u["recvmsg"](crypto_callback)
     
-    def encrypt(self, nick, msg):
-        """Encrypt a message using nick's key and IV."""
-        e = encrypt_msg(msg, self.senders[nick]["sesskey"], 
-                self.senders[nick]["sessiv"])
+    def encrypt(self, u, msg):
+        """Encrypt a message using u's key and IV."""
+        e = encrypt_msg(msg, u["sesskey"], u["sessiv"])
         return e
 
     def decrypt(self, nick, msg):
         """Decrypt a message using nick's key and IV."""
-        return decrypt_msg(msg, self.senders[nick]["sesskey"], 
-                self.senders[nick]["sessiv"])
+        return decrypt_msg(msg, u["sesskey"], u["sessiv"])
 
+    # TODO: Merge with on_msg to handle error:'s            
     def handle_server_message(self, nick, msg):
         """Handle a message received from the server on the transport.
         Used for crypto."""
         if not self.senders.has_key(nick):
             return
+
+        u = self.senders[nick]
 
         # Always base64'd
         try:
@@ -828,18 +830,18 @@ class Client:
         # Server will send three things: pubkeys, nonce1/2, nonce2/2
         # in two messages (pubkeys+nonce1/2, nonce2/2). We can tell which
         # message we are receiving by what we received previously.
-        if not self.senders[nick].has_key("crypto_state"):  # pubkeys+nonce1/2
+        if not u.has_key("crypto_state"):  # pubkeys+nonce1/2
             g = time.time()                                 #  -> req1/2
-            self.senders[nick]["got_nonce1"] = g
-            d1 = g - self.senders[nick]["sent_sec"]
+            u["got_nonce1"] = g
+            d1 = g - u["sent_sec"]
             log("Took %s seconds to get pk+nonce1/2 after sumi sec" % d1)
             if round(d1) < INTERLOCK_DELAY:
-                self.callback(nick, "sec_fail1")
+                self.callback(u["nick"], "sec_fail1")
                 log("INTERLOCK FAILURE 1! %s < %s" % (d1, INTERLOCK_DELAY))
                 log("Possible attack. Not trusting the server. Aborting.")
                 return
 
-            self.set_handshake_status(nick, "Interlocking-1")
+            self.set_handshake_status(u, "Interlocking-1")
             log("Got pubkeys + nonce1/2")
             # First message...its pubkeys + nonce1/2
             skeys = unpack_keys(raw[0:32*3])
@@ -849,76 +851,76 @@ class Client:
                 nonce_1 = raw[32*3:]
                 # can't decrypt now, since only have half; keep it
                 log("nonce_1=%s" % ([nonce_1,]))
-                self.senders[nick]["nonce_1"] = nonce_1
+                u["nonce_1"] = nonce_1
 
             # Find out shared/private keys (pkeys)
-            ckeys = self.senders[nick]["ckeys"]
+            ckeys = u["ckeys"]
             pkeys = []
             for ck, sk in zip(ckeys, skeys):
                 pkeys.append(ck.DH_recv(sk))
             log("pkeys=%s" % pkeys)
             sesskey = hash128(pkeys[0]) + hash128(pkeys[1])
             sessiv = pkeys[2]
-            self.senders[nick]["sesskey"] = sesskey
-            self.senders[nick]["sessiv"] = sessiv
+            u["sesskey"] = sesskey
+            u["sessiv"] = sessiv
 
-            clear_req = self.senders[nick]["request_clear"]
+            clear_req = u["request_clear"]
             log("sesskey/iv: %s" % ([sesskey, sessiv],))
-            enc_req = self.encrypt(nick, clear_req)
+            enc_req = self.encrypt(u, clear_req)
             log("ENC REQ: %s" % ([enc_req],))
-            self.senders[nick]["request_enc"] = enc_req
+            u["request_enc"] = enc_req
 
             req1 = enc_req[0::2]   # even
             req2 = enc_req[1::2]   # odd 
-            self.senders[nick]["request_1"] = req1
-            self.senders[nick]["request_2"] = req2
+            u["request_1"] = req1
+            u["request_2"] = req2
 
             # Send 1/2 of encrypted sumi send request 
-            self.senders[nick]["sent_req1"] = time.time()
-            self.sendmsg(nick, b64(req1))
+            u["sent_req1"] = time.time()
+            self.sendmsg(u, b64(req1))
         
-            self.senders[nick]["crypto_state"] = 1
+            u["crypto_state"] = 1
 
-        elif self.senders[nick]["crypto_state"] == 1:   # nonce2/2->req2/2
+        elif u["crypto_state"] == 1:   # nonce2/2->req2/2
             g = time.time()
-            self.senders[nick]["got_nonce2"] = g
-            d2 = g - self.senders[nick]["sent_req1"]
+            u["got_nonce2"] = g
+            d2 = g - u["sent_req1"]
             log("Took %s seconds to get nonce2" % d2)
             if round(d2) < INTERLOCK_DELAY:
-                self.callback(nick, "sec_fail2")
+                self.callback(u["nick"], "sec_fail2")
                 log("INTERLOCK FAILURE 2! Possible attack, aborting.")
                 log("%s < %s" % (d2, INTERLOCK_DELAY))
                 return
 
             log("Got nonce 2/2")
-            self.set_handshake_status(nick, "Interlocking-2")
+            self.set_handshake_status(u, "Interlocking-2")
             # Second message: nonce2/2j
-            nonce_1 = self.senders[nick]["nonce_1"]
+            nonce_1 = u["nonce_1"]
             nonce_2 = raw
-            nonce = self.decrypt(nick, interleave(nonce_1, nonce_2))
+            nonce = self.decrypt(u, interleave(nonce_1, nonce_2))
             print "NONCE=%s" % ([nonce,])
-            self.senders[nick]["nonce"] = nonce
-            self.senders[nick]["nonce_hash"] = hash160(nonce)
+            u["nonce"] = nonce
+            u["nonce_hash"] = hash160(nonce)
 
             # Send 2/2 of encrypted sumi send request. Expect response soon.
-            self.sendmsg(nick, b64(self.senders[nick]["request_2"]))
-            self.senders[nick]["sent_req2"] = time.time()
+            self.sendmsg(u, b64(u["request_2"]))
+            u["sent_req2"] = time.time()
 
-            self.senders[nick]["crypto_state"] = 2
+            u["crypto_state"] = 2
 
-    def set_handshake_status(self, nick, status):
+    def set_handshake_status(self, u, status):
         """Set handshake status to status, and send a callback message
         updating it with the new status and existing countdown."""
-        self.senders[nick]["handshake_status"] = status
-        self.callback(nick, "req_count",
-            self.senders[nick]["handshake_count"],
-            self.senders[nick]["handshake_status"])
+        u["handshake_status"] = status
+        self.callback(u["nick"], "req_count",
+            u["handshake_count"],
+            u["handshake_status"])
 
-    def setup_transport_crypto(self, nick):
+    def setup_transport_crypto(self, u):
         """Send sumi sec (secure) command, setting up an encrypted channel."""
         log("Setting up cryptography...")
 
-        self.set_handshake_status(nick, "Key exchange")
+        self.set_handshake_status(u["nick"], "Key exchange")
 
         # All crypto library imports are inside functions, rather than at
         # the top of the file, so that we can run without them if needed.
@@ -937,25 +939,34 @@ class Client:
             raw += "".join(k.publicKey())
 
         log("Our keys: %s" % b64(raw))
-        self.senders[nick]["ckeys"] = ckeys
+        u["ckeys"] = ckeys
 
-        self.senders[nick]["sent_sec"] = time.time()
-        self.sendmsg(nick, "sumi sec %s" % b64(raw))
+        u["sent_sec"] = time.time()
+        self.sendmsg(u, "sumi sec %s" % b64(raw))
 
         # Wait for server's public keys. Start a receiving thread here
         # because setting up crypto is the only time we receive transport
         # messages from the server. 
-        log(">>>>> %s" % nick)
+        log(">>>>> %s" % u["nick"])
         def wrap():
             try:
-                self.crypto_thread(nick)
-            except None: #Exception, x:
-                raise x
+                self.crypto_thread(u["nick"])
+            except: #Exception, x:
                 print "(thread) Exception: %s at %s" % (x,
                         sys.exc_info()[2].tb_lineno)
-        #thread.start_new_thread(self.crypto_thread, (nick, ))
-        thread.start_new_thread(wrap, ())
+                raise x
+        #thread.start_new_thread(self.crypto_thread, (u["nick"], ))
+        #thread.start_new_thread(wrap, ())
+        thread.start_new_thread(self.wrap_thread, 
+                (self.crypto_thread, u["nick"]))
 
+    def wrap_thread(f, args):
+        try:
+            f(*args)
+        except Exception, x:
+            print "(thread) Exception: %s at %s" % (x,
+                    sys.exc_info()[2].tb_lineno)
+            raise x
 
     def validate_config(self):
         """Validate configuration after loading it, possibly modifying it
@@ -1042,7 +1053,7 @@ class Client:
         # More validation, prompted by SJ
         if not self.config.has_key("allow_local") and \
            is_nonroutable_ip(self.myip):
-            return "Your IP address,"+self.myip+" ("+self.config["myip"] + "), is nonroutable. Please choose\n"+\
+           return "Your IP address,"+self.myip+" ("+self.config["myip"] + "), is nonroutable. Please choose\n"+\
                    "a real, valid IP address. If you are not sure what your IP is, go to \n" +\
                    "http://whatismyip.com/. Your IP can be set in the Client tab of sumigetw." 
 
@@ -1058,25 +1069,20 @@ class Client:
         # Passed all the tests
         return None
 
-#    def sendmsg(self, nick, msg):
-#        """Send a message over the covert channel using loaded module."""
-#        #print "SENDING |%s| to |%s|" % (msg, nick)
-#        #return sendmsg(nick, msg)
-#        return self.senders[nick]["sendmsg"](nick, msg)
+    def sendmsg(self, u, msg):
+        """Send a message over the covert channel using the loaded
+        transport module."""
+        log(">>%s>%s" % (u["nick"], msg))
+        return u["sendmsg"](u["nick"], msg)
 
-    # Send a message to nick
-    def sendmsg(self, nick, msg):
-        log(">>%s>%s" % (nick, msg))
-        return self.senders[nick]["sendmsg"](nick, msg)
+    def abort(self, u):
+        self.sendmsg(u, "!")
+        self.callback(u["nick"], "aborting")
 
-    def abort(self, nick):
-        self.sendmsg(nick, "!")
-        self.callback(nick, "aborting")
-
-    def make_request(self, nick, file):
+    def make_request(self, u, file):
         """Build a message to request file and generate a random prefix."""
         prefix = random_bytes(3)
-        self.senders[nick]["prefix"] = prefix
+        u["prefix"] = prefix
 
         if self.config["crypt_data"]:
             # Choose the 256-bit symmetric key and 128-bit IV, which will be
@@ -1084,15 +1090,15 @@ class Client:
             # secure. TODO: mark transports secure (Tor), crypt_req if not.
             data_key = random_bytes(32)
             data_iv = random_bytes(16)
-            self.senders[nick]["data_key"] = data_key
-            self.senders[nick]["data_iv"] = unpack_num(data_iv)
+            u["data_key"] = data_key
+            u["data_iv"] = unpack_num(data_iv)
             def ctr_proc():
-                self.senders[nick]["ctr"] += 1
-                x = pack_num(self.senders[nick]["ctr"] % 2**128)
+                u["ctr"] += 1
+                x = pack_num(u["ctr"] % 2**128)
                 x = "\0" * (16 - len(x)) + x
                 assert len(x) == 16, "ctr_proc len %s not 16" % len(x)
                 return x
-            self.senders[nick]["crypto_obj"] = get_cipher().new(
+            u["crypto_obj"] = get_cipher().new(
                     data_key, get_cipher().MODE_CTR, counter=ctr_proc)
         else:
             data_key = data_iv = ""
@@ -1106,6 +1112,13 @@ class Client:
             "x":b64(data_key + data_iv),
             "d":self.config["data_chan_type"]})
         return msg
+
+    def clear_server(self, u):
+        """Clear information about a server, but saving their nick."""
+        nick = u["nick"]
+        u.clear()
+        u["nick"] = nick
+        return u
 
     def request(self, transport, nick, file):
         """Request a file from a server.
@@ -1128,29 +1141,30 @@ class Client:
             #print "Senders: ", self.senders
             return False
 
-        self.senders[nick] = {} 
+        self.senders[nick] = {}   # create
+        u = self.senders[nick]
+        u["nick"] = nick
 
         # Setup transport system
-        self.senders[nick]["transport"] = transport
-        if not self.load_transport(transport, nick):
+        u["transport"] = transport
+        if not self.load_transport(transport, u):
             return False
 
-        self.senders[nick]["handshake_count"] = 0
-        self.senders[nick]["handshake_status"] = "Handshaking"
+        u["handshake_count"] = 0
+        u["handshake_status"] = "Handshaking"
 
         if self.config.get("crypt_req"):
-            if not "recvmsg" in self.senders[nick]:
+            if not "recvmsg" in u:
                 log("Sorry, this transport lacks a recvmsg, so " +
                         "transport encryption is not available.")
                 sys.exit(-1)
                 return False
             # Store request since its sent in halves
-            self.senders[nick]["request_clear"] = \
-                    self.make_request(nick, file)
+            u["request_clear"] = self.make_request(u, file)
             self.setup_transport_crypto(nick)
         else:
-            msg = self.make_request(nick, file)
-            self.sendmsg(nick, msg) 
+            msg = self.make_request(u, file)
+            self.sendmsg(u, msg) 
 
         log("Sent")
         self.callback(nick, "req_sent") # request sent (handshaking)
@@ -1165,17 +1179,18 @@ class Client:
 
         for x in range(maxwait, 0, -1):
             # If received fn in this time, then exists, so stop countdown
-            if not self.senders.has_key(nick):
+            if not self.senders.has_key(u["nick"]):
                 return False    # some other error
-            if self.senders[nick].has_key("fn"):
+            if u.has_key("fn"):
                 return True     # don't break - otherwise will timeout
-            self.senders[nick]["handshake_count"] = x 
-            self.callback(nick, "req_count", x,
-                    self.senders[nick]["handshake_status"])
+            u["handshake_count"] = x 
+            self.callback(u["nick"], "req_count", x,
+                    u["handshake_status"])
             time.sleep(1)
 
-        self.callback(nick, "timeout")
-        self.senders.pop(nick)
+        self.callback(u["nick"], "timeout")
+        self.clear_server(u)
+        self.senders.pop(u["nick"])
         return False
 
     def set_callback(self, f):
@@ -1185,8 +1200,8 @@ class Client:
     def default_cb(self, cmd, *args):
         log("(CB)%s: %s" % (cmd, ",".join(list(map(str, args)))))
 
-    def load_transport(self, transport, nick):
-        """Load transport/mod<transport> for nick, and initialize if not
+    def load_transport(self, transport, u):
+        """Load transport/mod<transport> for user, and initialize if not
         already initialized.
  
         Returns whether succeeds."""
@@ -1202,8 +1217,9 @@ class Client:
         except ImportError:
             # Anytime a transfer fails, or isn't in progress, should pop it
             # So more transfers can come from the same users.
-            self.senders.pop(nick)
-            self.callback(nick, "t_fail", sys.exc_info())
+            self.clear_server(u)
+            self.senders.pop(u["nick"])
+            self.callback(u["nick"], "t_fail", sys.exc_info())
             return False
 
         t.segment = segment
@@ -1214,22 +1230,22 @@ class Client:
     
         print "t=",t
 
-        self.senders[nick]["sendmsg"] = t.sendmsg
+        u["sendmsg"] = t.sendmsg
 
-        self.senders[nick]["transport_init"] = t.transport_init
+        u["transport_init"] = t.transport_init
 
         # Initialize if not
-        if (transports.has_key(transport) and transports[transport]):
+        if transports.has_key(transport) and transports[transport]:
             pass    # already initialized
             log("Not initing %s" % transport)
         else:
-            self.senders[nick]["transport_init"]()
+            u["transport_init"]()
             transports[transport] = 1   # Initialize only once
             log("Just inited %s" % transport)
 
         if hasattr(t, "recvmsg"):
             # If can't receive messages, crypto not available
-            self.senders[nick]["recvmsg"] = t.recvmsg
+            u["recvmsg"] = t.recvmsg
 
         return True
 
@@ -1240,8 +1256,11 @@ class Client:
         supported.
         
         In the future, this interface should be more usable."""
-        thread.start_new_thread(self.thread_timer, ())
-        thread.start_new_thread(self.request, (transport, nick, file))
+        #thread.start_new_thread(self.thread_timer, ())
+        #thread.start_new_thread(self.request, (transport, nick, file))
+        thread.start_new_thread(self.wrap_thread, (self.thread_timer, ()))
+        thread.start_new_thread(self.wrap_thread, (self.request, 
+            (transport, nick, file)))
 
         # This thread will release() input_lock, letting thread_request to go
         #transport_init()
@@ -1251,7 +1270,7 @@ class Client:
         input_lock.release()
 
         # Main thread is UDP server. There is no transport thread, its sendmsg
-        self.thread_recv_packets()   # start waiting before requesting
+        self.recv_packets()   # start waiting before requesting
 
     def on_exit(self):    # GUI uses this on_exit
         log("Cleaning up...")
@@ -1272,7 +1291,7 @@ class Client:
         if hasattr(self, "senders"):
             for x in self.senders.keys():
                 log("Aborting %s" % x)
-                self.abort(x)
+                self.abort(self.senders[x])
 
         log("Exiting now")
         sys.exit()
@@ -1308,7 +1327,7 @@ def pre_main(invoke_req_handler):
         signal.signal(signal.SIGUSR1, invoke_req_handler)    # set handler
     signal.signal(signal.SIGINT, on_exit)
 
-    if (len(sys.argv) >= 3):
+    if len(sys.argv) >= 3:
         transport = sys.argv[1] 
         nick, filename = sys.argv[2], sys.argv[3]
     else:

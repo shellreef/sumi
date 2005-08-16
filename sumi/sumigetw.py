@@ -146,9 +146,8 @@ class SLogPanel(wxPanel):
             self.Write(str(msg) + "\n")
         sumiserv.log = log
 
-        thread.start_new_thread(sumiserv.main, ((),))
+        thread.start_new_thread(wrap_thread, (sumiserv.main, ((),)))
         self.started = True
-        #sumiserv.make_thread(sumiserv.main, (()))
 
     def Write(self, msg):
         self.servlog.AppendText(msg)
@@ -825,11 +824,12 @@ class SUMIApp(wx.wxApp):
 
         # Setup the SUMI 
         # Only really need one of these each per transfer
-        thread.start_new_thread(self.client.thread_timer, ())
-        thread.start_new_thread(self.client.thread_recv_packets, ())
+        thread.start_new_thread(wrap_thread, (self.client.thread_timer, ()))
+        thread.start_new_thread(wrap_thread, (self.client.recv_packets, ()))
    
         print "Sys args=", sys.argv 
-        thread.start_new_thread(self.ReqThread, (sys.argv[1], sys.argv[2], sys.argv[3]))
+        thread.start_new_thread(wrap_thread, (self.ReqThread, (sys.argv[1],
+            sys.argv[2], sys.argv[3])))
 
         # For IPC
         # As of 20040712, this is no longer needed! Uses sockets.
@@ -871,7 +871,7 @@ class SUMIApp(wx.wxApp):
             # If this code is ran (above) but another instance is not
             # running, then REQPORT is in use by someone else. Change REQPORT.
         ss.listen(5)
-        thread.start_new_thread(self.RecvReqThread, (ss, ))
+        thread.start_new_thread(wrap_thread, (self.RecvReqThread, (ss,)))
 
     def RecvReqThread(self, ss):
         """Thread that receives socket connections in order to handle 
@@ -881,7 +881,8 @@ class SUMIApp(wx.wxApp):
             data = cs.recv(256)
             (transport, nick, fn) = data.split("\t")
             print "Received req from",addr,"=",data
-            thread.start_new_thread(self.ReqThread, (transport, nick, fn))
+            thread.start_new_thread(wrap_thread, (self.ReqThread,
+                (transport, nick, fn)))
 
     def ReqThread(self, transport, nick, filename):
         """Thread that handles a request."""
@@ -1045,6 +1046,15 @@ class SUMIApp(wx.wxApp):
         # (Has to be done here, not in OnExit because already closed by then)
         self.client.config["winsize"] = self.frame.GetSizeTuple()
         if (evt != 0): evt.Skip()
+
+def wrap_thread(f, args):
+    try:
+        f(*args)
+    except Exception, x:
+        print "(thread) Exception: %s at %s" % (x,
+                sys.exc_info()[2].tb_lineno)
+        raise x
+
 
 def main(argv):
     if len(sys.argv) < 4:

@@ -3,7 +3,7 @@
 {'allow_local': 1,
  'bandwidth': 56623104,
  'bandwidth1': 1500000,
- 'colwidths': [160, 136, 153, 55, 73, 69, 76, 99, 71, 49],
+ 'colwidths': [160, 136, 92, 55, 73, 69, 76, 99, 71, 49],
  'crypt_data': True,
  'crypt_req': False,
  'data_chan_type': 'u',
