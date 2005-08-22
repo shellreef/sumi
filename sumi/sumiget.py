@@ -1128,10 +1128,6 @@ class Client:
         # command line args are now the sole form of user input;
         self.callback(nick, "t_wait")   # transport waiting, see below
 
-        # Input lock is mostly obsolete -- it is supposed to wait for
-        # transport_init() to return, but we already wait for it 
-        #input_lock.acquire()   # wait for transport connection
-
         if self.senders.has_key(nick):
             # TODO: Index senders based on unique key..instead of nick
             # Then we could have multiple transfers from same user, same time!
@@ -1209,7 +1205,6 @@ class Client:
         global input_lock, sendmsg, transport_init, transports
         # Import the transport. This may fail, if, for example, there is
         # no such transport module.
-        log(sys.path)
         try:
             sys.path.insert(0, os.path.dirname(sys.argv[0]))
             t = __import__("transport.mod" + transport, None, None,
@@ -1231,7 +1226,6 @@ class Client:
         print "t=",t
 
         u["sendmsg"] = t.sendmsg
-
         u["transport_init"] = t.transport_init
 
         # Initialize if not
@@ -1246,6 +1240,14 @@ class Client:
         if hasattr(t, "recvmsg"):
             # If can't receive messages, crypto not available
             u["recvmsg"] = t.recvmsg
+       
+        # Initialize user if possible
+        if hasattr(t, "user_init"):
+            u["user_init"] = t.user_init
+            if not u["user_init"](u["nick"]):
+                log("user_init(%s) failed" % u["nick"])
+                #self.callback(u["nick"], "t_fail", "user_init failed")
+                return False
 
         return True
 

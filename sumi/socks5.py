@@ -108,7 +108,10 @@ def request(s, cmd, hostname, port):
 def connect_via(address, proxy=None, s=None):
     """Negotiate and send a connect request to address = (hostname, port).
     Provides a similar address to socket's connect(). If proxy=None,
-    socket is assumed to already be connected to a SOCKS server."""
+    socket is assumed to already be connected to a SOCKS server.
+    
+    If s is provided, it is used as a socket, otherwise a new socket is
+    created."""
     hostname, port = address
 
     if proxy:
@@ -123,7 +126,7 @@ def connect_via(address, proxy=None, s=None):
     return s
 
 def test1():
-    # Lower-level API
+    # Test the lower-level API
     print "Connecting to Tor..."
     s = setup("localhost", 9050)
     print "Connected"
@@ -133,12 +136,14 @@ def test1():
     s.send("GET / HTTP/1.0\r\n\r\n")
     print s.recv(100)
 
-def test2():
-    # Simplified API
-    s = connect_via(("google.com",80), ("localhost", 9050))
+def test2(website="google.com"):
+    # Test higher-level API. 'website' can be a hidden service for Tor.
+    s = connect_via((website,80), ("localhost", 9050))
     s.send("GET / HTTP/1.0\r\n\r\n")
     print s.recv(100)
 
+# These tests require Tor
 if __name__ == "__main__":
     #test1()
-    test2()
+    test2("upzt3xumxtpslxkb.onion")
+    #test2()

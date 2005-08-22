@@ -5,8 +5,8 @@
 
 # For "Tor: An anonymous Internet communication system" http://tor.eff.org/
 
-# idea: server hosts a "hidden service" via tor
-# client would connect, via tor, to the hidden service...
+# The server hosts a "hidden service" via Tor.
+# Client connects, via Tor, to the hidden service.
 
 from twisted.internet import protocol, reactor
 from twisted.protocols import basic
@@ -15,13 +15,16 @@ import thread
 import sys
 
 # Tor offers a SOCKS server to allow entry into the network
+# Use socks5 module (included with SUMI) to access it:
 sys.path.append("..")
 import socks5
 
-PORT = 2773
+TOR_PORT = 9050          # Tor's SOCKS port, SocksPort in torrc
+PORT = 2773              # Our port
 
-global connections, tor_callback, cli_locks
+global connections, tor_callback, cli_locks, hidden_host
 connections = cli_locks = {}
+hidden_host = None
 threadable.init()
 
 def default_cb(nick, msg):
@@ -33,7 +36,7 @@ class SUMIProtocol(basic.LineReceiver):
         self.addr = addr
 
     def connectionMade(self):
-        global connections, cli_locks
+        global connections, cli_locks, hidden_host
 
         # \r\n is standard, but \n allows using netcat easily for debugging
         self.delimiter = "\n"
@@ -46,12 +49,14 @@ class SUMIProtocol(basic.LineReceiver):
                 "Non-local connection from %s!" % (source, )
 
         # Use source port for client identification, or hostname for server id
-        if source[1] != PORT:
+        if source[1] != TOR_PORT:
             self.nick = "tor-%s" % source[1]
         else:
             self.nick = dest[0]
             # SOCKS5 request. We're actually connected to a proxy...
-            #TODO socks5.connect_via( (
+            print "Connecting to hidden service: %s..." % hidden_host
+            socks5.connect_via((hidden_host, PORT), None, h)  # TODO: >1 host
+            print "Connected to %s" % hidden_host
        
         if cli_locks.has_key(self.nick):
             cli_locks[self.nick].release()
@@ -98,17 +103,18 @@ def recvmsg(callback=default_cb):
     reactor.run(installSignalHandlers=False)
 
 def user_init(nick):
-    global cli_locks
+    global cli_locks, hidden_host
 
     cli_locks[nick] = thread.allocate_lock()
     cli_locks[nick].acquire()
 
-    # TODO: use SOCKS to connect to hidden host over Tor
+    # Use SOCKS to connect to hidden host over Tor (TODO: more than 1 user)
+    hidden_host = nick
 
     # Start thread for reactor
     def t():
-        #reactor.connectTCP("localhost", 9050, SUMIClientFactory())
-        reactor.connectTCP(nick, PORT, SUMIClientFactory()) # w/o proxy
+        #reactor.connectTCP(nick, 9050, SUMIClientFactory())   # no proxy
+        reactor.connectTCP("localhost", TOR_PORT, SUMIClientFactory())
         reactor.run(installSignalHandlers=False)
 
     thread.start_new_thread(t, ())
@@ -122,6 +128,8 @@ def user_init(nick):
 # Need to find a Python SOCKS library, better to natively support it than try
 # to wrap with torify, and also then can ensure no DNS leakage.
 # http://www.w3.org/People/Connolly/drafts/socksForPython.html ?
+def transport_init():
+    pass
 
 def sendmsg(nick, msg):
     global connections
