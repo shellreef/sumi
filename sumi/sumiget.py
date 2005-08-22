@@ -1244,7 +1244,8 @@ class Client:
         # Initialize user if possible
         if hasattr(t, "user_init"):
             u["user_init"] = t.user_init
-            if not u["user_init"](u["nick"]):
+            log("Initializing user...")
+            if u["user_init"](u["nick"]):
                 log("user_init(%s) failed" % u["nick"])
                 #self.callback(u["nick"], "t_fail", "user_init failed")
                 return False
