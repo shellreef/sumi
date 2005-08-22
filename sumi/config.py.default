@@ -88,8 +88,9 @@
 # Includes protection against active attacks. Enables interlock (~3s delay in
 # handshaking) and (in the future, maybe all-or-nothing transform (wait for 
 # entire file to decode)).
-"crypt_req": True,
+#  - not needed with modtor, since it is already encrypted -
+"crypt_req": False,
 
 # Encrypt the data stream.
-"crypt_data": False,
+"crypt_data": True,
 }

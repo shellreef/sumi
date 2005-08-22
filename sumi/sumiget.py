@@ -26,6 +26,7 @@ def log(msg):
 # Modules used by transports. Imported here so they compile in.
 if sys.platform == 'win32':
     import win32api
+    import mmap
 
 input_lock = thread.allocate_lock()
 #transport = "python -u transport/sumi-irc.py"
@@ -920,7 +921,7 @@ class Client:
         """Send sumi sec (secure) command, setting up an encrypted channel."""
         log("Setting up cryptography...")
 
-        self.set_handshake_status(u["nick"], "Key exchange")
+        self.set_handshake_status(u, "Key exchange")
 
         # All crypto library imports are inside functions, rather than at
         # the top of the file, so that we can run without them if needed.
@@ -1157,7 +1158,7 @@ class Client:
                 return False
             # Store request since its sent in halves
             u["request_clear"] = self.make_request(u, file)
-            self.setup_transport_crypto(nick)
+            self.setup_transport_crypto(u)
         else:
             msg = self.make_request(u, file)
             self.sendmsg(u, msg) 

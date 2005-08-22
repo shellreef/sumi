@@ -1152,7 +1152,8 @@ Error: %s: %s""" \
     try:
         p = pcapy.open_live(cfg["interface"], 1500, 1, 0)
     except pcapy.PcapError:
-        log("Pcap: Error opening %s: %s" % cfg["interface"], pcapy.PcapError)
+        log("Pcap: Error opening %s: %s" % (cfg["interface"],
+            pcapy.PcapError))
         use_new_if()
 
     if not hasattr(p, "sendpacket"):

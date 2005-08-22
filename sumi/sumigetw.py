@@ -14,12 +14,6 @@ import thread
 import os
 import socket
 
-# Modules used by transports; import them  MOVED to sumiget.py
-#if sys.platform == 'win32':
-#    import win32api
-#import irclib
-#import mmap
-
 import images
 
 # TCP host and port to receive incoming requests on
@@ -1050,7 +1044,7 @@ class SUMIApp(wx.wxApp):
 def wrap_thread(f, args):
     try:
         f(*args)
-    except Exception, x:
+    except None: #Exception, x:
         print "(thread) Exception: %s at %s" % (x,
                 sys.exc_info()[2].tb_lineno)
         raise x
@@ -1061,7 +1055,6 @@ def main(argv):
         print "Usage: %s transport nick fn" % sys.argv[0]
         print "Using debug transport"
         sys.argv = ['sumigetw', 'debug', 'no_user', 'no_file']
-    
 
     print "Loading app..."
     app = SUMIApp()

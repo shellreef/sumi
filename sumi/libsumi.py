@@ -471,7 +471,11 @@ def select_if():
         "#", "IP Address", "Netmask", "MTU?", "Device"))
     i = 0
     for dev in pcapy.findalldevs():
-        p = pcapy.open_live(dev, 0, 0, 0)
+        try:
+            p = pcapy.open_live(dev, 0, 0, 0)
+        except pcapy.PcapError, e:
+            log("error opening %s: %s" % (dev, e))
+            continue
         # Pcapy doesn't provide MAC addr, or the real MTU, so we use
         # the datalink field to guestimate the MTU.
         mtu = datalink2mtu(p.datalink()) 
@@ -489,7 +493,11 @@ def select_if():
     log("or use Control-C on the console to exit.")
     while True:
         print "Which interface? "
-        i = int(sys.stdin.readline().strip())
+        try:
+            i = int(sys.stdin.readline().strip())
+        except:
+            print "Please enter an integer."
+            i = 0
         if i < 0 or i > len(ifaces): continue
         break
 

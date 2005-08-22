@@ -1,3 +1,8 @@
+2005-08-21 Jeff Connelly <jeffconnelly@users.sourceforge.net> - 0.8.12
+	* New transport: modtor, uses The Onion Router (see http://tor.eff.org)
+	* File data encryption fully works, enabled by default (crypt_req not)
+	* Many minor bugfixes, removed modpipe, use shorter variable names ('u')
+
 2005-08-11 Jeff Connelly <jeffconnelly@users.sourceforge.net>
 	* Partially autoconfigure IP, MSS, src_allow, and interface if
 	  no 'interface' in config.py or no 'src_allow' in sumiserv.cfg.
