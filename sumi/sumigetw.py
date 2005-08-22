@@ -2,17 +2,27 @@
 # Created:2004-07-11
 # By Jeff Connelly
 
-# wxWindows GUI interface to sumiget
+# wxWidgets GUI interface to sumiget
 
-# Requires wxPython 2.4.2.4 (go to sf.net/projects/wxpython, view all releases)
-# NOT wxPython 2.5
-from wxPython.wx import *
-from wxPython.lib.mixins.listctrl import wxColumnSorterMixin, wxListCtrlAutoWidthMixin
-from wxPython.lib.intctrl import *
 import sumiget
 import thread
 import os
 import socket
+import sys
+
+# Used to require wxPython 2.4.2.4 (sf.net/projects/wxpython, view all releases)
+# But now uses wxPython 2.6.1.0
+
+#from wxPython.wx import *
+#from wxPython.lib.mixins.listctrl import wxColumnSorterMixin, wxListCtrlAutoWidthMixin
+#from wxPython.lib.intctrl import *
+
+import wx
+assert wx.VERSION >= (2,6,1,0,''), \
+        "You need at least wxPython 2.6.1.0, but you have %s" % wx.VERSION
+
+from wx.lib.mixins.listctrl import ColumnSorterMixin, ListCtrlAutoWidthMixin
+from wx.lib.intctrl import IntCtrl, EVT_INT
 
 import images
 
@@ -42,20 +52,20 @@ global nick2index, last_index
 nick2index = {}
 last_index = 0
 
-class MainNotebook(wxNotebook):
+class MainNotebook(wx.Notebook):
     """Tabbed interface."""
     def __init__(self, parent, app):
-        wxNotebook.__init__(self, parent, -1, style=wxNB_BOTTOM)
+        wx.Notebook.__init__(self, parent, -1, style=wx.NB_BOTTOM)
 
         self.app = app
 
         self.xfpanel = TransferPanel(self, app)
         self.cfgc = CConfigPanel(self, app)
         self.cfgs = SConfigPanel(self, app)
-        self.nets = wxPanel(self, -1)
+        self.nets = wx.Panel(self, -1)
         self.slog = SLogPanel(self, app)
         self.clog  = CLogPanel(self, app)
-        self.exit = wxPanel(self, -1)
+        self.exit = wx.Panel(self, -1)
         self.AddPage(self.xfpanel, "Transfers")
         self.AddPage(self.cfgc, "Client Setup")
         self.AddPage(self.clog,  "Client Log") 
@@ -68,20 +78,20 @@ class MainNotebook(wxNotebook):
         # Client - download arrow  \ same as in the
         # Server - upload arrow    / transfers window
         # Networks - ?
-        #il = wxImageList(16, 16)
+        #il = wx.ImageList(16, 16)
         #idx1 = il.Add(images.getMondrianBitmap())
         #self.AssignImageList(il)
         #self.SetPageImage(0, idx1) 
 
-        EVT_NOTEBOOK_PAGE_CHANGING(self, self.GetId(), self.OnPageChanged)
+        wx.EVT_NOTEBOOK_PAGE_CHANGING(self, self.GetId(), self.OnPageChanged)
         self.Show()
         self.ValidateConfig()
 
     def ValidateConfig(self):
         err = self.app.client.validate_config()
         if err:
-            dlg = wxMessageDialog(self.app.frame, err,
-                  "Invalid setting", wxOK | wxICON_ERROR);
+            dlg = wx.MessageDialog(self.app.frame, err,
+                  "Invalid setting", wx.OK | wx.ICON_ERROR);
             dlg.ShowModal()
             #self.SetSelection(1)   # Would be nice if it worked
             return False
@@ -110,16 +120,17 @@ class MainNotebook(wxNotebook):
 
         event.Skip()   #  requires especially on Win32
 
-class SLogPanel(wxPanel):
+class SLogPanel(wx.Panel):
     """Server log panel."""
     def __init__(self, parent, app):
-        wxPanel.__init__(self, parent, -1)
+        wx.Panel.__init__(self, parent, -1)
   
         self.app = app
-        self.servlog = wxTextCtrl(self, -1, style=wxTE_MULTILINE | wxTE_READONLY)
-        box = wxBoxSizer(wxVERTICAL)
-        box.Add(self.servlog, 1, wxEXPAND)
-        self.SetAutoLayout(true)
+        self.servlog = wx.TextCtrl(self, -1, 
+                style=wx.TE_MULTILINE | wx.TE_READONLY)
+        box = wx.BoxSizer(wx.VERTICAL)
+        box.Add(self.servlog, 1, wx.EXPAND)
+        self.SetAutoLayout(True)
         self.SetSizer(box)
         self.Layout()
 
@@ -146,17 +157,17 @@ class SLogPanel(wxPanel):
     def Write(self, msg):
         self.servlog.AppendText(msg)
 
-class CLogPanel(wxPanel):
+class CLogPanel(wx.Panel):
     """Client log output."""
     def __init__(self, parent, app):
-        wxPanel.__init__(self, parent, -1)
+        wx.Panel.__init__(self, parent, -1)
 
         self.app = app
-        self.textCtrl = wxTextCtrl(self, -1, size=(-1, -1), \
-                         style=wxTE_MULTILINE | wxTE_READONLY)
-        box = wxBoxSizer(wxVERTICAL)
-        box.Add(self.textCtrl, 1, wxEXPAND)
-        self.SetAutoLayout(true)
+        self.textCtrl = wx.TextCtrl(self, -1, size=(-1, -1), 
+                         style=wx.TE_MULTILINE | wx.TE_READONLY)
+        box = wx.BoxSizer(wx.VERTICAL)
+        box.Add(self.textCtrl, 1, wx.EXPAND)
+        self.SetAutoLayout(True)
         self.SetSizer(box)
         self.Layout()
 
@@ -180,10 +191,10 @@ CTL_MSS    = 507
 CTL_TYPE   = 508
 CTL_CODE   = 509
 
-class CConfigPanel(wxPanel):
+class CConfigPanel(wx.Panel):
     """Client configuration panel."""
     def __init__(self, parent, app):
-        wxPanel.__init__(self, parent, -1, style=wxWANTS_CHARS)
+        wx.Panel.__init__(self, parent, -1, style=wx.WANTS_CHARS)
 
         self.app = app     
 
@@ -199,21 +210,22 @@ class CConfigPanel(wxPanel):
         bandwidths = map(str, bandwidths)
         bandwidths.reverse()
 
-        self.bw_label = wxStaticText(self, -1, "Bandwidth (bps):", \
-                                     wxPoint(0, 0), wxSize(-1, -1))
-        self.bw = wxComboBox(self, CTL_BANDWIDTH, \
-                             str(self.app.client.config["bandwidth"]), \
-                             wxPoint(80, 0),
-                             wxSize(95, -1),
-                             choices=bandwidths, style=wxCB_DROPDOWN)
+        self.bw_label = wx.StaticText(self, -1, "Bandwidth (bps):", 
+                                     wx.Point(0, 0), wx.Size(-1, -1))
+        self.bw = wx.ComboBox(self, CTL_BANDWIDTH, 
+                             str(self.app.client.config["bandwidth"]), 
+                             wx.Point(80, 0),
+                             wx.Size(95, -1),
+                             choices=bandwidths, style=wx.CB_DROPDOWN)
 
-        EVT_TEXT(self, CTL_BANDWIDTH, self.OnBandwidthChange)
+        wx.EVT_TEXT(self, CTL_BANDWIDTH, self.OnBandwidthChange)
 
         # Cryptography. TODO: Get pre auth working, then really work on this.
         # Also, make the listbox here one item high. Make it drop down.
-        #self.crypto_label = wxStaticText(self, -1, "Cryptography:", \
-                #                        wxPoint(0, 30), wxSize(-1, -1))
-        #self.crypto = wxChoice(self, CTL_CRYPTO, wxPoint(80, 30), wxSize(-1, -1),
+        #self.crypto_label = wx.StaticText(self, -1, "Cryptography:", \
+        #                        wx.Point(0, 30), wx.Size(-1, -1))
+        #self.crypto = wx.Choice(self, CTL_CRYPTO, wx.Point(80, 30), 
+        #                        wx.Size(-1, -1),
         #                        choices=["None", \
                 #                                 "Symmetric (AES)", \
                 #                         "Asymmetric", \
@@ -221,7 +233,7 @@ class CConfigPanel(wxPanel):
         #self.cryptos = ['', 's', 'a', 'o']
         #crypto2n = {'': 0, 's': 1, 'a': 2, 'o': 3}
         #self.crypto.SetSelection(crypto2n[self.app.client.config["crypto"]])
-        #EVT_CHOICE(self, CTL_CRYPTO, self.OnCryptoChange)
+        #wx.EVT_CHOICE(self, CTL_CRYPTO, self.OnCryptoChange)
         # TODO: Asymmetric encryption key (passwd)
 
         # Data channel type
@@ -229,8 +241,8 @@ class CConfigPanel(wxPanel):
         # This is what to do: split "port" into "type" and "code"
         # When ICMP selected, show type&code. When other, show port.
         # Encode as type*0x100+code, thats how sumiserv interprets it.
-        self.dchan_label = wxStaticText(self, -1, "Data channel:", \
-                                        wxPoint(0, 70), wxSize(-1, -1))
+        self.dchan_label = wx.StaticText(self, -1, "Data channel:", \
+                                        wx.Point(0, 70), wx.Size(-1, -1))
         dchans_rep = ["UDP", "ICMP Direct", "ICMP Echo"]
         #self.dchans_code = ['u', 'e'] + (['?'] * 256)
         self.dchans_code = ['u', 'i', 'e']
@@ -239,41 +251,42 @@ class CConfigPanel(wxPanel):
         #    dchans_rep.append("ICMP Type=%d Code=0" % x)
         #    dchan2n["i%d,%d" % (x, 0)] = 2 + x
         #    self.dchans_code[x + 2] = "i%d,%d" % (x, 0)
-        self.dchan = wxChoice(self, CTL_DCHAN, wxPoint(80, 70), wxSize(-1, -1), 
-                                choices=dchans_rep)
+        self.dchan = wx.Choice(self, CTL_DCHAN, wx.Point(80, 70), 
+                wx.Size(-1, -1), choices=dchans_rep)
         self.dchan.SetSelection(dchan2n[self.app.client.config["data_chan_type"]])
-        EVT_CHOICE(self, CTL_DCHAN, self.OnDChanChange)
+        wx.EVT_CHOICE(self, CTL_DCHAN, self.OnDChanChange)
 
         # Download directory, [...] common open file dialog
-        self.dldir_label = wxStaticText(self, -1, "Download to:", \
-                                        wxPoint(0, 110), wxSize(-1, -1))
-        self.dldir = wxTextCtrl(self, CTL_DLDIR, self.app.client.config["dl_dir"],
-                                wxPoint(80, 110), wxSize(130, -1), \
+        self.dldir_label = wx.StaticText(self, -1, "Download to:", 
+                                        wx.Point(0, 110), wx.Size(-1, -1))
+        self.dldir = wx.TextCtrl(self, CTL_DLDIR, 
+                self.app.client.config["dl_dir"],
+                wx.Point(80, 110), wx.Size(130, -1), 
         # Have to change dldir using browse button, can't edit it directly.
         # Possible but I don't allow this, so validation can be done in the
         # common dialog instead of in user program. 
-                                style=wxTE_READONLY)
-        self.dldir_browse = wxButton(self, CTL_BROWSE, "...", \
-                                     wxPoint(80 + 130, 110), wxSize(20, -1))
-        EVT_BUTTON(self, CTL_BROWSE, self.OnDldirBrowse)
+                                style=wx.TE_READONLY)
+        self.dldir_browse = wx.Button(self, CTL_BROWSE, "...", 
+                                     wx.Point(80 + 130, 110), wx.Size(20, -1))
+        wx.EVT_BUTTON(self, CTL_BROWSE, self.OnDldirBrowse)
 
         # Send to IP Address ("" = get default IP)
-        self.myip_label = wxStaticText(self, -1, "IP Address:", \
-                                       wxPoint(250, 0), wxSize(-1, -1))
+        self.myip_label = wx.StaticText(self, -1, "IP Address:", 
+                                       wx.Point(250, 0), wx.Size(-1, -1))
         myip = self.app.client.config["myip"]
         if len(myip) == 0: myip = "(default)"
-        self.myip = wxTextCtrl(self, CTL_MYIP, \
-                               myip, \
-                               wxPoint(250 + 80, 0), wxSize(-1, -1))
-        EVT_TEXT(self, CTL_MYIP, self.OnIPChange)
+        self.myip = wx.TextCtrl(self, CTL_MYIP, 
+                               myip, 
+                               wx.Point(250 + 80, 0), wx.Size(-1, -1))
+        wx.EVT_TEXT(self, CTL_MYIP, self.OnIPChange)
 
         # 16-bit (UDP) port, if applicable 
-        self.myport_label = wxStaticText(self, -1, "UDP Port:", \
-                                         wxPoint(250, 80), wxSize(-1, -1))
-        # wxIntCtrl is appealing, but not on Windows? Look into this.
-        self.myport = wxIntCtrl(self, CTL_MYPORT, \
+        self.myport_label = wx.StaticText(self, -1, "UDP Port:", \
+                                         wx.Point(250, 80), wx.Size(-1, -1))
+        # IntCtrl is appealing, but not on Windows? Look into this.
+        self.myport = IntCtrl(self, CTL_MYPORT, 
                                  self.app.client.config["myport"],
-                                 wxPoint(250 + 80, 80), wxSize(-1, -1))
+                                 wx.Point(250 + 80, 80), wx.Size(-1, -1))
         self.myport.SetMin(0)   # 0 port..heh
         self.myport.SetMax(65535)
         EVT_INT(self, CTL_MYPORT, self.OnPortChange)
@@ -281,30 +294,30 @@ class CConfigPanel(wxPanel):
         self.myport_label.Show(False)
         self.myport.Show(False)
 
-        self.type_label = wxStaticText(self, -1, "Type:", \
-                                       wxPoint(250, 80), wxSize(-1, -1))
-        self.type = wxIntCtrl(self, CTL_TYPE, \
+        self.type_label = wx.StaticText(self, -1, "Type:", 
+                                       wx.Point(250, 80), wx.Size(-1, -1))
+        self.type = IntCtrl(self, CTL_TYPE, 
                               self.app.client.config["myport"] / 0x100,
-                              wxPoint(250 + 40, 80), wxSize(40, -1))
+                              wx.Point(250 + 40, 80), wx.Size(40, -1))
 
-        self.code_label = wxStaticText(self, -1, "Code:", \
-                                       wxPoint(250 + 40 + 40, 80), wxSize(-1, -1))
+        self.code_label = wx.StaticText(self, -1, "Code:", 
+                               wx.Point(250 + 40 + 40, 80), wx.Size(-1, -1))
 
-        self.code = wxIntCtrl(self, CTL_CODE, \
+        self.code = IntCtrl(self, CTL_CODE, \
                               self.app.client.config["myport"] % 0x100,
-                              wxPoint(250 + 40 + 40 + 40, 80), wxSize(40, -1))
+                              wx.Point(250 + 40 + 40 + 40, 80), wx.Size(40, -1))
         EVT_INT(self, CTL_TYPE, self.OnTypeCodeChange)
         EVT_INT(self, CTL_CODE, self.OnTypeCodeChange)
         self.OnDChanChange()     # Hide/show correct controls
 
         # MSS. Combo box with common dropdowns, like bandwidth?
         # Only problem is, how do you make combo box only accept ints?
-        # Just using an wxIntCtrl for now
-        self.mss_label = wxStaticText(self, -1, "MSS:", \
-                                      wxPoint(250, 40), wxSize(-1, -1))
-        self.mss = wxIntCtrl(self, CTL_MSS, \
+        # Just using an IntCtrl for now
+        self.mss_label = wx.StaticText(self, -1, "MSS:", 
+                                      wx.Point(250, 40), wx.Size(-1, -1))
+        self.mss = IntCtrl(self, CTL_MSS, 
                              self.app.client.config["mss"],
-                             wxPoint(250 + 80, 40), wxSize(-1, -1))
+                             wx.Point(250 + 80, 40), wx.Size(-1, -1))
         EVT_INT(self, CTL_MSS, self.OnMSSChange)
 
         # TODO: Rwinsz, in seconds. Slider - 1 to 15 or so?
@@ -342,17 +355,17 @@ class CConfigPanel(wxPanel):
 
 
     def OnDldirBrowse(self, event):
-        # wxDirDialog or wxFileDialog
-        # EAC uses wxFileDialog and ignores the filename. I like that idea,
-        # because wxDirDialog isn't as good in my opinion.
+        # wx.DirDialog or wx.FileDialog
+        # EAC uses wx.FileDialog and ignores the filename. I like that idea,
+        # because wx.DirDialog isn't as good in my opinion.
         
         if (not os.access(self.app.client.config["dl_dir"], os.W_OK | os.X_OK)):
             # Can't read or cd to directory so default to current directory
             self.app.client.config["dl_dir"] = os.getcwd()
-        dlg = wxFileDialog(self, "Choose location", \
+        dlg = wx.FileDialog(self, "Choose location", \
                   self.app.client.config["dl_dir"], "Filename is ignored",
-                  "All files (*.*)|*.*", wxSAVE)
-        if dlg.ShowModal() == wxID_OK:
+                  "All files (*.*)|*.*", wx.SAVE)
+        if dlg.ShowModal() == wx.ID_OK:
             self.app.client.config["dl_dir"] = os.path.dirname(dlg.GetPath())
             self.dldir.SetValue(self.app.client.config["dl_dir"] + \
                                 os.path.sep)
@@ -371,9 +384,9 @@ class CConfigPanel(wxPanel):
     def OnMSSChange(self, event):
         self.app.client.config["mss"] = event.GetEventObject().GetValue()
  
-# This is for mode-less file dialog, but EVT_CLOSE isn't triggered
+# This is for mode-less file dialog, but wx.EVT_CLOSE isn't triggered
 #        self.browse_dlg.Show()
-#        EVT_CLOSE(self.browse_dlg, self.OnDldirBrowseClose)
+#        wx.EVT_CLOSE(self.browse_dlg, self.OnDldirBrowseClose)
 #
 #    def OnDldirBrowseClose(self, event):
 #        print "PATH=",self.browse_dlg.GetPath()
@@ -394,22 +407,22 @@ class CConfigPanel(wxPanel):
 
 CTL_SHARE = 701
 
-class SConfigPanel(wxPanel):
+class SConfigPanel(wx.Panel):
     """Server configuration panel."""
     def __init__(self, parent, app):
-        wxPanel.__init__(self, parent, -1, style=wxWANTS_CHARS)
+        wx.Panel.__init__(self, parent, -1, style=wx.WANTS_CHARS)
 
         self.app = app   
-        self.share = wxCheckBox(self, CTL_SHARE, "Enable sharing")
-        box = wxBoxSizer(wxVERTICAL)
-        box.Add(self.share, 1, wxEXPAND)
-        self.SetAutoLayout(true)
+        self.share = wx.CheckBox(self, CTL_SHARE, "Enable sharing")
+        box = wx.BoxSizer(wx.VERTICAL)
+        box.Add(self.share, 1, wx.EXPAND)
+        self.SetAutoLayout(True)
         self.SetSizer(box)
         self.Layout()
 
         self.share.SetValue(self.app.client.config["share"])
 
-        EVT_CHECKBOX(self, CTL_SHARE, self.OnToggleSharing)
+        wx.EVT_CHECKBOX(self, CTL_SHARE, self.OnToggleSharing)
 
     def OnToggleSharing(self, event):
         self.app.client.config["share"] = self.share.GetValue()
@@ -418,32 +431,32 @@ class SConfigPanel(wxPanel):
             self.app.nb.slog.start()
         elif not self.app.client.config["share"]:
             # Too annoying?
-            #dlg = wxMessageDialog(self.app.frame, 
+            #dlg = wx.MessageDialog(self.app.frame, 
             #      "The server will be shutdown once sumigetw is restarted.",
-            #      "SUMI Server", wxOK | wxICON_INFORMATION);
+            #      "SUMI Server", wx.OK | wx.ICON_INFORMATION);
             #dlg.ShowModal()
             pass
 
-# Somewhat based on wxListCtrl demo
-class TransferListCtrl(wxListCtrl, wxListCtrlAutoWidthMixin):
+# Somewhat based on wx.ListCtrl demo
+class TransferListCtrl(wx.ListCtrl, ListCtrlAutoWidthMixin):
     """List control handling the list of file transfers."""
-    def __init__(self, parent, ID, pos=wxDefaultPosition,
-                 size=wxDefaultSize, style=0):
-        wxListCtrl.__init__(self, parent, ID, pos, size, style)
-        wxListCtrlAutoWidthMixin.__init__(self)
+    def __init__(self, parent, ID, pos=wx.DefaultPosition,
+                 size=wx.DefaultSize, style=0):
+        wx.ListCtrl.__init__(self, parent, ID, pos, size, style)
+        ListCtrlAutoWidthMixin.__init__(self)
 
-class TransferPanel(wxPanel, wxColumnSorterMixin):
+class TransferPanel(wx.Panel, ColumnSorterMixin):
     """Panel encapsulating the list transfer control."""
     def __init__(self, parent, app):
-        wxPanel.__init__(self, parent, -1, style=wxWANTS_CHARS)
-                                                 #wxTAB_TRAVERSAL)
+        wx.Panel.__init__(self, parent, -1, style=wx.WANTS_CHARS)
+                                                 #wx.TAB_TRAVERSAL)
         # TODO: Column sorting is disabled now because nick2index loses
         # its associations and starts writing to the wrong column.
-        #wxColumnSorterMixin.__init__(self, 3)
+        #ColumnSorterMixin.__init__(self, 3)
 
-        tID = wxNewId()
+        tID = wx.NewId()
 
-        self.il = wxImageList(16, 16)
+        self.il = wx.ImageList(16, 16)
 
         self.app = app
 
@@ -452,57 +465,58 @@ class TransferPanel(wxPanel, wxColumnSorterMixin):
         self.sm_dn = self.il.Add(images.getSmallDnArrowBitmap())
 
         self.list = TransferListCtrl(self, tID,
-                                 style=wxLC_REPORT #| wxSUNKEN_BORDER
-                                 | wxLC_EDIT_LABELS
-                                 #| wxLC_VRULES | wxLC_HRULES
-                                 | wxLC_HRULES, 
+                                 style=wx.LC_REPORT #| wx.SUNKEN_BORDER
+                                 | wx.LC_EDIT_LABELS
+                                 #| wx.LC_VRULES | wx.LC_HRULES
+                                 | wx.LC_HRULES, 
                                  size=(100,100), pos=(50,50))
-        self.list.SetImageList(self.il, wxIMAGE_LIST_SMALL)
+        self.list.SetImageList(self.il, wx.IMAGE_LIST_SMALL)
 
         self.itemDataMap = {}
 
         self.SetupList()
 
 
-        # XXX: These are left over from wxListCtrl demo. 
+        # XXX: These are left over from wx.ListCtrl demo. 
         # TODO: Do something useful with them
-        EVT_SIZE(self, self.OnSize)
-        EVT_LIST_ITEM_SELECTED(self, tID, self.OnItemSelected)
-        EVT_LIST_ITEM_DESELECTED(self, tID, self.OnItemDeselected)
-        EVT_LIST_ITEM_ACTIVATED(self, tID, self.OnItemActivated)
-        EVT_LIST_DELETE_ITEM(self, tID, self.OnItemDelete)
-        EVT_LIST_COL_CLICK(self, tID, self.OnColClick)
-        EVT_LIST_COL_RIGHT_CLICK(self, tID, self.OnColRightClick)
-        EVT_LIST_COL_BEGIN_DRAG(self, tID, self.OnColBeginDrag)
-        EVT_LIST_COL_DRAGGING(self, tID, self.OnColDragging)
-        EVT_LIST_COL_END_DRAG(self, tID, self.OnColEndDrag)
+        wx.EVT_SIZE(self, self.OnSize)
+        wx.EVT_LIST_ITEM_SELECTED(self, tID, self.OnItemSelected)
+        wx.EVT_LIST_ITEM_DESELECTED(self, tID, self.OnItemDeselected)
+        wx.EVT_LIST_ITEM_ACTIVATED(self, tID, self.OnItemActivated)
+        wx.EVT_LIST_DELETE_ITEM(self, tID, self.OnItemDelete)
+        wx.EVT_LIST_COL_CLICK(self, tID, self.OnColClick)
+        wx.EVT_LIST_COL_RIGHT_CLICK(self, tID, self.OnColRightClick)
+        wx.EVT_LIST_COL_BEGIN_DRAG(self, tID, self.OnColBeginDrag)
+        wx.EVT_LIST_COL_DRAGGING(self, tID, self.OnColDragging)
+        wx.EVT_LIST_COL_END_DRAG(self, tID, self.OnColEndDrag)
         # Begin and end rename
-        EVT_LIST_BEGIN_LABEL_EDIT(self, tID, self.OnBeginEdit)
-        EVT_LIST_END_LABEL_EDIT(self, tID, self.OnEndEdit)
+        wx.EVT_LIST_BEGIN_LABEL_EDIT(self, tID, self.OnBeginEdit)
+        wx.EVT_LIST_END_LABEL_EDIT(self, tID, self.OnEndEdit)
 
-        EVT_LEFT_DCLICK(self.list, self.OnDoubleClick)
-        EVT_RIGHT_DOWN(self.list, self.OnRightDown)
+        wx.EVT_LEFT_DCLICK(self.list, self.OnDoubleClick)
+        wx.EVT_RIGHT_DOWN(self.list, self.OnRightDown)
 
         # for wxMSW
-        EVT_COMMAND_RIGHT_CLICK(self.list, tID, self.OnRightClick)
+        wx.EVT_COMMAND_RIGHT_CLICK(self.list, tID, self.OnRightClick)
 
         # for wxGTK
-        EVT_RIGHT_UP(self.list, self.OnRightClick)
+        wx.EVT_RIGHT_UP(self.list, self.OnRightClick)
 
     def SetupList(self):
         """Sets up the columns of the transfer list control."""
-        info = wxListItem()
-        info.m_mask = wxLIST_MASK_TEXT | wxLIST_MASK_IMAGE | wxLIST_MASK_FORMAT
+        info = wx.ListItem()
+        info.m_mask = (wx.LIST_MASK_TEXT | wx.LIST_MASK_IMAGE |
+                wx.LIST_MASK_FORMAT)
         info.m_image = -1
         info.m_format = 0
 
-        colnames = ['Filename', 'Peer', 'Status', 'Progress', 'Size', \
+        colnames = ['Filename', 'Peer', 'Status', 'Progress', 'Size', 
                     'Bytes', 'Rate', 'From', 
                     'Missing', 'Rexmits', 'ETA']
-        colfmt = [0, 0, 0, wxLIST_FORMAT_RIGHT, wxLIST_FORMAT_RIGHT, \
-                  wxLIST_FORMAT_RIGHT, wxLIST_FORMAT_RIGHT, \
-                  wxLIST_FORMAT_RIGHT, wxLIST_FORMAT_RIGHT, \
-                  wxLIST_FORMAT_RIGHT, 0, wxLIST_FORMAT_RIGHT ]
+        colfmt = [0, 0, 0, wx.LIST_FORMAT_RIGHT, wx.LIST_FORMAT_RIGHT, 
+                  wx.LIST_FORMAT_RIGHT, wx.LIST_FORMAT_RIGHT, 
+                  wx.LIST_FORMAT_RIGHT, wx.LIST_FORMAT_RIGHT,
+                  wx.LIST_FORMAT_RIGHT, 0, wx.LIST_FORMAT_RIGHT ]
 
         for x in range(0, COL_LAST + 1):
             info.m_text = colnames[x]
@@ -519,7 +533,7 @@ class TransferPanel(wxPanel, wxColumnSorterMixin):
 
         # Autosize the columns
         #for x in range(0, COL_LAST):
-        #    self.list.SetColumnWidth(x, wxLIST_AUTOSIZE)
+        #    self.list.SetColumnWidth(x, wx.LIST_AUTOSIZE)
 
         # This is neat, column widths are saved and restored so they are always
         # exactly as you (user) left them. No autosize to worry about.
@@ -531,11 +545,11 @@ class TransferPanel(wxPanel, wxColumnSorterMixin):
 
         self.currentItem = 0
 
-    # Used by the wxColumnSorterMixin, see wxPython/lib/mixins/listctrl.py
+    # Used by the wx.ColumnSorterMixin, see wxPython/lib/mixins/listctrl.py
     def GetListCtrl(self):
         return self.list
 
-    # Used by the wxColumnSorterMixin, see wxPython/lib/mixins/listctrl.py
+    # Used by the wx.ColumnSorterMixin, see wxPython/lib/mixins/listctrl.py
     def GetSortImages(self):
         # These are the icons that appear for ascending/descending sorting
         return (self.sm_dn, self.sm_up)
@@ -546,7 +560,7 @@ class TransferPanel(wxPanel, wxColumnSorterMixin):
         self.y = event.GetY()
         print "x, y = %s\n" % str((self.x, self.y))
         item, flags = self.list.HitTest((self.x, self.y))
-        if flags & wxLIST_HITTEST_ONITEM:
+        if flags & wx.LIST_HITTEST_ONITEM:
             self.list.Select(item)
         event.Skip()
 
@@ -569,7 +583,7 @@ class TransferPanel(wxPanel, wxColumnSorterMixin):
         #    print "OnItemSelected: Veto'd selection\n"
         #    #event.Veto()  # doesn't work
         #    # this does
-        #    self.list.SetItemState(10, 0, wxLIST_STATE_SELECTED)
+        #    self.list.SetItemState(10, 0, wx.LIST_STATE_SELECTED)
         event.Skip()
 
 
@@ -580,7 +594,8 @@ class TransferPanel(wxPanel, wxColumnSorterMixin):
 
         # Show how to reselect something we don't want deselected
         #if evt.m_itemIndex == 11:
-        #    wxCallAfter(self.list.SetItemState, 11, wxLIST_STATE_SELECTED, wxLIST_STATE_SELECTED)
+        #    wx.CallAfter(self.list.SetItemState, 11, wx.LIST_STATE_SELECTED,
+        #    wx.LIST_STATE_SELECTED)
 
 
     def OnItemActivated(self, event):
@@ -657,31 +672,31 @@ class TransferPanel(wxPanel, wxColumnSorterMixin):
 
         # only do this part the first time so the events are only bound once
         if not hasattr(self, "popupID1"):
-            self.popup_open = wxNewId()
-            self.popup_opendir = wxNewId()
-            self.popup_abort = wxNewId()
-            self.popup_resume = wxNewId()
-            self.popup_rename = wxNewId()
-            #self.popupID1 = wxNewId()
-            #self.popupID2 = wxNewId()
-            #self.popupID3 = wxNewId()
-            #self.popupID4 = wxNewId()
-            #self.popupID5 = wxNewId()
-            #self.popupID6 = wxNewId()
-            EVT_MENU(self, self.popup_open, self.OnOpen)
-            EVT_MENU(self, self.popup_opendir, self.OnOpenDir)
-            EVT_MENU(self, self.popup_abort, self.OnAbort)
-            EVT_MENU(self, self.popup_resume, self.OnResume)
-            EVT_MENU(self, self.popup_rename, self.OnRename)
-            #EVT_MENU(self, self.popupID1, self.OnPopupOne)
-            #EVT_MENU(self, self.popupID2, self.OnPopupAbort)
-            #EVT_MENU(self, self.popupID3, self.OnPopupThree)
-            #EVT_MENU(self, self.popupID4, self.OnPopupFour)
-            #EVT_MENU(self, self.popupID5, self.OnPopupFive)
-            #EVT_MENU(self, self.popupID6, self.OnPopupSix)
+            self.popup_open = wx.NewId()
+            self.popup_opendir = wx.NewId()
+            self.popup_abort = wx.NewId()
+            self.popup_resume = wx.NewId()
+            self.popup_rename = wx.NewId()
+            #self.popupID1 = wx.NewId()
+            #self.popupID2 = wx.NewId()
+            #self.popupID3 = wx.NewId()
+            #self.popupID4 = wx.NewId()
+            #self.popupID5 = wx.NewId()
+            #self.popupID6 = wx.NewId()
+            wx.EVT_MENU(self, self.popup_open, self.OnOpen)
+            wx.EVT_MENU(self, self.popup_opendir, self.OnOpenDir)
+            wx.EVT_MENU(self, self.popup_abort, self.OnAbort)
+            wx.EVT_MENU(self, self.popup_resume, self.OnResume)
+            wx.EVT_MENU(self, self.popup_rename, self.OnRename)
+            #wx.EVT_MENU(self, self.popupID1, self.OnPopupOne)
+            #wx.EVT_MENU(self, self.popupID2, self.OnPopupAbort)
+            #wx.EVT_MENU(self, self.popupID3, self.OnPopupThree)
+            #wx.EVT_MENU(self, self.popupID4, self.OnPopupFour)
+            #wx.EVT_MENU(self, self.popupID5, self.OnPopupFive)
+            #wx.EVT_MENU(self, self.popupID6, self.OnPopupSix)
 
         # make a menu
-        menu = wxMenu()
+        menu = wx.Menu()
         # add some items
         menu.Append(self.popup_open, "Open")
         menu.Append(self.popup_opendir, "Open Folder")
@@ -697,7 +712,7 @@ class TransferPanel(wxPanel, wxColumnSorterMixin):
 
         # Popup the menu.  If an item is selected then its handler
         # will be called before PopupMenu returns.
-        self.PopupMenu(menu, wxPoint(self.x, self.y))
+        self.PopupMenu(menu, wx.Point(self.x, self.y))
         menu.Destroy()
 
     def OnOpen(self, event):
@@ -741,7 +756,7 @@ class TransferPanel(wxPanel, wxColumnSorterMixin):
     def OnPopupThree(self, event):
         print "Popup three\n"
         self.list.ClearAll()
-        wxCallAfter(self.SetupList)
+        wx.CallAfter(self.SetupList)
 
     def OnPopupFour(self, event):
         self.list.DeleteAllItems()
@@ -759,10 +774,10 @@ class TransferPanel(wxPanel, wxColumnSorterMixin):
         self.list.SetDimensions(0, 0, w, h)
 
 # SUMI application
-class SUMIApp(wx.wxApp):
+class SUMIApp(wx.App):
     def __init__(self):
         print "__init__"
-        wx.wxApp.__init__(self, 0)
+        wx.App.__init__(self, 0)
         print "__init__ 2"
 
     def OnInit(self):
@@ -773,13 +788,14 @@ class SUMIApp(wx.wxApp):
 
         self.client = sumiget.Client()
 
-        wx.wxInitAllImageHandlers()
+        wx.InitAllImageHandlers()
 
         # Frame to hold the notebook
-        self.frame = wx.wxFrame(None, -1, "SUMI", pos=(50,50), 
-                        style=wx.wxNO_FULL_REPAINT_ON_RESIZE|wx.wxDEFAULT_FRAME_STYLE|wxTAB_TRAVERSAL)
+        self.frame = wx.Frame(None, -1, "SUMI", pos=(50,50), 
+                        style=wx.NO_FULL_REPAINT_ON_RESIZE |
+                        wx.DEFAULT_FRAME_STYLE | wx.TAB_TRAVERSAL)
 
-        self.frame.icon = wxIcon("sumi.ico", wxBITMAP_TYPE_ICO)
+        self.frame.icon = wx.Icon("sumi.ico", wx.BITMAP_TYPE_ICO)
         if self.frame.icon:
             self.frame.SetIcon(self.frame.icon)
         else:
@@ -789,8 +805,8 @@ class SUMIApp(wx.wxApp):
         self.nb = MainNotebook(self.frame, self)
 
         # No menubar
-        #menuBar = wx.wxMenuBar()
-        #menu = wx.wxMenu()
+        #menuBar = wx.MenuBar()
+        #menu = wx.Menu()
         #menu.Append(101, "E&xit\tAlt-X", "Exit demo")
         #wx.EVT_MENU(self, 101, self.OnExit)
         #menuBar.Append(menu, "&File")
@@ -798,23 +814,23 @@ class SUMIApp(wx.wxApp):
 
         wx.EVT_CLOSE(self.frame, self.OnCloseFrame)
 
-        # This is all commented out because we use a wxNotebook now
+        # This is all commented out because we use a wx.Notebook now
         #self.xfpanel = TransferPanel(self.frame, self)
-        #self.setup = wxButton(self.frame, ID_SETUP, "&Setup")
-        #self.exit = wxButton(self.frame, ID_EXIT, "E&xit")
-        #btns = wxBoxSizer(wxHORIZONTAL)
-        #box = wxBoxSizer(wxVERTICAL)
-        #box.Add(self.xfpanel, 5, wxEXPAND)  # Button proportion
-        #box.Add(btns, 1, wxEXPAND)
+        #self.setup = wx.Button(self.frame, ID_SETUP, "&Setup")
+        #self.exit = wx.Button(self.frame, ID_EXIT, "E&xit")
+        #btns = wx.BoxSizer(wx.HORIZONTAL)
+        #box = wx.BoxSizer(wx.VERTICAL)
+        #box.Add(self.xfpanel, 5, wx.EXPAND)  # Button proportion
+        #box.Add(btns, 1, wx.EXPAND)
         ## Row of buttons
-        #btns.Add(self.setup, 1, wxEXPAND)
-        #btns.Add(self.exit, 1, wxEXPAND)
-        #self.frame.SetAutoLayout(true)
+        #btns.Add(self.setup, 1, wx.EXPAND)
+        #btns.Add(self.exit, 1, wx.EXPAND)
+        #self.frame.SetAutoLayout(True)
         #self.frame.SetSizer(box)
         #self.frame.Layout()
 
-        #EVT_BUTTON(self.exit, ID_EXIT, self.OnExit)
-        #EVT_BUTTON(self.setup, ID_SETUP, self.OnSetup)
+        #wx.EVT_BUTTON(self.exit, ID_EXIT, self.OnExit)
+        #wx.EVT_BUTTON(self.setup, ID_SETUP, self.OnSetup)
 
         # Setup the SUMI 
         # Only really need one of these each per transfer
@@ -915,7 +931,7 @@ class SUMIApp(wx.wxApp):
         """Autosize the columns."""
         # No, don't call this. Instead use widths from config file
         for x in range(0, COL_LAST):
-            self.nb.xfpanel.list.SetColumnWidth(x, wxLIST_AUTOSIZE)
+            self.nb.xfpanel.list.SetColumnWidth(x, wx.LIST_AUTOSIZE)
 
 
     def SetColor(self, nick, c):
@@ -944,11 +960,11 @@ class SUMIApp(wx.wxApp):
             self.SetInfo(nick, COL_STATUS, "Transport loading")
         elif (cmd == "1xferonly"):  # transfer already in progress
             self.SetInfo(nick, COL_STATUS, "Another transfer in progress")
-            self.SetColor(nick, wxRED)  # Maybe queue it instead?
+            self.SetColor(nick, wx.RED)  # Maybe queue it instead?
         elif (cmd == "t_fail"): # transport failed to load
             msg = args[0][1].args[0]
             self.SetInfo(nick, COL_STATUS, "Bad transport: %s" % msg)
-            self.SetColor(nick, wxRED)
+            self.SetColor(nick, wx.RED)
         elif (cmd == "req_sent"):  # request was sent
             self.SetInfo(nick, COL_STATUS, "Handshaking")
         elif (cmd == "req_count"): # request handshake countdown+status
@@ -959,7 +975,7 @@ class SUMIApp(wx.wxApp):
             self.SetInfo(nick, COL_MISSING, str(len(args[0])))
         elif (cmd == "timeout"):   # timed out/no such nick
             self.SetInfo(nick, COL_STATUS, "Timeout")
-            self.SetColor(nick, wxRED)
+            self.SetColor(nick, wx.RED)
         elif (cmd == "info"):   # sent on reception of auth packet, ready
             (size, prefix, filename, transport, dchantype) = args
             print "Info: ", args
@@ -984,7 +1000,7 @@ class SUMIApp(wx.wxApp):
             # transfer but have no need to be re-set every packet. Note this
             # message does not include any args; write will be called w/ args.
             # Like xchat's dcc, blue=transferring, green=done, & red=err
-            self.SetColor(nick, wxBLUE)
+            self.SetColor(nick, wx.BLUE)
             self.SetInfo(nick, COL_STATUS, "Transferring...")
         elif (cmd == "write"):
             #self.gauge.SetValue(int(args[1]))
@@ -1019,7 +1035,7 @@ class SUMIApp(wx.wxApp):
             (duration, size, speed, all_lost) = args
             self.SetInfo(nick, COL_STATUS, "Complete")
             self.SetInfo(nick, COL_RATE, "%d" % speed)
-            self.SetColor(nick, wxColour(32, 128, 32))   # a suitable green
+            self.SetColor(nick, wx.Colour(32, 128, 32))   # a suitable green
             #self.info.SetLabel("Complete %d B @ %d kB/s: %s" % \
             #    (size, speed, all_lost))
         else:

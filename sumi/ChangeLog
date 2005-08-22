@@ -1,3 +1,6 @@
+2005-08-22 Jeff Connelly <jeffconnelly@users.sourceforge.net>
+	* sumigetw uses wxPython 2.6.1.0 and new-style symbol names, no more 2.4
+
 2005-08-21 Jeff Connelly <jeffconnelly@users.sourceforge.net> - 0.8.12
 	* New transport: modtor, uses The Onion Router (see http://tor.eff.org)
 	* File data encryption fully works, enabled by default (crypt_req not)
