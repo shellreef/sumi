@@ -974,7 +974,7 @@ class Client(object):
             log("\nSelect an interface, or set 'myip' in config.py for auto.")
 
             (self.config["interface"], self.config["myip"], ignore,
-                self.config["mss"]) = select_if()
+                self.config["mtu"]) = select_if()
 
             log("Saving settings. Please review them in config.py, edit "
                     "as necessary, and restart.")
@@ -1003,8 +1003,8 @@ class Client(object):
         else:
             self.irc_name = self.irc_nick
 
-        if self.config.has_key("mss"):
-            self.mss = self.config["mss"]
+        if self.config.has_key("mtu"):
+            self.mss = self.config["mtu"] - IPHDRSZ - UDPHDRSZ
         else:
             try:
                 self.mss
@@ -1016,7 +1016,6 @@ class Client(object):
             bs = get_cipher().block_size
             if (self.mss - SUMIHDRSZ) % bs:
                 self.mss -= (self.mss - SUMIHDRSZ) % 16
-                self.config["mss"] = self.mss
                 log("Fit MSS-SUMIHDRSZ to cipher block size: %s" % self.mss)
 
         if self.config.has_key("rwinsz"):
@@ -1229,10 +1228,11 @@ by clicking the ... button."""
         # Initialize user if possible
         if hasattr(t, "user_init"):
             u["user_init"] = t.user_init
+            self.callback(u["nick"], "t_user")
             log("Initializing user...")
             if u["user_init"](u["nick"]):
                 log("user_init(%s) failed" % u["nick"])
-                #self.callback(u["nick"], "t_fail", "user_init failed")
+                self.callback(u["nick"], "t_fail", "user_init failed")
                 return False
 
         return True

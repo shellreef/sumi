@@ -1,5 +1,6 @@
 TO DO   20050802JC
 
+* Look into ctypes instead of SWIG for LibTomCrypt, might be easier
 * Migrate from Python 2.3 to 2.4, and use os.urandom...
 * DONE Migrate from wxPythonWIN32-2.4.2.4-Py23 to wxPython 2.6, and Python 2.4
 * Look into FSP - http://cvs.sourceforge.net/viewcvs.py/fsp/fsp/INFO?view=auto

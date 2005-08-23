@@ -294,7 +294,7 @@ def handle_request(u, msg):
 
     if casts.has_key(u["addr"]):
         # Use prefix of client already sending to
-        log("Multicast detected: %s:%s" % (u["addr"], casts[u["addr"]]))
+        log("Multicast group: %s:%s" % (u["addr"], casts[u["addr"]]))
 
         cs = casts[u["addr"]]
         found = 0
@@ -311,7 +311,7 @@ def handle_request(u, msg):
         else:
             casts[u["addr"]][u["nick"]] = 1
 
-            log("    Using old prefix: %02x%02x%02x" % 
+            log("    Reusing old prefix: %02x%02x%02x" % 
                 (ord(u["prefix"][0]), 
                  ord(u["prefix"][1]),
                  ord(u["prefix"][2])))
@@ -329,12 +329,15 @@ def send_auth(u, file_info):
     """Send authentication packet to given user.
 
     file_info contains information on the file."""
-    if not u.has_key("prefix"):
+
+    # "prefix1" is the client-requested prefix, which may differ from the 
+    # prefix we use for data transfer (important in multicast).
+    if not u.has_key("prefix1"):
         return sendmsg_error(u, "missing prefix")
 
     # Build the authentication packet using the client-requested prefix
     # 3-byte prefix, 3-byte seqno (0)
-    pkt = "%s\0\0\0" % u["prefix"]
+    pkt = "%s\0\0\0" % u["prefix1"]
     assert len(pkt) == SUMIHDRSZ, "pkt + seqno != SUMIHDRSZ";
 
     # Payload is file information, followed by random data, up to MSS
@@ -383,7 +386,7 @@ def handle_send(u, msg):
 
     log("FILE=%s" % filename)
 
-    if (filename[0] == "#"):
+    if filename[0] == "#":
         u["file"] = int(filename[1:]) - 1
     else:
         return sendmsg_error(u, "file must be integer") 
@@ -1490,7 +1493,7 @@ def ipmask2cidr(ip, mask):
 
 def use_new_if():
     """Use select_if() to allow choosing a new interface, then quit."""
-    cfg["interface"], ip, mask, mss_ignored = select_if()
+    cfg["interface"], ip, mask, mtu_ignored = select_if()
 
     allow = ipmask2cidr(ip, mask)
     log("%s+%s => allow %s" % (ip, mask, allow))

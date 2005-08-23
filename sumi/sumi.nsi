@@ -128,6 +128,7 @@ Section "Uninstall"
 
  Delete "$SMPROGRAMS\SUMI\*"
  RMDir /R "$SMPROGRAMS\SUMI"
+ Delete "$SMPROGRAMS\SUMI"
  Delete "$INSTDIR\*"
  RMDir /R "$INSTDIR"
 SectionEnd

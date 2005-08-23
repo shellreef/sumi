@@ -457,7 +457,7 @@ def datalink2mtu(d):
 def select_if():
     """Display network interfaces, allow user to choose one.
     
-    Return (interface, ip, mask, mss)."""
+    Return (interface, ip, mask, mtu)."""
     import pcapy
 
     # getnet()/getmask() return all 0's in 0.10.3, unless the patch
@@ -512,14 +512,12 @@ def select_if():
     mask = ifaces[i]["mask"]
     log("Using mask %s" % mask)
 
-    mss = ifaces[i]["mtu"] - IPHDRSZ - UDPHDRSZ
-    log("Using MSS %s" % mss)
+    mtu = ifaces[i]["mtu"]
+    log("Using MSS %s" % mtu)
 
-    return (interface, myip, mask, mss)
+    return (interface, myip, mask, mtu)
 
 # Bitmaps - from images.py from wxPython demo, modified for new version
-import wx
-import cStringIO
 def getSmilesData():
     return \
 '\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x10\x00\x00\x00\x10\x08\x06\
@@ -553,9 +551,12 @@ b`\r\xa8\x02\x8d=d\x81\xb69}"\rq\x07\xc4i\x00\x9c\\\xae\x87Fc\x05\xf8\x0fhP(\
 \x00\x00\x00IEND\xaeB`\x82' 
 
 def getSmilesBitmap():
+    import wx
     return wx.BitmapFromImage(getSmilesImage())
 
 def getSmilesImage():
+    import wx
+    import cStringIO
     stream = cStringIO.StringIO(getSmilesData())
     return wx.ImageFromStream(stream)
 
@@ -570,9 +571,12 @@ def getSmallUpArrowData():
 \x82' 
 
 def getSmallUpArrowBitmap():
+    import wx
     return wx.BitmapFromImage(getSmallUpArrowImage())
 
 def getSmallUpArrowImage():
+    import wx
+    import cStringIO
     stream = cStringIO.StringIO(getSmallUpArrowData())
     return wx.ImageFromStream(stream)
 
@@ -587,9 +591,12 @@ def getSmallDnArrowData():
 \x1d\xc4;\xb7\x00\x00\x00\x00IEND\xaeB`\x82" 
 
 def getSmallDnArrowBitmap():
+    import wx
     return wx.BitmapFromImage(getSmallDnArrowImage())
 
 def getSmallDnArrowImage():
+    import wx
+    import cStringIO
     stream = cStringIO.StringIO(getSmallDnArrowData())
     return wx.ImageFromStream(stream)
 

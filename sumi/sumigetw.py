@@ -19,11 +19,9 @@ from libsumi import *
 #from wxPython.lib.mixins.listctrl import wxColumnSorterMixin, wxListCtrlAutoWidthMixin
 #from wxPython.lib.intctrl import *
 
-# XXX: Why does py2exe save wx/ and wxPython/ in library.zip? 2x as large!
-
 import wx
-assert wx.VERSION >= (2,6,1,0,''), \
-        ("You need at least wxPython 2.6.1.0, but you have %s.\n"
+assert wx.VERSION >= (2,6,0,0,''), \
+        ("You need at least wxPython 2.6.0.0, but you have %s.\n"
         "Please upgrade at http://www.wxpython.org/") % (
                 ".".join(map(str, wx.VERSION)))
 
@@ -191,7 +189,7 @@ CTL_DLDIR  = 503
 CTL_BROWSE = 504
 CTL_MYIP   = 505
 CTL_MYPORT = 506
-CTL_MSS    = 507
+CTL_MTU    = 507
 CTL_TYPE   = 508
 CTL_CODE   = 509
 
@@ -314,15 +312,15 @@ class CConfigPanel(wx.Panel):
         EVT_INT(self, CTL_CODE, self.OnTypeCodeChange)
         self.OnDChanChange()     # Hide/show correct controls
 
-        # MSS. Combo box with common dropdowns, like bandwidth?
+        # MTU. Combo box with common dropdowns, like bandwidth?
         # Only problem is, how do you make combo box only accept ints?
         # Just using an IntCtrl for now
-        self.mss_label = wx.StaticText(self, -1, "MSS:", 
+        self.mtu_label = wx.StaticText(self, -1, "MTU:", 
                                       wx.Point(250, 40), wx.Size(-1, -1))
-        self.mss = IntCtrl(self, CTL_MSS, 
-                             self.app.client.config["mss"],
+        self.mtu = IntCtrl(self, CTL_MTU, 
+                             self.app.client.config["mtu"],
                              wx.Point(250 + 80, 40), wx.Size(-1, -1))
-        EVT_INT(self, CTL_MSS, self.OnMSSChange)
+        EVT_INT(self, CTL_MTU, self.OnMTUChange)
 
         # TODO: Rwinsz, in seconds. Slider - 1 to 15 or so?
         # TODO: Maxwait, time to wait before handshake. Slider again?
@@ -385,8 +383,8 @@ class CConfigPanel(wx.Panel):
     def OnTypeCodeChange(self, event):
         self.app.client.config["myport"] = self.type.GetValue() * 0x100 + self.code.GetValue()
 
-    def OnMSSChange(self, event):
-        self.app.client.config["mss"] = event.GetEventObject().GetValue()
+    def OnMTUChange(self, event):
+        self.app.client.config["mtu"] = event.GetEventObject().GetValue()
  
 # This is for mode-less file dialog, but wx.EVT_CLOSE isn't triggered
 #        self.browse_dlg.Show()
@@ -973,6 +971,8 @@ class SUMIApp(wx.App):
             msg = args[0][1].args[0]
             self.SetInfo(nick, COL_STATUS, "Bad transport: %s" % msg)
             self.SetColor(nick, wx.RED)
+        elif (cmd == "t_user"):
+            self.SetInfo(nick, COL_STATUS, "Connecting...")
         elif (cmd == "error"):
             self.SetInfo(nick, COL_STATUS, "Error: %s" % args[0])
             self.SetColor(nick, wxRED)
