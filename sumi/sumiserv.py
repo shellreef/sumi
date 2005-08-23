@@ -770,10 +770,9 @@ def load_transport(transport):
         sys.path.insert(0, os.path.dirname(sys.argv[0]))
         t = __import__("transport.mod" + transport, None, None,
                        ["transport_init", "sendmsg", "recvmsg"])
-    except ImportError:
-        fatal(3, 
-"""Loading transport " + transport + "failed: " + sys.exc_info() + 
-"\nPlease specify 'transport' in sumiserv.cfg""")
+    except ImportError, e:
+        fatal(3, """Loading transport %s failed: %s.
+Please specify a valid 'transport' in sumiserv.cfg""" % (transport, e))
 
     import sumiget
     # Export some useful functions to the transports
@@ -962,7 +961,7 @@ def datapkt(u, seqno, is_resend=False):
        Delegates actual sending to a send_packet_* function."""
     if seqno > 16777216:
         destroy_client(u)
-        return sendmsg_error(u, "file too large: 8-10GB is " +
+        return sendmsg_error(u, "file too large: 8-10GB is " 
                 "the limit, depending on MSS")
 
     # Size of data payload in packet            
@@ -989,7 +988,7 @@ def datapkt(u, seqno, is_resend=False):
     # XXX: broken, no AONT for now
     if False and u.has_key("crypto_state"):
         assert payloadsz % get_cipher().block_size == 0, (
-                "%s (MSS-%s) is not a multiple of %s, which is required" + 
+                "%s (MSS-%s) is not a multiple of %s, which is required"  
                 "for crypto. This should've been fixed in cfg validation." % (
                         payloadsz, SUMIHDRSZ, get_cipher().block_size))
 
@@ -1018,8 +1017,7 @@ def datapkt(u, seqno, is_resend=False):
 
     # AES CTR encryption
     if u.has_key("data_key"):
-        u["ctr"] = (calc_blockno(seqno, payloadsz) +
-            + u["data_iv"])
+        u["ctr"] = (calc_blockno(seqno, payloadsz) + u["data_iv"])
         log("CTR:pkt #%s -> %s" % (seqno, u["ctr"]))
         ciphertext = u["crypto_obj"].encrypt(data)
 
@@ -1595,7 +1593,7 @@ def setup_config():
         try:
             size = os.path.getsize(fn)
         except OSError:
-            fatal(21, ("Exception occured while reading size of %s" % fn)+
+            fatal(21, ("Exception occured while reading size of %s" % fn) +
                 "\nPlease check that the file exists and is readable.")
         offer["size"] = size
         offer["hsize"] = human_readable_size(size)   

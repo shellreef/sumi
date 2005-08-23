@@ -677,14 +677,14 @@ class Client:
             elif self.config["data_chan_type"] == "i":
                 self.server_icmp()
             else:
-                log("data_chan_type invalid, see config.html" + 
+                log("data_chan_type invalid, see config.html" 
                     "(dchanmode=socket)")
                 sys.exit(-2)
         elif self.config["dchanmode"] == "pcap":
             if self.config["data_chan_type"] == "u":
                 self.server_udp_PCAP()
             else:
-                log("data_chan_type invalid, see config.html" + 
+                log("data_chan_type invalid, see config.html"
                         "(dchanmode=pcap)")
                 sys.exit(-3)
         else:
@@ -994,7 +994,7 @@ class Client:
             (self.config["interface"], self.config["myip"], ignore,
                 self.config["mss"]) = select_if()
 
-            log("Saving settings. Please review them in config.py, edit "+
+            log("Saving settings. Please review them in config.py, edit "
                     "as necessary, and restart.")
             self.on_exit()
 
@@ -1154,7 +1154,7 @@ by clicking the ... button."""
 
         if self.config.get("crypt_req"):
             if not "recvmsg" in u:
-                log("Sorry, this transport lacks a recvmsg, so " +
+                log("Sorry, this transport lacks a recvmsg, so "
                         "transport encryption is not available.")
                 sys.exit(-1)
                 return False
