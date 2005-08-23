@@ -47,9 +47,9 @@ sys.path.append(os.path.realpath(os.path.dirname(sys.argv[0])) + "/../")
 global transports
 transports = {}
 
-# Make stdout unbuffered. Not sure if this is still needed.
+ Make stdout unbuffered. Not sure if this is still needed.
 real_stdout = sys.stdout
-class unbuffered_stdout:
+class unbuffered_stdout(object):
     def write(self, s):
         real_stdout.write(s)
         # Check to see if hash flush attribute, because the Blcakhole object
@@ -75,8 +75,7 @@ def segment(nick, msg, max, callback):
         #print(prefix + msg[n:n+MAX_LEN])
         n += max
 
-class Client:
-
+class Client(object):
     def __init__(self):
         log("Loading config...")
         # Mode "U" for universal newlines, so \r\n is okay

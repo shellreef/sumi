@@ -28,7 +28,7 @@ ATYP_IPV6            = 0x04
 
 supported_methods = [METHOD_NO_AUTH]
 
-class SOCKS5_Exception:
+class Error(object):
     def __init__(self, msg):
         self.msg = msg
     def __str__(self):
@@ -40,7 +40,7 @@ def setup(socks_host, socks_port=1080):
     try:
         s.connect((socks_host, socks_port))
     except socket.error, e:
-        raise SOCKS5_Exception("couldn't connect to SOCKS: %s" % e)
+        raise Error("couldn't connect to SOCKS: %s" % e)
     
     negotiate(s)
 
@@ -70,10 +70,10 @@ def negotiate(s):
 
     server_methods = map(ord, list(response[1:]))
     if METHOD_NO_ACCEPTABLE in server_methods:
-        raise SOCKS5_Exception, "No acceptable methods supported by server"
+        raise Error("No acceptable methods supported by server")
 
     if not METHOD_NO_AUTH in server_methods:
-        raise SOCKS5_Exception, "Authentication not supported by this module"
+        raise Error("Authentication not supported by this module")
 
 def request(s, cmd, hostname, port):
     """Send a SOCKS5 request for hostname:port. Always uses a fully-qualified
@@ -136,14 +136,14 @@ def test1():
     s.send("GET / HTTP/1.0\r\n\r\n")
     print s.recv(100)
 
-def test2(website="google.com"):
-    # Test higher-level API. 'website' can be a hidden service for Tor.
-    s = connect_via((website,80), ("localhost", 9050))
+def test2(site="google.com",port=80):
+    # Test higher-level API. 'site' can be a hidden service for Tor.
+    s = connect_via((site,port), ("localhost", 9050))
     s.send("GET / HTTP/1.0\r\n\r\n")
     print s.recv(100)
 
 # These tests require Tor
 if __name__ == "__main__":
-    #test1()
-    test2("upzt3xumxtpslxkb.onion")
-    #test2()
+    test1()
+    #test2("5mg27ujynvojkdpq.onion", 3490)
+    test2()
