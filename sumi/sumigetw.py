@@ -18,8 +18,10 @@ import sys
 #from wxPython.lib.intctrl import *
 
 import wx
-assert wx.VERSION >= (2,6,1,0,''), \
-        "You need at least wxPython 2.6.1.0, but you have %s" % wx.VERSION
+assert True or wx.VERSION >= (2,6,1,0,''), \
+        ("You need at least wxPython 2.6.1.0, but you have %s.\n"
+        "Please upgrade at http://www.wxpython.org/") % (
+                ".".join(map(str, wx.VERSION)))
 
 from wx.lib.mixins.listctrl import ColumnSorterMixin, ListCtrlAutoWidthMixin
 from wx.lib.intctrl import IntCtrl, EVT_INT
@@ -969,6 +971,9 @@ class SUMIApp(wx.App):
             msg = args[0][1].args[0]
             self.SetInfo(nick, COL_STATUS, "Bad transport: %s" % msg)
             self.SetColor(nick, wx.RED)
+        elif (cmd == "error"):
+            self.SetInfo(nick, COL_STATUS, "Error: %s" % args[0])
+            self.SetColor(nick, wxRED)
         elif (cmd == "req_sent"):  # request was sent
             self.SetInfo(nick, COL_STATUS, "Handshaking")
         elif (cmd == "req_count"): # request handshake countdown+status

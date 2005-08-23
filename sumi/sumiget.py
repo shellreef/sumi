@@ -90,30 +90,6 @@ class Client:
 
         self.set_callback(self.default_cb)   # override me please
 
-    # Not used anymore--see handle_server_message
-    def on_msg(self, nick, msg):
-        """Handle incoming messages."""
-        log("<%s> %s" % (nick, msg))
-        # This isn't used anymore - its in the auth packet instead
-        if msg.find("sumi start ") == 0:
-            args = unpack_args(msg[len("sumi start "):])
-            (filename, offset, size) = (args["f"], args["o"], args["l"])
-
-            offset = int(offset)
-            size = int(size)
-
-            if self.senders.has_key(nick):
-                self.sendmsg(self.senders[nick], "n%d" % self.rwinsz)
-                self.rwinsz_old = self.rwinsz
-                log("Starting n%d %s for %s,%d,%d" % (self.rwinsz, nick,
-                    filename, offset, size))
-            else:
-                log("ERROR: user not known, stranger trying to sumi start!")
-                log("Senders: %s" % self.senders)
-        elif msg.find("error: ") == 0:
-            errmsg = msg[len("error: "):]
-            log("*** Error: " % errmsg)
-
     def save_lost(self, u, finished=0):
         """Write the resume file for transfer from the user."""
         finished=0    # no special case
@@ -812,21 +788,26 @@ class Client:
         """Decrypt a message using nick's key and IV."""
         return decrypt_msg(msg, u["sesskey"], u["sessiv"])
 
-    # TODO: Merge with on_msg to handle error:'s            
     def handle_server_message(self, nick, msg):
         """Handle a message received from the server on the transport.
         Used for crypto."""
         if not self.senders.has_key(nick):
-            return
+            return False
 
         u = self.senders[nick]
+
+        if msg.startswith("error: "):
+            error_msg = msg[len("error: "):]
+            log("*** Error: %s: %s" % (nick, error_msg))
+            self.callback(u["nick"], "error", error_msg)
+            return None
 
         # Always base64'd
         try:
             raw = base64.decodestring(msg)
         except binascii.Error:
             log("%s couldn't decode?!" % msg)
-            return
+            return False
 
         # Server will send three things: pubkeys, nonce1/2, nonce2/2
         # in two messages (pubkeys+nonce1/2, nonce2/2). We can tell which
@@ -840,7 +821,7 @@ class Client:
                 self.callback(u["nick"], "sec_fail1")
                 log("INTERLOCK FAILURE 1! %s < %s" % (d1, INTERLOCK_DELAY))
                 log("Possible attack. Not trusting the server. Aborting.")
-                return
+                return False
 
             self.set_handshake_status(u, "Interlocking-1")
             log("Got pubkeys + nonce1/2")
@@ -891,7 +872,7 @@ class Client:
                 self.callback(u["nick"], "sec_fail2")
                 log("INTERLOCK FAILURE 2! Possible attack, aborting.")
                 log("%s < %s" % (d2, INTERLOCK_DELAY))
-                return
+                return False
 
             log("Got nonce 2/2")
             self.set_handshake_status(u, "Interlocking-2")
@@ -908,6 +889,8 @@ class Client:
             u["sent_req2"] = time.time()
 
             u["crypto_state"] = 2
+
+        return True
 
     def set_handshake_status(self, u, status):
         """Set handshake status to status, and send a callback message
@@ -959,7 +942,7 @@ class Client:
         #thread.start_new_thread(self.crypto_thread, (u["nick"], ))
         #thread.start_new_thread(wrap, ())
         thread.start_new_thread(self.wrap_thread, 
-                (self.crypto_thread, u["nick"]))
+                (self.crypto_thread, (u["nick"], )))
 
     def wrap_thread(f, args):
         try:

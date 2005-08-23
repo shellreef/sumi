@@ -19,7 +19,7 @@
  'irc_server': 'irc.xtc-dreams.com',
  'maxwait': 7,
  'mss': 1462,
- 'myip': '10.0.0.103',
+ 'myip': '',
  'myip2': '10.0.0.64',
  'myip3': '10.0.0.64',
  'myport': 2771,
