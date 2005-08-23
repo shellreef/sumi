@@ -126,18 +126,10 @@ SectionEnd
 Section "Uninstall"
  DeleteRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\SUMI"
 
-
  Delete "$SMPROGRAMS\SUMI\*"
- Delete "$SMPROGRAMS\SUMI\transport\*"
- Delete "$SMPROGRAMS\SUMI\doc\*"
- Delete "$SMPROGRAMS\SUMI\client-side\*"
- RMDir "$SMPROGRAMS\SUMI\transport"
- RMDir "$SMPROGRAMS\SUMI\doc"
- RMDir "$SMPROGRAMS\SUMI\client-side"
- RMDir "$SMPROGRAMS\SUMI"
- 
+ RMDir /R "$SMPROGRAMS\SUMI"
  Delete "$INSTDIR\*"
- RMDir "$INSTDIR"
+ RMDir /R "$INSTDIR"
 SectionEnd
 
 
