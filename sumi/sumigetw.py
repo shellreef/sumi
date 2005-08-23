@@ -10,6 +10,8 @@ import os
 import socket
 import sys
 
+from libsumi import *
+
 # Used to require wxPython 2.4.2.4 (sf.net/projects/wxpython, view all releases)
 # But now uses wxPython 2.6.1.0
 
@@ -17,16 +19,16 @@ import sys
 #from wxPython.lib.mixins.listctrl import wxColumnSorterMixin, wxListCtrlAutoWidthMixin
 #from wxPython.lib.intctrl import *
 
+# XXX: Why does py2exe save wx/ and wxPython/ in library.zip? 2x as large!
+
 import wx
-assert True or wx.VERSION >= (2,6,1,0,''), \
+assert wx.VERSION >= (2,6,1,0,''), \
         ("You need at least wxPython 2.6.1.0, but you have %s.\n"
         "Please upgrade at http://www.wxpython.org/") % (
                 ".".join(map(str, wx.VERSION)))
 
 from wx.lib.mixins.listctrl import ColumnSorterMixin, ListCtrlAutoWidthMixin
 from wx.lib.intctrl import IntCtrl, EVT_INT
-
-import images
 
 # TCP host and port to receive incoming requests on
 # For safety, this is set to localhost. Set host to INADDR_ANY if you want
@@ -462,9 +464,9 @@ class TransferPanel(wx.Panel, ColumnSorterMixin):
 
         self.app = app
 
-        self.idx1 = self.il.Add(images.getSmilesBitmap())
-        self.sm_up = self.il.Add(images.getSmallUpArrowBitmap())
-        self.sm_dn = self.il.Add(images.getSmallDnArrowBitmap())
+        self.idx1 = self.il.Add(getSmilesBitmap())
+        self.sm_up = self.il.Add(getSmallUpArrowBitmap())
+        self.sm_dn = self.il.Add(getSmallDnArrowBitmap())
 
         self.list = TransferListCtrl(self, tID,
                                  style=wx.LC_REPORT #| wx.SUNKEN_BORDER

@@ -20,9 +20,7 @@ Section "SUMI (required)"
  File /oname=config.py "config.py.default" 
  File "rawproxd"
  File "share\lptest"
- File /r "transport"
- File /r "client-side"
- File /r "doc"
+ File "socks5.pyc"
 
  ; This is for Windows uninstall
  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\SUMI" "DisplayName" "SUMI 0.8.12 beta"
@@ -128,10 +126,17 @@ SectionEnd
 Section "Uninstall"
  DeleteRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\SUMI"
 
- Delete $INSTDIR\*
 
- Delete "$SMPROGRAMS\SUMI\*.*"
+ Delete "$SMPROGRAMS\SUMI\*"
+ Delete "$SMPROGRAMS\SUMI\transport\*"
+ Delete "$SMPROGRAMS\SUMI\doc\*"
+ Delete "$SMPROGRAMS\SUMI\client-side\*"
+ RMDir "$SMPROGRAMS\SUMI\transport"
+ RMDir "$SMPROGRAMS\SUMI\doc"
+ RMDir "$SMPROGRAMS\SUMI\client-side"
  RMDir "$SMPROGRAMS\SUMI"
+ 
+ Delete "$INSTDIR\*"
  RMDir "$INSTDIR"
 SectionEnd
 

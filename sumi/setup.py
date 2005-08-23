@@ -12,15 +12,43 @@
 from distutils.core import setup
 import py2exe
 import glob
+import os
+
+def without_cvs(dir_name):
+    """List a directory without the CVS directory."""
+    a = os.listdir(dir_name)
+    b = []
+    for x in a:
+        if x != "CVS": b.append(dir_name + os.path.sep + x)
+    return b
+
+def compile_transports():
+    """Compile the transports for inclusion into the distribution. Avoids
+    the need for end users to have the transport source code."""
+    print "Compiling transports..."
+    fs = glob.glob("transport/*.py")
+    for f in fs:
+        # Skip obsolete transports
+        if "irclib" in f:  
+            continue
+        mod_name = f.replace(os.path.sep, ".").replace(".py", "")
+        if not os.access(f + "c", os.R_OK):
+            __import__(mod_name, [], [], [])
+
+        if not os.access(f + "c", os.R_OK):
+            print "Failed to compile transport %s" % f
+            sys.exit(-1)
+
+compile_transports()
 
 setup(console=["sumiget.py"])
-#setup(windows=["sumigetw.py"])
 setup(windows=[
 	{"script": "sumigetw.py",
-# Icon from Keith Oakley 2004-08-11
-	"icon_resources": [(1, "sumi.ico")]}
+	"icon_resources": [(1, "sumi.ico")]}  # Icon from Keith Oakley 2004-08-11
 	], data_files=[
-	("transports", glob.glob("transports/*")),
+	("transport", glob.glob("transport/*.pyc")),
+    ("client-side", without_cvs("client-side")),
+    ("doc", without_cvs("doc")),
 	(".", ["sumi.ico"])])
 setup(console=["sumiserv.py"])
 
@@ -29,7 +57,6 @@ setup(console=["sumiserv.py"])
 # and use those DLLs. (XP version of WinPcap depends on mfc42u.dll, Me version
 # doesn't--and cannot use Unicode versions of MFC, resulting in cryptic error
 # about one of the DLLs missing when importing pcapy.)
-import os
 fs = ["NPPTools.dll", "packet.dll", "wpcap.dll", "WanPacket.dll"]
 for f in fs:
     print "Removing ", f

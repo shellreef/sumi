@@ -47,7 +47,7 @@ sys.path.append(os.path.realpath(os.path.dirname(sys.argv[0])) + "/../")
 global transports
 transports = {}
 
- Make stdout unbuffered. Not sure if this is still needed.
+# Make stdout unbuffered. Not sure if this is still needed.
 real_stdout = sys.stdout
 class unbuffered_stdout(object):
     def write(self, s):
