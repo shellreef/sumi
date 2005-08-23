@@ -236,7 +236,7 @@ def handle_request(u, msg):
         return sendmsg_error(u, "invalid IP address: %s" % ip)
 
     log("nick=%s,IP=%s:%d MSS=%d PREFIX=%02x%02x%02x" % (
-          u["nick"], ip, port, mss, ord(prefix[0]), \
+          u["nick"], ip, port, mss, ord(prefix[0]), 
           ord(prefix[1]), ord(prefix[2])))
 
     u["addr"] = (ip, port)
@@ -311,9 +311,9 @@ def handle_request(u, msg):
         else:
             casts[u["addr"]][u["nick"]] = 1
 
-            log("    Using old prefix: %02x%02x%02x" % \
-                (ord(u["prefix"][0]), \
-                 ord(u["prefix"][1]), \
+            log("    Using old prefix: %02x%02x%02x" % 
+                (ord(u["prefix"][0]), 
+                 ord(u["prefix"][1]),
                  ord(u["prefix"][2])))
             mcast = 1
     else:
@@ -365,7 +365,7 @@ def send_auth(u, file_info):
     # blocked/handled by kernel, for example, or src may be blocked.
     log("Sending auth packet now.")
     u["send"](u["asrc"], u["dst_gen"](), pkt)
-    log(" AUTH PREFIX=%02x%02x%02x" % (ord(pkt[0]), \
+    log(" AUTH PREFIX=%02x%02x%02x" % (ord(pkt[0]), 
         ord(pkt[1]), ord(pkt[2])))
     return True
 
@@ -470,17 +470,17 @@ def handle_auth(u, msg):
     # MTU = MSS + 28
     # bytes/sec = bits/sec / 8
     # min(their_dl_bw, our_ul_bw) = transfer speed
-    u["delay"] =  \
-        (u["mss"] + 28.) / \
-        (min(u["speed"], cfg["our_bandwidth"])/8)  
+    u["delay"] =  (
+        (u["mss"] + 28.) / 
+        (min(u["speed"], cfg["our_bandwidth"])/8))
          # ^^^  whichever slower
     log("Using send delay: %s" % u["delay"])
        
     log("Verifying spoofing capabilities...")
     if u["asrc"][0] != asrc:
-        log("*** Warning: Possible spoof failure! We sent from %s,\n"\
-              "but client says we sent from %s. If this happens often,"\
-              "either its a problem with your ISP, or the work of\n"\
+        log("*** Warning: Possible spoof failure! We sent from %s,\n"
+              "but client says we sent from %s. If this happens often,"
+              "either its a problem with your ISP, or the work of\n"
               "mischevious clients. Dropping connection." %
               (u["asrc"][0], asrc))
         #return sendmsg_error(u, "srcip")
@@ -830,14 +830,14 @@ def xfer_thread(u):
         # This may help SUMI withstand temporary congestion problems, but I
         # haven't been able to get it working well.
         #if (float(d) >= float(u["rwnisz"] * 2)):
-        #    print "Since we haven't heard from %s in %f (> %d), PAUSING" % \
-        #           (u["nick"], int(d), float(u["rwinsz"] * 2))
+        #    print ("Since we haven't heard from %s in %f (> %d), PAUSING" % 
+        #           (u["nick"], int(d), float(u["rwinsz"] * 2)))
         #     u["xfer_lock"].acquire()
 
         # If haven't received ack from user since RWINSZ*5, stop.
         if float(d) >= float(u["rwinsz"] * 5):
             #u["xfer_lock"].acquire() 
-            log("Since we haven't heard from %s in %f (> %d), stopping" %  \
+            log("Since we haven't heard from %s in %f (> %d), stopping" %  
                 (u["nick"], int(d), float(u["rwinsz"] * 5)))
             u["xfer_stop"] = 1
 
@@ -988,15 +988,14 @@ def datapkt(u, seqno, is_resend=False):
     # Crypto, anyone?
     # XXX: broken, no AONT for now
     if False and u.has_key("crypto_state"):
-        assert payloadsz % get_cipher().block_size == 0, \
-                "%s (MSS-%s) is not a multiple of %s, which is required" + \
+        assert payloadsz % get_cipher().block_size == 0, (
+                "%s (MSS-%s) is not a multiple of %s, which is required" + 
                 "for crypto. This should've been fixed in cfg validation." % (
-                        payloadsz, SUMIHDRSZ, get_cipher().block_size)
+                        payloadsz, SUMIHDRSZ, get_cipher().block_size))
 
         ctr = calc_blockno(seqno, payloadsz)
 
-        if u.has_key("special_last_seqno") and \
-                u["special_last_seqno"] == seqno:
+        if u.get("special_last_seqno") == seqno:
             # OK to call digest_last() multiple times--won't change
             data = u["aon"].digest_last()
         else:
@@ -1139,8 +1138,8 @@ def setup_pcap():
     except:
         fatal(8, """Couldn't import pcapy. Have you installed either 
 WinPcap (for Win32) or libpcap from tcpdump (for Unix)?
-Error: %s: %s""" \
-        % (sys.exc_info()[0], sys.exc_info()[1]))
+Error: %s: %s""" % (sys.exc_info()[0], sys.exc_info()[1]))
+
 
     if cfg["interface"] == "":
         devs = pcapy.findalldevs()
@@ -1313,9 +1312,9 @@ def send_packet_ICMP(src, dst, payload, type, code):
     # (Verified with Ethereal on laptop). 
     checksum = in_cksum(icmphdr + payload)
     # Checksum is little-endian
-    icmphdr = struct.pack("!BB", type, code) +  \
-              struct.pack("<H", checksum) + \
-              struct.pack("!HH", 0, 0)
+    icmphdr = (struct.pack("!BB", type, code) +  
+              struct.pack("<H", checksum) + 
+              struct.pack("!HH", 0, 0))
 
     packet += icmphdr
     packet += payload
@@ -1379,7 +1378,7 @@ def build_iphdr(totlen, src_ip, dst_ip, type):
     hdr = hdr[:10] + struct.pack("<H", in_cksum(hdr)) + hdr[12:]
 
     if len(hdr) != IPHDRSZ:
-        fatal(18, "internal error: build_iphdr is broken, %d %d" \
+        fatal(18, "internal error: build_iphdr is broken, %d %d" 
                 % (len(hdr),IPHDRSZ))
     return hdr
 
@@ -1390,9 +1389,9 @@ def build_ethernet_hdr(src_mac, dst_mac, type_code):
     routers between the source and destination, the identity will be revealed
     in the source MAC address."""
     # 6-byte addresses
-    return struct.pack("!Q", dst_mac)[2:] + \
-           struct.pack("!Q", src_mac)[2:] + \
-           struct.pack("!H", type_code)
+    return (struct.pack("!Q", dst_mac)[2:] + 
+           struct.pack("!Q", src_mac)[2:] + 
+           struct.pack("!H", type_code))
 
 #def send_packet_TCP(src, dst, payload):
     # TODO: TCP aggregates are efficient! So, offer an option to send
@@ -1401,8 +1400,8 @@ def build_ethernet_hdr(src_mac, dst_mac, type_code):
     #     However, receiving it would require pylibcap, and the extra TCP
     #     segments might confuse the OS TCP stack...
 #    log("TODO: implement")
-#    assert False, "send_packet_TCP not implemented %s %s %s" % \
-#            (src, dst, payload)
+#    assert False, ("send_packet_TCP not implemented %s %s %s" % 
+#            (src, dst, payload))
 
 def send_packet_UDP_PCAP(src, dst, payload):
     """Send a UDP packet using pcap's pcap_sendpacket.

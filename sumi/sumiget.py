@@ -134,8 +134,8 @@ class Client:
             #print "WROTE LOST: ",lost
         else:    # NOT REACHED
             # Don't remove the resume file. Leave it around so know finished.
-            #lfn = self.config["dl_dir"] + os.path.sep \
-            #      + u["fn"] + ".sumi"
+            #lfn = (self.config["dl_dir"] + os.path.sep 
+            #      + u["fn"] + ".sumi")
             #print "Removing resume file ",lfn
             #os.unlink(lfn) 
             # Mark as finished
@@ -273,7 +273,7 @@ class Client:
             g = time.time()
             d3 = g - u["sent_req2"]
             if d3 >= INTERLOCK_DELAY:  # really 2*INTERLOCK_DELAY
-                log("WARNING: POSSIBLE MITM ATTACK! %s seconds is too long."\
+                log("WARNING: POSSIBLE MITM ATTACK! %s seconds is too long."
                         % d3)
                 log("Your request may have been intercepted.")
                 # only a warning because first data packet should catch it
@@ -311,7 +311,7 @@ class Client:
             recvd_hash, i = take(data, 20, i)
             derived_hash = u["nonce_hash"]
             if recvd_hash != derived_hash:
-                log("Server verification failed! %s != %s" % (\
+                log("Server verification failed! %s != %s" % (
                         ([recvd_hash], [derived_hash])))
                 clear_server(u)
                 return
@@ -331,9 +331,9 @@ class Client:
             log("Switching to a new prefix!")
         u["prefix"] = new_prefix
 
-        self.callback(u["nick"], "info", u["size"], \
-            b64(prefix), filename, \
-            u["transport"], \
+        self.callback(u["nick"], "info", u["size"], 
+            b64(prefix), filename, 
+            u["transport"], 
             self.config["data_chan_type"])
 
         if (self.mss != len(data)):
@@ -652,8 +652,8 @@ class Client:
 
         duration = time.time() - u["start"]
         u["fh"].close()
-        self.callback(u["nick"], "fin", duration, u["size"], \
-              u["size"] / duration / 1024, \
+        self.callback(u["nick"], "fin", duration, u["size"], 
+              u["size"] / duration / 1024, 
               u["all_lost"])
         
         #print "Transfer complete in %.6f seconds" % (duration)
@@ -677,14 +677,14 @@ class Client:
             elif self.config["data_chan_type"] == "i":
                 self.server_icmp()
             else:
-                log("data_chan_type invalid, see config.html" + \
+                log("data_chan_type invalid, see config.html" + 
                     "(dchanmode=socket)")
                 sys.exit(-2)
         elif self.config["dchanmode"] == "pcap":
             if self.config["data_chan_type"] == "u":
                 self.server_udp_PCAP()
             else:
-                log("data_chan_type invalid, see config.html" + \
+                log("data_chan_type invalid, see config.html" + 
                         "(dchanmode=pcap)")
                 sys.exit(-3)
         else:
@@ -697,7 +697,7 @@ class Client:
         #thread.start_new_thread(self.server_udp, (self,))
         thread.start_new_thread(self.wrap_thread, (self.server_udp, (self,)))
         #print "UID=", os.getuid()
-        sock = socket.socket(socket.AF_INET, socket.SOCK_RAW, \
+        sock = socket.socket(socket.AF_INET, socket.SOCK_RAW, 
                              socket.IPPROTO_ICMP)
         log("ICMP started.")   # At the moment, needs to be ran as root
         sock.bind((self.localaddr, 0))
@@ -1054,18 +1054,20 @@ class Client:
         # More validation, prompted by SJ
         if not self.config.has_key("allow_local") and \
            is_nonroutable_ip(self.myip):
-           return "Your IP address,"+self.myip+" ("+self.config["myip"] + "), is nonroutable. Please choose\n"+\
-                   "a real, valid IP address. If you are not sure what your IP is, go to \n" +\
-                   "http://whatismyip.com/. Your IP can be set in the Client tab of sumigetw." 
+               return """Your IP address, %s (%s) is nonroutable.
+Please choose a real, valid IP address. If you are not sure what your IP is,
+go to http://whatismyip.coo/. Your IP can be set in the Client tab of
+sumigetw.""" % (self.myip, self.config["myip"])
 
         # Force trailing slash?
         #if self.config["dl_dir"][:1] != "/" and \
         #   self.config["dl_dir"][:1] != "\\": 
         #   self.config["dl_dir"] += "/"
         if not os.access(self.config["dl_dir"], os.W_OK | os.X_OK | os.R_OK):
-            return "Your download directory, " + self.config["dl_dir"] + ", is not writable. You can \n"+\
-                   "select a valid download directory in the Client tab of sumigetw by\n"  +\
-                   "clicking the ... button." 
+            # TODO: Choose a reasonable default instead of this warning
+            return """Your download directory, %s, is not writable.
+You can select a valid download directory in the Client tab of sumigetw
+by clicking the ... button."""
 
         # Passed all the tests
         return None
@@ -1348,7 +1350,7 @@ def pre_main(invoke_req_handler):
         # So signal it, pass control onto - it does work, not us
         master = open(base_path+"sumiget.pid","rb").read()
         if (len(master) != 0):   # If empty, be master
-            open(base_path + "run", "wb").write("%s\t%s\t%s" % \
+            open(base_path + "run", "wb").write("%s\t%s\t%s" % 
                 (transport, nick, filename))
             my_master = int(master)
             log("Passing to: %s" % my_master)

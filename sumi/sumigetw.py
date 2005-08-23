@@ -222,14 +222,14 @@ class CConfigPanel(wx.Panel):
 
         # Cryptography. TODO: Get pre auth working, then really work on this.
         # Also, make the listbox here one item high. Make it drop down.
-        #self.crypto_label = wx.StaticText(self, -1, "Cryptography:", \
+        #self.crypto_label = wx.StaticText(self, -1, "Cryptography:", 
         #                        wx.Point(0, 30), wx.Size(-1, -1))
         #self.crypto = wx.Choice(self, CTL_CRYPTO, wx.Point(80, 30), 
         #                        wx.Size(-1, -1),
-        #                        choices=["None", \
-                #                                 "Symmetric (AES)", \
-                #                         "Asymmetric", \
-                #                         "One time pad"])
+        #                        choices=["None", 
+        #                                 "Symmetric (AES)", 
+        #                         "Asymmetric", 
+        #                         "One time pad"])
         #self.cryptos = ['', 's', 'a', 'o']
         #crypto2n = {'': 0, 's': 1, 'a': 2, 'o': 3}
         #self.crypto.SetSelection(crypto2n[self.app.client.config["crypto"]])
@@ -241,7 +241,7 @@ class CConfigPanel(wx.Panel):
         # This is what to do: split "port" into "type" and "code"
         # When ICMP selected, show type&code. When other, show port.
         # Encode as type*0x100+code, thats how sumiserv interprets it.
-        self.dchan_label = wx.StaticText(self, -1, "Data channel:", \
+        self.dchan_label = wx.StaticText(self, -1, "Data channel:", 
                                         wx.Point(0, 70), wx.Size(-1, -1))
         dchans_rep = ["UDP", "ICMP Direct", "ICMP Echo"]
         #self.dchans_code = ['u', 'e'] + (['?'] * 256)
@@ -281,7 +281,7 @@ class CConfigPanel(wx.Panel):
         wx.EVT_TEXT(self, CTL_MYIP, self.OnIPChange)
 
         # 16-bit (UDP) port, if applicable 
-        self.myport_label = wx.StaticText(self, -1, "UDP Port:", \
+        self.myport_label = wx.StaticText(self, -1, "UDP Port:", 
                                          wx.Point(250, 80), wx.Size(-1, -1))
         # IntCtrl is appealing, but not on Windows? Look into this.
         self.myport = IntCtrl(self, CTL_MYPORT, 
@@ -303,7 +303,7 @@ class CConfigPanel(wx.Panel):
         self.code_label = wx.StaticText(self, -1, "Code:", 
                                wx.Point(250 + 40 + 40, 80), wx.Size(-1, -1))
 
-        self.code = IntCtrl(self, CTL_CODE, \
+        self.code = IntCtrl(self, CTL_CODE, 
                               self.app.client.config["myport"] % 0x100,
                               wx.Point(250 + 40 + 40 + 40, 80), wx.Size(40, -1))
         EVT_INT(self, CTL_TYPE, self.OnTypeCodeChange)
@@ -362,12 +362,12 @@ class CConfigPanel(wx.Panel):
         if (not os.access(self.app.client.config["dl_dir"], os.W_OK | os.X_OK)):
             # Can't read or cd to directory so default to current directory
             self.app.client.config["dl_dir"] = os.getcwd()
-        dlg = wx.FileDialog(self, "Choose location", \
+        dlg = wx.FileDialog(self, "Choose location", 
                   self.app.client.config["dl_dir"], "Filename is ignored",
                   "All files (*.*)|*.*", wx.SAVE)
         if dlg.ShowModal() == wx.ID_OK:
             self.app.client.config["dl_dir"] = os.path.dirname(dlg.GetPath())
-            self.dldir.SetValue(self.app.client.config["dl_dir"] + \
+            self.dldir.SetValue(self.app.client.config["dl_dir"] + 
                                 os.path.sep)
 
     def OnIPChange(self, event):
@@ -573,8 +573,8 @@ class TransferPanel(wx.Panel, ColumnSorterMixin):
     def OnItemSelected(self, event):
         ##print event.GetItem().GetTextColour()
         self.currentItem = event.m_itemIndex
-        print "OnItemSelected: %s, %s, %s, %s\n" % \
-                           (self.currentItem,
+        print "OnItemSelected: %s, %s, %s, %s\n" % (
+                            self.currentItem,
                             self.list.GetItemText(self.currentItem),
                             self.getColumnText(self.currentItem, 1),
                             self.getColumnText(self.currentItem, 2))
@@ -600,8 +600,9 @@ class TransferPanel(wx.Panel, ColumnSorterMixin):
 
     def OnItemActivated(self, event):
         self.currentItem = event.m_itemIndex
-        print "OnItemActivated: %s\nTopItem: %s" % \
-                           (self.list.GetItemText(self.currentItem), self.list.GetTopItem())
+        print "OnItemActivated: %s\nTopItem: %s" % (
+                           self.list.GetItemText(self.currentItem), 
+                           self.list.GetTopItem())
 
     # Edits the first field--the filename. 
     # On-the-fly filename renaming during transfer. Unix supports this.
@@ -634,9 +635,12 @@ class TransferPanel(wx.Panel, ColumnSorterMixin):
     # Right-clicking a column
     def OnColRightClick(self, event):
         item = self.list.GetColumn(event.GetColumn())
-        print "OnColRightClick: %d %s\n" % \
-                           (event.GetColumn(), (item.GetText(), item.GetAlign(),
-                                                item.GetWidth(), item.GetImage()))
+        print "OnColRightClick: %d %s\n" % (
+                           event.GetColumn(), 
+                           (item.GetText(), 
+                               item.GetAlign(),
+                               item.GetWidth(), 
+                               item.GetImage()))
 
     # Dragging a column
     def OnColBeginDrag(self, event):
@@ -984,7 +988,7 @@ class SUMIApp(wx.App):
             self.SetInfo(nick, COL_FILENAME, filename)
             self.SetInfo(nick, COL_SIZE, "%d" % size)
             self.SetInfo(nick, COL_BYTES, "0")
-            self.SetInfo(nick, COL_PEER, "%s [%s-%s-%s]" % \
+            self.SetInfo(nick, COL_PEER, "%s [%s-%s-%s]" % 
                 (nick, prefix, transport, dchantype))
 
             # can't set range to file size because multiples of 1048576
@@ -1011,9 +1015,9 @@ class SUMIApp(wx.App):
             #self.gauge.SetValue(int(args[1] * 10000. / args[3]))
             # ARGS = pktstart, pktend, pktlength, totlen
             #         ^ file offsets ^   MSS     size
-            #self.info.SetLabel("Transferring... %.3f%% from %s" % \
+            #self.info.SetLabel("Transferring... %.3f%% from %s" % 
             #    (args[1] * 100. / args[3], args[4][0]))
-            #self.SetInfo(nick, COL_PROGRESS, "%.3f%%" % \
+            #self.SetInfo(nick, COL_PROGRESS, "%.3f%%" % 
             #             (args[1] * 100. / args[3]))
 
             # New write args: offset, n_received_bytes, total_size
@@ -1024,7 +1028,7 @@ class SUMIApp(wx.App):
             # length of '100' compared to anything less. Minor cosmetic.
             if (percent == "100.0%"): percent = "100%"
 
-            #self.SetInfo(nick, COL_PROGRESS, "%.1f%%" % \
+            #self.SetInfo(nick, COL_PROGRESS, "%.1f%%" % 
             #    (bytes * 100. / size))
             self.SetInfo(nick, COL_PROGRESS, percent)
             # IP:Port
@@ -1036,7 +1040,7 @@ class SUMIApp(wx.App):
             self.SetInfo(nick, COL_STATUS, "Complete")
             self.SetInfo(nick, COL_RATE, "%d" % speed)
             self.SetColor(nick, wx.Colour(32, 128, 32))   # a suitable green
-            #self.info.SetLabel("Complete %d B @ %d kB/s: %s" % \
+            #self.info.SetLabel("Complete %d B @ %d kB/s: %s" % 
             #    (size, speed, all_lost))
         else:
             print "??? Unrecognized command: %s %s" % (cmd, args)
