@@ -18,7 +18,7 @@
  'irc_port': 6667,
  'irc_server': 'irc.xtc-dreams.com',
  'maxwait': 7,
- 'mtu': 1490,
+ 'mtu': 1500,
  'myip': '',
  'myip2': '10.0.0.64',
  'myip3': '10.0.0.64',

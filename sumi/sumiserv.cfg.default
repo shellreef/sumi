@@ -16,7 +16,8 @@
 # during runtime, as with the client. Only some transports support sumiserv:
 #  irclib   irclib, see irc_ below
 #  aim      capture AIM packets, requires libpcap
-"transport": "irclib",
+#  tor      Tor, recommended, requires socks5.py but no libpcap
+"transport": "tor",
 
 # irclib transport options
 "irc_nick": "sumi-99",           # Your IRC nickname for serving
@@ -44,10 +45,11 @@
 # default. If needed, sumiserv will list possible interfaces. aim transport.
 #"interface": "\\Device\\NPF_{3530F223-8959-4928-88A5-1672C094D6A8}",
 
-# Data channel mode: (currently only effects UDP 'u' data channel type)
+# Data channel mode: (currently only affects UDP 'u' data channel type)
 #  debug  Use ordinary unspoofed socket() calls, DO NOT USE IN PRODUCTION
 #  raw    Use raw sockets, works well on Unix (w/ root or launch), XP/2K
 #  pcap   Use pcap_sendpacket, requires WinPcap on Win32, or modified libpcap
+#         (pcap may be able to overcome SP2's raw socket limitations)
 #  libnet Use libnet (BROKEN)
 "dchanmode": "pcap",
 
@@ -55,7 +57,7 @@
 # need it. Useful if you want to allow multiple users to get the same file.
 "broadcast": False,
 
-# Network interface to use with pcap. "" to list all intefaces and quit,
+# Network interface to use with pcap. "" to list all interfaces and quit,
 # or choose the first interface if there is only one.
 "interface": "",
 

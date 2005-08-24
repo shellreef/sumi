@@ -44,10 +44,10 @@
         # IMPORTANT:UDP MSS is not TCP MSS! UDP MSS is 12 bytes larger because  
         # of UDP's smaller headers (8 vs 20). Keep this in mind for best   
         # efficiency.  
-#"mtu": 1492 - 28,      # Ethernet w/ PPPoE
-"mtu": 1500 - 28,       # Ethernet
-#"mtu": 4352 - 28,      # FDDI
-#"mtu": 9244 - 28,      # Loopback on many OS's (FreeBSD, OSF/1)
+#"mtu": 1492,      # Ethernet w/ PPPoE
+"mtu": 1500,       # Ethernet
+#"mtu": 4352,      # FDDI
+#"mtu": 9244,      # Loopback on many OS's (FreeBSD, OSF/1)
 
         # RWINSZ - Receive window size. This is the number of SECONDS   
         # before acking  
@@ -62,6 +62,10 @@
 
 "maxwait": 5,#seconds      # Maximum time to wait before timing out handshake
 
+
+# The data channel is specified by the type (what kind of packets are sent)
+# and the mode (how the packets are sent).
+
 "data_chan_type": "u",     # Data channel type, u is UDP
 #"data_chan_type": "i",     # Arbitrary ICMP packets, set port to type,code
 #"data_chan_type": "e",     # ICMP echo mode, bounce off a gateway
@@ -69,8 +73,6 @@
 "dchanmode": "socket",     # Data channel mode, use regular sockets
 #"dchanmode": "pcap",      # Use pcap
 
-"crypto":"",               # Encryption? o=OTP, s=symmetric (wait until pre)
-"passwd":"1" * 32,          # Asymmetric encryption key
 "irc_nick": "sumiget", # This should be redelegated in transport-specific opt
 
 # Column widths for sumigetw

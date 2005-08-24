@@ -1039,7 +1039,7 @@ class Client(object):
             sys.exit(5)
 
         # More validation, prompted by SJ
-        if not self.config.has_key("allow_local") and \
+        if not self.config.get("allow_local") and \
            is_nonroutable_ip(self.myip):
                return """Your IP address, %s (%s) is nonroutable.
 Please choose a real, valid IP address. If you are not sure what your IP is,
