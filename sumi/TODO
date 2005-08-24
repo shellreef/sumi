@@ -1,8 +1,8 @@
-TO DO   20050802JC
+TO DO   20050823JC
 
+* Switch to standard 'logger' module for logging, if its worth it.
 * Look into ctypes instead of SWIG for LibTomCrypt, might be easier
 * Migrate from Python 2.3 to 2.4, and use os.urandom...
-* DONE Migrate from wxPythonWIN32-2.4.2.4-Py23 to wxPython 2.6, and Python 2.4
 * Look into FSP - http://cvs.sourceforge.net/viewcvs.py/fsp/fsp/INFO?view=auto
   it is slower than TCP, but can adapt very quickly to changing conditions
   see also: http://fsp.sourceforge.net/faq/index.html . its based on UDP, may
@@ -10,8 +10,7 @@ TO DO   20050802JC
 **** Work on modtor.py, and have a flag for secure/insecure transports,
      and if insecure, automatically enable crypt_req if crypto enabled, other-
      wise can rely on transport to provide the transport security, but always
-     enable crypt_data if user wants crypto.
-**** GET crypt_data WORKING! Currently corrupts last packet.
+     enable crypt_data if user wants crypto. 
 * Pcap: find out if interface is down. If not, refuse to use it.
 * Auto-configure many options:
  - If only one network interface up, use it (for 'interface')
@@ -21,10 +20,12 @@ TO DO   20050802JC
  WMI can handle this on Win32, but currently commented out. TODO: look at it
 * Find out why I have config.html,faq.html in . and doc/, & whats better
   DONE with faq.html, but still need to merge config.html.
-* Investigate tor (tor.eff.org) for a transport, and AIM over HTTP proxy
-* Encrypt data packets after AONT'd
+* DONE--modtor Investigate tor (tor.eff.org) for a transport
+* Investigate AIM over HTTP proxy
 * Use LibTomCrypt for everything after wrapping it for Python
 
+* DONE Migrate from wxPythonWIN32-2.4.2.4-Py23 to wxPython 2.6, and Python 2.4
+* DONE Get crypt_data working! Currently corrupts last packet.
 * DONE
   Make client verify nonce from server, and make server send hash of nonce
   in new_prefix of auth packet, which will then be used for data prefix.
@@ -38,7 +39,7 @@ TO DO   20050802JC
   This way, each packet can be encrypted 1:1, with no increase in size; just
   have to find a place for the initial 1544 bytes (for 2048-bit key). However,
   all data before a packet must be received in order to decrypt it (no gaps).
-* multiple transfers per person, with only one auth, and readd crypto
+* multiple transfers per person, with only one auth
 * sumi dir!
 * Get sumiget.py standalone working again. The server works standalone but
   not everyone wants to use sumigetw to run the GUI.
@@ -52,17 +53,18 @@ TO DO   20050802JC
  - file library, browsable, sumi dir
  - explicit send, client initiates send (as on IM programs), groups like AG?
 * Investigate using dummy interface to spoof IP, see if its worthwhile
-  Larytet of Rodi suggested this; and the infamous ES5 also used it.
-* Re-do encryption; use public key crypto, automatic
- - maybe integrate what I learned with IMOTP back into SUMI
- - symmetric cryptography; for passworded servers
- - Get rid of all the cryptography junk now
+  Larytet of Rodi suggested this; and the infamous ES5 also used it, but how
+  quickly can addresses be changed?
+DONE * Re-do encryption; use public key crypto, automatic
+? - maybe integrate what I learned with IMOTP back into SUMI
+DONE  - symmetric cryptography; (but not done for passworded servers)
+DONE - Get rid of all the cryptography junk now
 
 * Other transfer modes--support old TFTP-style, new ack-less FEC
 * Multicasting support
   - need to continously transmit (data carousel) file over and over, until
     all the users in casts[address] have received it
-  - need to have a way to not excessively request loss packets that will be
+DONE  - need to have a way to not excessively request loss packets that will be
     resent when next file starts sending, i.e.,:
      if excessive lost packets:
          if multicasting: ignore
@@ -73,13 +75,16 @@ TO DO   20050802JC
   - need to do IGMP commands, join group etc. in sumiget for mcast
   - test with bcast, and mcast on local network
 * Adjust requested bandwidth based on actual bandwidth
-* SOCKS proxy, to allow any TCP/UDP service to be used with SUMI
-  (like tor - http://freehaven.net/tor/ - but without the onion routing)
-  Feasible? More focused on bulk data transfer.
-* Resume transfer in sumiget (context menu option)
-  DONE? Resumes automatically
+* Resume transfer in sumiget (context menu option)--currently broken
 * Checksumming over whole file, not just each packet.
   The new AONT module will kind of do this.
+* One-time pad crypto -- could be useful for server anonymous to network,
+  but not to the intended client that possesses the pad.
+* Secure the prefix? It reveals the streams, its not all random data. How?
+
+* (no?) SOCKS proxy, to allow any TCP/UDP service to be used with SUMI
+  (like tor - http://freehaven.net/tor/ - but without the onion routing)
+  Feasible? More focused on bulk data transfer.
 * DONE
   Pre-auth encryption, so covert (optional) + data chan can be encrypted. This
   way the IP can be encrypted, so IRC net doesn't need to encrypt and IRC 
@@ -89,12 +94,9 @@ TO DO   20050802JC
   pycrypto: http://www.amk.ca/python/code/crypto.html pycrypto.sf.net
    ezpycrypto, yawpycrypto.sf.net
 * DONE Public key asymmetric crypto -- EC-DH for shorter keys
-* One-time pad crypto
-* Secure the prefix? It reveals the streams, its not all random data.
 * DONE -- new dchanmode, "pcap" to send link-layer frames
   For transfer to hosts without routers in between, Libpcap spoof MAC Ethernet
   address. Universities for example may have networks structured like this.
-
 * DONE Fill in UDP checksum! Invalid UDP checksums should be tossed, act as if
   never received them and they will be resent. (The stack discards them.)
 * DONE Pause/Cancel transfers in sumiget (Abort)
@@ -113,7 +115,7 @@ TO DO   20050802JC
   is probably the end goal.  -thebeta3
   jc: Looping nonforking client in pure C implemented (rawproxd.c)
 
-* Multisourcing for faster transfers? Doesn't look too secure. Faster speeds
+* (no) Multisourcing for faster transfers? Doesn't look too secure. Faster speeds
   are good, but for each source, the IP is revealed. Better to only d/l from
   sender the client explicitedly requested from than a whole amalgam of hosts
   the client didn't implicitedly trust.
