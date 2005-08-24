@@ -19,6 +19,10 @@ import sys
 irc_lock = thread.allocate_lock()
 server = None
 
+def is_secure():
+    # Might be secure if somehow connected over SSL
+    return cfg.get("irclib_is_secure", False)
+
 def on_nickinuse(c, e):
     log("Nickname in use")
     old_nick = e.arguments()[0]

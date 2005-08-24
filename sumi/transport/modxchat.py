@@ -15,6 +15,9 @@ recvmsg = capture_irc.recvmsg
 
 XCHAT_FILE = "/tmp/xchat"
 
+def is_secure():
+    return cfg.get("xchat_is_secure", False)
+
 def transport_init():
     # No other portable way to find if xchat is running?
     if os.system("killall -0 xchat 2>/dev/null") != 0:

@@ -28,6 +28,9 @@ if sys.platform == 'win32':
     import win32api
     import mmap
 
+# Uncomment to allow irclib
+#import irclib
+
 input_lock = thread.allocate_lock()
 #transport = "python -u transport/sumi-irc.py"
 #global transport   
@@ -258,7 +261,7 @@ class Client(object):
 
             #log("Decrypted payload: %s" % ([data],))
         
-        if self.config["crypt_data"]:
+        if u["crypt_data"]:
             # Decrypt payload, THEN hash. Note that crypt_data enables auth
             # pkt to be encrypted, since it goes over the data channel.
             u["ctr"] = u["data_iv"]
@@ -323,7 +326,7 @@ class Client(object):
             log("Downgrading MSS %s->%s" % (self.mss, new_mss))
 
             # If using crypto, MSS normally rounded to block size
-            if self.config.get("crypt_data"):
+            if u["crypt_data"]: 
                 log("If this happens consistently, considering lowering MTU.")
 
             self.mss = new_mss
@@ -410,7 +413,7 @@ class Client(object):
             if offset + payloadsz >= u["size"]:
                 u["got_last"] = True
 
-        if self.config["crypt_data"]:
+        if u["crypt_data"]:
             # Outer crypto: CTR mode
             u["ctr"] = (calc_blockno(seqno, self.mss) + u["data_iv"])
             log("CTR:pkt %s -> %s" % (seqno, u["ctr"]))
@@ -1021,7 +1024,8 @@ class Client(object):
                 self.mss
             except:
                 return "MSS was not set, please set it in the Client tab."
-        if self.config.get("crypt_data") or self.config.get("crypt_req"):
+
+        if self.config.get("crypt"):
             random_init()
 
         if self.config.has_key("rwinsz"):
@@ -1074,7 +1078,7 @@ by clicking the ... button."""
         prefix = random_bytes(3)
         u["prefix"] = prefix
 
-        if self.config["crypt_data"]:
+        if u["crypt_data"]:
             # Choose the 256-bit symmetric key and 128-bit IV, which will be
             # sent over the transport channel. The transport channel should be
             # secure. TODO: mark transports secure (Tor), crypt_req if not.
@@ -1139,7 +1143,7 @@ by clicking the ... button."""
         u["handshake_count"] = 0
         u["handshake_status"] = "Handshaking"
 
-        if self.config.get("crypt_req"):
+        if u["crypt_req"]:
             if not "recvmsg" in u:
                 log("Sorry, this transport lacks a recvmsg, so "
                         "transport encryption is not available.")
@@ -1149,6 +1153,8 @@ by clicking the ... button."""
             u["request_clear"] = self.make_request(u, file)
             self.setup_transport_crypto(u)
         else:
+            # Even if crypt is enabled, with a secure transport don't encrypt
+            # the request.
             msg = self.make_request(u, file)
             self.sendmsg(u, msg) 
 
@@ -1159,7 +1165,7 @@ by clicking the ... button."""
         # senders, so the user isn't left hanging.
         maxwait = self.config["maxwait"]
 
-        if self.config["crypt_req"]:
+        if u["crypt_req"]:
             # Factor in time to interlock (2*T, plus another T for safety)
             maxwait += 3 * INTERLOCK_DELAY
 
@@ -1217,6 +1223,10 @@ by clicking the ... button."""
 
         u["sendmsg"] = t.sendmsg
         u["transport_init"] = t.transport_init
+        
+        # If crypt enabled, and insecure transport, encrypt transport
+        u["crypt_data"] = self.config["crypt"]
+        u["crypt_req"] = self.config["crypt"] and not t.is_secure() 
 
         # Initialize if not
         if transports.has_key(transport) and transports[transport]:

@@ -13,6 +13,9 @@ import sys
 
 global recvmsg
 
+def is_secure():
+    return cfg.get("mirc_is_secure", False)
+
 def transport_init():
     global g_mem, g_mIRC, recvmsg
 

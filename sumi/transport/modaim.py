@@ -12,6 +12,9 @@ import urllib
 import time
 import struct
 
+def is_secure():
+    return cfg.get("aim_is_secure", False)
+
 def transport_init():
     log("Initializing WinAIM transport")
 

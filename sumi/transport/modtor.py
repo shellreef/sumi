@@ -23,6 +23,9 @@ PORT = 3490              # Our port
 global connections
 connections =  {}
 
+def is_secure():
+    return True     # finally a secure transport
+
 def default_cb(nick, msg):
     print "(tor) <%s> %s" % (nick, msg)
 

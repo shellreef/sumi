@@ -8,6 +8,9 @@
 
 import sys
 
+def is_secure():
+    return False
+
 def transport_init():
     log("Initializing debug transport")
 
