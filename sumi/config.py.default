@@ -31,23 +31,19 @@
 #"myip": "4.34.151.113", 
 #"myip": "10.0.0.7",
 "myip": "",     # = get default IP
-"myport": 41170,# A good port, it will be open if has Blubster/Piolet/RockItNet
+"myport": 3490,
 
-        # MSS = MTU - IP_header(20 bytes) - IP header(8 bytes)  
-        # Most minimal: MTU 552, MSS=524 (still not that bad)  
-        # MIN: Hosts required to handle 576 byte IP datagrams, 548 byte payload 
-        # With VLAN/tunnel headers, MSS<=1450  
-        # On Ethernet, MTU=1500, MSS=1472  
-        # MAX: 65535 - 28 = 65,507 (excluding jumbo payload option)  
-        # We don't want fragmentation -- makes packets much more fragile.  
-  
-        # IMPORTANT:UDP MSS is not TCP MSS! UDP MSS is 12 bytes larger because  
-        # of UDP's smaller headers (8 vs 20). Keep this in mind for best   
-        # efficiency.  
+# Your network medium's Maximum Tranmission Unit. Set this as high as you can
+# without fragmentation. Too low=inefficient due to network overhead, and
+# too high=inefficient to due fragmentation, making the data more fragile.
+
+#"mtu": 552,       # Minimum
+#"mtu": 1478,      # Ethernet w/ VLAN/tunnel headers (or lower)
 #"mtu": 1492,      # Ethernet w/ PPPoE
 "mtu": 1500,       # Ethernet
 #"mtu": 4352,      # FDDI
 #"mtu": 9244,      # Loopback on many OS's (FreeBSD, OSF/1)
+#"mtu": 65535,     # Maximum (without jumbo payload option)
 
         # RWINSZ - Receive window size. This is the number of SECONDS   
         # before acking  
