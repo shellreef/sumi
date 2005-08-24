@@ -93,6 +93,7 @@ class MainNotebook(wx.Notebook):
     def ValidateConfig(self):
         err = self.app.client.validate_config()
         if err:
+            # This is quite annoying, could it be placed somewhere else?
             dlg = wx.MessageDialog(self.app.frame, err,
                   "Invalid setting", wx.OK | wx.ICON_ERROR);
             dlg.ShowModal()
@@ -815,9 +816,7 @@ class TransferPanel(wx.Panel, ColumnSorterMixin):
 # SUMI application
 class SUMIApp(wx.App):
     def __init__(self):
-        print "__init__"
         wx.App.__init__(self, 0)
-        print "__init__ 2"
 
     def OnInit(self):
         print "OnInit"
@@ -826,6 +825,23 @@ class SUMIApp(wx.App):
         self.RecvReq()
 
         self.client = sumiget.Client()
+        
+        if len(sys.argv) < 4:
+            usage = ("Usage: %s transport nick fn" % sys.argv[0] +
+"\n\nIf you are running this program manually, consider using one of the " +
+"client-side scripts in client-side/ to run SUMI.")
+
+            log(usage)
+            
+            if self.client.config.get("allow_debug"):
+                log("Using debug transport")
+                sys.argv = ['sumigetw', 'debug', 'no_user', 'no_file']
+            else:
+                dlg = wx.MessageDialog(None, usage,
+                      "Invalid usage", wx.OK | wx.ICON_ERROR);
+                dlg.ShowModal()
+
+                raise SystemExit
 
         wx.InitAllImageHandlers()
 
@@ -1111,11 +1127,6 @@ def wrap_thread(f, args):
 
 
 def main(argv):
-    if len(sys.argv) < 4:
-        print "Usage: %s transport nick fn" % sys.argv[0]
-        print "Using debug transport"
-        sys.argv = ['sumigetw', 'debug', 'no_user', 'no_file']
-
     print "Loading app..."
     app = SUMIApp()
     print "Running main loop"

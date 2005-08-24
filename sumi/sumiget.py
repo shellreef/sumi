@@ -42,7 +42,6 @@ log("Using config file: %s" % config_file)
 
 # Setup run-time path for loading transports
 sys.path.append(os.path.realpath(os.path.dirname(sys.argv[0])))
-sys.path.append(os.path.realpath(os.path.dirname(sys.argv[0])) + "/../")
 #print "USING PATH = ", sys.path
 
 #import transport.modmirc
@@ -87,7 +86,8 @@ class Client(object):
         libsumi.log = log
         log("OK")
 
-        self.validate_config()
+        # Now performed manually in sumigetw
+        #self.validate_config()
         self.senders = {}
 
         self.set_callback(self.default_cb)   # override me please
@@ -1055,10 +1055,18 @@ sumigetw.""" % (self.myip, self.config["myip"])
         #   self.config["dl_dir"][:1] != "\\": 
         #   self.config["dl_dir"] += "/"
         if not os.access(self.config["dl_dir"], os.W_OK | os.X_OK | os.R_OK):
-            # TODO: Choose a reasonable default instead of this warning
-            return """Your download directory, %s, is not writable.
-You can select a valid download directory in the Client tab of sumigetw
-by clicking the ... button."""
+            new_dir = base_path + "incoming"
+            log("Warning: dl_dir %s inaccessible, using %s instead" %
+                    (self.config["dl_dir"], new_dir))
+           
+            if not os.access(new_dir, os.W_OK | os.X_OK | os.R_OK):
+                os.mkdir(new_dir)
+            
+            if not os.access(new_dir, os.W_OK | os.X_OK | os.R_OK):
+                return """An invalid download directory, %s, was specified.
+Tried to use a valid directory of %s but it couldn't be accessed."""
+
+            self.config["dl_dir"] = new_dir
 
         # Passed all the tests
         return None
@@ -1227,6 +1235,8 @@ by clicking the ... button."""
         # If crypt enabled, and insecure transport, encrypt transport
         u["crypt_data"] = self.config["crypt"]
         u["crypt_req"] = self.config["crypt"] and not t.is_secure() 
+       
+        log("crypt_data=%s, crypt_req=%s" % (u["crypt_data"], u["crypt_req"]))
 
         # Initialize if not
         if transports.has_key(transport) and transports[transport]:

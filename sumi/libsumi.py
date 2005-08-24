@@ -48,8 +48,9 @@ def random_init():
     try:
         import Crypto.Util.randpool
         from Crypto.Cipher import AES
-    except:
-        log("Error importin PyCrypto. Disable crypto or install PyCrypto")
+    except Exception, x:
+        log("Error importing PyCrypto: %s" % str(x))
+        log("Disable crypt or install PyCrypto")
         raise SystemExit
     if rand_obj: return
     log("Initializing RNG...")
