@@ -314,7 +314,7 @@ def calc_blockno(seqno, payloadsz):
     payloadsz: size of data being sent
 
     Example:
-    MSS=1462 (payloadsz=1462-SUMIHDRSZ=1462-6=1456) and block_size=16:
+    payloadsz=1456 and block_size=16:
         bytes range   seqno   block range
          0 - 1456        1       0-91
          1457 - 2913     2       92-183
@@ -516,6 +516,26 @@ def select_if():
     log("Using MSS %s" % mtu)
 
     return (interface, myip, mask, mtu)
+
+def mtu2mss(mtu, dchantype):
+    """Given MTU and data channel type, find the maximum data size that SUMI
+       can transmit (not including header)."""
+    mtu -= SUMIHDRSZ 
+    if dchantype == "u":
+        return mtu - IPHDRSZ - UDPHDRSZ
+    elif dchantype == "e" or dchantype == "i":
+        return mtu - IPHDRSZ - ICMPHDRSZ
+    raise Exception("mtu2mss: invalid dchantype: %s" % dchantype)
+
+def mss2mtu(mss, dchantype):
+    mss += SUMIHDRSZ
+    if dchantype == "u":
+        return mss + IPHDRSZ + UDPHDRSZ
+    elif dchantype == "e" or dchantype == "i":
+        return mss + IPHDRSZ + ICMPHDRSZ
+    raise Exception("mss2mtu: invalid dchantype: %s" % dchantype)
+
+# DATA FUNCTIONS BEGIN HERE
 
 # Bitmaps - from images.py from wxPython demo, modified for new version
 def getSmilesData():

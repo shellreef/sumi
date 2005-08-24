@@ -87,9 +87,12 @@ def sendmsg(nick, msg):
     global connections
 
     if not connections.has_key(nick):
-        raise Exception("modtor: not connected to %s, call user_init" % nick)
+        log("modtor: not connected to %s, call user_init" % nick)
+        return False
 
     connections[nick].send("%s\n" % msg)
+
+    return True
 
 def test():
     import sys

@@ -157,16 +157,14 @@ class Client(object):
 
         #print "RESUME RWIN: ", u["rwin"]
 
-        # Formula below is WRONG. Last packet is not size of MSS.
-        # Bytes received = (MSS * at) - (MSS * numlost)
-        # XXX: MSS's may be inconsistant across users! Corruption
-        #u["bytes"] = \
-        #    (self.mss * u["at"]) - \
-        #    (self.mss * len(u["lost"].keys()))
+        # Total bytes received is file length minus lost packet sizes.
+        # (Note: MTU may be inconsistant across users, so resuming files
+        # cannot be shared across users with different MTUs.)
         s = u["fh"].tell()
         u["fh"].seek(0, 2)   # SEEK_END
-        u["bytes"] = u["fh"].tell()  # OK? Earlier was a total?
+        u["bytes"] = u["fh"].tell() #- (self.mss * len(u["lost"].keys()))#XXX
         u["fh"].seek(s, 0)
+
 
         #print "STORED BYTES: ", u["bytes"]
         #print "AND THE SIZE: ", u["size"]
@@ -291,6 +289,8 @@ class Client(object):
                 clear_server(u)
                 return
             log("Server verified: interlock nonce matches auth pkt nonce")
+        else:
+            log("Skipping server verification, crypto disabled")
 
         filename = data[i:data[i:].find("\0") + i]
 
@@ -302,7 +302,8 @@ class Client(object):
         log("NEW PREFIX: %02x%02x%02x" % (tuple(map(ord, new_prefix))))
 
         if new_prefix != u["prefix"]:
-            # May be already being used by server
+            # Most likely, switching because server is already sending the 
+            # file (multicasting for example)
             log("Switching to a new prefix!")
         u["prefix"] = new_prefix
 
@@ -311,11 +312,22 @@ class Client(object):
             u["transport"], 
             self.config["data_chan_type"])
 
-        if (self.mss != len(data)):
-            log("WARNING: Downgrading MSS %d->%d, maybe set it lower?" 
-                % (self.mss, len(data)))
-            self.mss = len(data)
-            if (self.mss < 256):
+        new_mss = len(data) - SUMIHDRSZ
+
+        assert new_mss <= self.mss, \
+                "Auth packet MSS too large: %s > %s" % (new_mss, self.mss)
+
+        if self.mss != new_mss:
+            # This is a temporary downgrade, since the server might have the
+            # MTU limitation, not us.
+            log("Downgrading MSS %s->%s" % (self.mss, new_mss))
+
+            # If using crypto, MSS normally rounded to block size
+            if self.config.get("crypt_data"):
+                log("If this happens consistently, considering lowering MTU.")
+
+            self.mss = new_mss
+            if self.mss < 256:
                 log("MSS is extremely low (%d), quitting" % self.mss)
                 sys.exit(-1)
 
@@ -324,7 +336,8 @@ class Client(object):
             self.setup_file(u)
 
         # Tell the sender to start sending, we're ok
-        # Resume /after/ our current offset: at + 1
+        # Resume /after/ our current offset: at + 1.
+        # And in sumi auth, **"m" is MSS**
         log("Sending sumi auth")
         auth = pack_args({"m":self.mss,
                "s":addr[0], "h":hashcode, "o":u["at"] + 1})
@@ -371,7 +384,6 @@ class Client(object):
         data = data[SUMIHDRSZ:]
 
         payloadsz = len(data)
-        full_payload = self.mss - SUMIHDRSZ
 
         if not u.has_key("got_first"):
             self.handle_first(u, seqno)
@@ -379,7 +391,7 @@ class Client(object):
         # All file data is received here
 
         u["last_msg"] = time.time()
-        offset = (seqno - 1) * (self.mss - SUMIHDRSZ)
+        offset = (seqno - 1) * self.mss
 
         # Mark down each packet in our receive window
         if u["rwin"].has_key(seqno):
@@ -400,7 +412,7 @@ class Client(object):
 
         if self.config["crypt_data"]:
             # Outer crypto: CTR mode
-            u["ctr"] = (calc_blockno(seqno, full_payload) + u["data_iv"])
+            u["ctr"] = (calc_blockno(seqno, self.mss) + u["data_iv"])
             log("CTR:pkt %s -> %s" % (seqno, u["ctr"]))
             data = u["crypto_obj"].decrypt(data)
         
@@ -471,8 +483,7 @@ class Client(object):
                 self.callback(u["nick"], "rexmits", u["rexmits"])
                 #on_timer()   # Maybe its all we need
             if u.has_key("got_last"):
-                log("LAST PACKET: %d =? %d" 
-                        % (len(data), self.mss - SUMIHDRSZ))
+                log("LAST PACKET: %d =? %d" % (len(data), self.mss))
                 # File size is now sent in auth packet so no need to calc it
                 #u["size"] = u["fh"].tell()
                 self.on_timer()     # have it check if finished
@@ -1004,7 +1015,7 @@ class Client(object):
             self.irc_name = self.irc_nick
 
         if self.config.has_key("mtu"):
-            self.mss = self.config["mtu"] - IPHDRSZ - UDPHDRSZ
+            self.mss = mtu2mss(self.config["mtu"], self.config["data_chan_type"])
         else:
             try:
                 self.mss
@@ -1012,11 +1023,6 @@ class Client(object):
                 return "MSS was not set, please set it in the Client tab."
         if self.config.get("crypt_data") or self.config.get("crypt_req"):
             random_init()
-        if self.config.get("crypt_data"):
-            bs = get_cipher().block_size
-            if (self.mss - SUMIHDRSZ) % bs:
-                self.mss -= (self.mss - SUMIHDRSZ) % 16
-                log("Fit MSS-SUMIHDRSZ to cipher block size: %s" % self.mss)
 
         if self.config.has_key("rwinsz"):
             self.rwinsz = self.config["rwinsz"]

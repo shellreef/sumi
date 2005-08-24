@@ -44,10 +44,10 @@
         # IMPORTANT:UDP MSS is not TCP MSS! UDP MSS is 12 bytes larger because  
         # of UDP's smaller headers (8 vs 20). Keep this in mind for best   
         # efficiency.  
-#"mss": 1492 - 28,      # Ethernet w/ PPPoE
-"mss": 1500 - 28,       # Ethernet
-#"mss": 4352 - 28,      # FDDI
-#"mss": 9244 - 28,      # Loopback on many OS's (FreeBSD, OSF/1)
+#"mtu": 1492 - 28,      # Ethernet w/ PPPoE
+"mtu": 1500 - 28,       # Ethernet
+#"mtu": 4352 - 28,      # FDDI
+#"mtu": 9244 - 28,      # Loopback on many OS's (FreeBSD, OSF/1)
 
         # RWINSZ - Receive window size. This is the number of SECONDS   
         # before acking  

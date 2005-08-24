@@ -3,7 +3,7 @@
 # By Jeff Connelly
 
 # SUMI server
-# Now uses transports/ to communicate with client, and can
+# Now uses transport/ to communicate with client, and can
 # send data using UDP, ICMP, or raw Ethernet
 
 import thread
@@ -282,7 +282,7 @@ def handle_request(u, msg):
          u["src_gen"] = randip
          u["dst_gen"] = lambda : u["addr"]
     else:
-         sendmsg_error(u, "invalid dchantype")
+         return sendmsg_error(u, "invalid dchantype")
     # TODO:others: t (TCP)
 
     u["ack_ts"] = time.time()
@@ -342,12 +342,21 @@ def send_auth(u, file_info):
 
     # Payload is file information, followed by random data, up to MSS
     payload = file_info
-    mss = u["mss"]
-    payload += random_bytes(mss - SUMIHDRSZ - len(file_info))
 
+    # If data crypto is enabled, make MSS a multiple of block size so that
+    # calc_blockno can easily seek to and decrypt packets as received.
+    if u.has_key("data_key"):
+        bs = get_cipher().block_size
+        if u["mss"] % bs:
+            u["mss"] -= u["mss"] % bs
+            log("Fit MSS to cipher block size: %s" % u["mss"])
+
+    payload += random_bytes(u["mss"] - len(file_info))
+
+    assert len(payload) == u["mss"], \
+            "bad pkt generation: %d != %d" % (len(payload), u["mss"])
+    
     clear_pkt = pkt + payload
-    assert len(clear_pkt) == mss, \
-            "bad pkt generation: %d != %d" % (len(clear_pkt), mss)
     u["authpkt"] = clear_pkt   # Save so can hash when find out MSS
 
     if u.has_key("data_key"):
@@ -379,7 +388,6 @@ def handle_send(u, msg):
     args = handle_request(u, msg)
 
     try: 
-        #(file, offset, ip, port, mss, b64prefix, speed)=msg.split("\t") 
         filename = args["f"]
     except:
         return sendmsg_error(u, "not enough fields for send")
@@ -441,7 +449,6 @@ def handle_auth(u, msg):
         return sendmsg_error(u, "step 1 not complete")
 
     log("message: %s" % msg)
-    #(their_mss, asrc, hash) = msg.split("\t")
     args = unpack_args(msg)
     log("args: %s" % args)
     their_mss = int(args["m"])
@@ -462,7 +469,7 @@ def handle_auth(u, msg):
         if their_mss > u["mss"]: 
             return sendmsg_error(u, "MSS too high (%d>%d)!" % (their_mss, u["mss"]))
         # Client might have received less than full packet; this says they
-        # require a smaller packet size
+        # require a smaller packet size (path MTU discovery).
         log("Downgrading MSS of %s: %d->%d" % (u["nick"], u["mss"],
             their_mss))
         u["mss"] = their_mss
@@ -470,14 +477,13 @@ def handle_auth(u, msg):
     # Now we know MSS, so calculate send delay (in seconds)
     # delay = MTU / bandwidth
     # s = b / (b/s)  <- units
-    # MTU = MSS + 28
     # bytes/sec = bits/sec / 8
     # min(their_dl_bw, our_ul_bw) = transfer speed
     u["delay"] =  (
-        (u["mss"] + 28.) / 
-        (min(u["speed"], cfg["our_bandwidth"])/8))
+        (float(mss2mtu(u["mss"], u["dchantype"])) / 
+        (min(u["speed"], cfg["our_bandwidth"])/8.)))
          # ^^^  whichever slower
-    log("Using send delay: %s" % u["delay"])
+    log("Using send delay: %s s" % u["delay"])
        
     log("Verifying spoofing capabilities...")
     if u["asrc"][0] != asrc:
@@ -486,18 +492,18 @@ def handle_auth(u, msg):
               "either its a problem with your ISP, or the work of\n"
               "mischevious clients. Dropping connection." %
               (u["asrc"][0], asrc))
-        #return sendmsg_error(u, "srcip")
+        return sendmsg_error(u, "srcip")
     
     log("Verifying authenticity of client...")
     # The hash has to be calculated AFTER the auth string is received so
-    # we know how much of it to hash (number of bytes: the MSS)
+    # we know how much of it to hash (number of bytes: the MSS + SUMIHDRSZ)
     if their_mss > len(u["authpkt"]):   # trying to overflow, eh..
         return sendmsg_error(u, "claimed MSS > pktlength!")
 
     # The client (or really, the transmission medium) may have truncated 
-    # the datagram to match their MSS, so only hash up to their MSS. Similar
-    # to MTU path discovery?
-    derived_hash = b64(hash128(u["authpkt"][0:u["mss"]]))
+    # the datagram to match their MSS, so only hash up to their MSS +
+    # SUMIHDRSZ. Similar to MTU path discovery.
+    derived_hash = b64(hash128(u["authpkt"][0:u["mss"] + SUMIHDRSZ]))
     
     if derived_hash != hashcode:
         return sendmsg_error(u, "hashcode: %s != %s" % 
@@ -863,7 +869,7 @@ def xfer_thread(u):
             fatal(4, ("Client %s has no seqno" % u["nick"]), 
                 "\nMost likely client is trying to get >1 files at once.")
         #print "#%d, len=%d" % (u["seqno"], blocklen)
-        if blocklen < u["mss"] - SUMIHDRSZ or blocklen == 0:
+        if blocklen < u["mss"] or blocklen == 0:
             u["seqno"] = None  # no more sending, but can resend
             break
         u["seqno"] += 1
@@ -967,35 +973,33 @@ def datapkt(u, seqno, is_resend=False):
         return sendmsg_error(u, "file too large: 8-10GB is " 
                 "the limit, depending on MSS")
 
-    # Size of data payload in packet            
-    payloadsz = u["mss"] - SUMIHDRSZ
-    
+    # self.mss was payloadsz            
+
     if cfg["noise"] and random.randint(0, int(cfg["noise"])) == 0:
         # lose packet (for testing purposes)
-        return payloadsz
+        return u["mss"]
 
-    log("Sending to %s #%s %s" % (u["nick"], seqno, payloadsz))
-    #print "I AM GOING TO SEEK TO ",payloadsz*(seqno-1)
+    log("Sending to %s #%s %s" % (u["nick"], seqno, u["mss"]))
 
-    #if (payloadsz * (seqno - 1)) > u["size"]:
+    #if (u["mss"] * (seqno - 1)) > u["size"]:
     #    print nick,"tried to seek past end-of-file"
     #    return
 
     # Many OS's allow seeking past the end of file. Preallocate like BT?
-    file_pos = payloadsz * (seqno - 1)
+    file_pos = u["mss"] * (seqno - 1)
     u["fh"].seek(file_pos)
 
-    data = u["fh"].read(payloadsz)
+    data = u["fh"].read(u["mss"])
 
     # Crypto, anyone?
     # XXX: broken, no AONT for now
     if False and u.has_key("crypto_state"):
-        assert payloadsz % get_cipher().block_size == 0, (
+        assert u["mss"] % get_cipher().block_size == 0, (
                 "%s (MSS-%s) is not a multiple of %s, which is required"  
                 "for crypto. This should've been fixed in cfg validation." % (
-                        payloadsz, SUMIHDRSZ, get_cipher().block_size))
+                        u["mss"], SUMIHDRSZ, get_cipher().block_size))
 
-        ctr = calc_blockno(seqno, payloadsz)
+        ctr = calc_blockno(seqno, u["mss"])
 
         if u.get("special_last_seqno") == seqno:
             # OK to call digest_last() multiple times--won't change
@@ -1003,24 +1007,25 @@ def datapkt(u, seqno, is_resend=False):
         else:
             pseudotext = u["aon"].digest_next(data, ctr, is_resend)
             print "PSEUDOTEXT:%s"%ctr
-            if file_pos > u["clear_size"] - payloadsz: 
+            if file_pos > u["clear_size"] - u["mss"]: 
                 # Last packet, so include last block
                 log("(last data packet!)")
 
                 # If last block can't fit, new packet; otherwise, put at end
                 # of this packet. The new packet is special-cased above.
-                if payloadsz + get_cipher().block_size > full_payload:
-                    log("Last block going into new pkt: %s" % (seqno + 1))
-                    u["special_last_seqno"] = seqno + 1
-                    datapkt(u, seqno + 1)
-                else:
-                    pseudotext += u["aon"].digest_last()
+                # ^^ This is heinously broken and makes no sense.
+                #if u["mss"] + get_cipher().block_size > u["mss"]:
+                #    log("Last block going into new pkt: %s" % (seqno + 1))
+                #    u["special_last_seqno"] = seqno + 1
+                #    datapkt(u, seqno + 1)
+                #else:
+                pseudotext += u["aon"].digest_last()
 
             data = pseudotext
 
     # AES CTR encryption
     if u.has_key("data_key"):
-        u["ctr"] = (calc_blockno(seqno, payloadsz) + u["data_iv"])
+        u["ctr"] = (calc_blockno(seqno, u["mss"]) + u["data_iv"])
         log("CTR:pkt #%s -> %s" % (seqno, u["ctr"]))
         ciphertext = u["crypto_obj"].encrypt(data)
 
@@ -1028,11 +1033,11 @@ def datapkt(u, seqno, is_resend=False):
 
     pkt = u["prefix"]        # 3-byte prefix
     pkt += struct.pack("!I", seqno)[1:]  # 3-byte seq no
-    if (len(pkt) != SUMIHDRSZ):
+    if len(pkt) != SUMIHDRSZ:
         fatal(5, "internal failure: header not expected size")
     pkt += data 
-    if (len(pkt) > u["mss"]):
-        fatal(6, "internal: trying to send packet >MSS, should not happen")
+    if len(pkt) > u["mss"] + SUMIHDRSZ:
+        fatal(6, "internal: trying to send packet >MSS+HDR, should not happen")
 
     u["send"](u["src_gen"](), u["dst_gen"](), pkt)
 
@@ -1565,9 +1570,10 @@ def sendmsg(u, msg):
 def sendmsg_error(u, msg):
     """Report an error message, if not in quiet mode. Returns False.
     Also destroys client information, assuming a fatal error."""
+    log("%s -> error: %s" % (u["nick"], msg))
+
     if not cfg["quiet_mode"]:
         sendmsg(u, "error: %s" % msg)
-    log("%s -> error: %s" % (u["nick"], msg))
 
     clear_client(u)
     return False

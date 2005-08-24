@@ -9,6 +9,7 @@ import thread
 import os
 import socket
 import sys
+import time
 
 from libsumi import *
 
@@ -122,11 +123,54 @@ class MainNotebook(wx.Notebook):
 
         event.Skip()   #  requires especially on Win32
 
+class CLogPanel(wx.Panel):
+    """Client log output."""
+    def __init__(self, parent, app):
+        wx.Panel.__init__(self, parent, -1)
+
+        self.clogfile = file("sumigetw-c.log", "wt")
+        self.clogfile.write("Started client log at %s\n" % time.asctime())
+
+        self.app = app
+        self.textCtrl = wx.TextCtrl(self, -1, size=(-1, -1), 
+                         style=wx.TE_MULTILINE | wx.TE_READONLY)
+        box = wx.BoxSizer(wx.VERTICAL)
+        box.Add(self.textCtrl, 1, wx.EXPAND)
+        self.SetAutoLayout(True)
+        self.SetSizer(box)
+        self.Layout()
+
+        # wx.TextCtrl's fill up at a default of 30,000 characters (can be
+        # extended, but there still may be OS-defined limits). Could use a
+        # wx.TE_RICH on Win32 for >64K but what about other systems? There
+        # is still a limit. 
+        wx.EVT_TEXT_MAXLEN(self, self.textCtrl.GetId(), self.OnLogFull)
+
+        def log(msg):
+            print msg
+            self.Write("%s\n" % msg)
+        sumiget.log = log
+
+    def Write(self, msg):
+        self.clogfile.write(msg)
+        try:
+            self.textCtrl.AppendText(msg)
+        except Exception, x:
+            print "Failed to write: %s, trying again." % msg
+            self.OnLogFull(None)
+            self.textCtrl.AppendText(msg)
+
+    def OnLogFull(self, event):
+        self.textCtrl.Clear()
+
 class SLogPanel(wx.Panel):
     """Server log panel."""
     def __init__(self, parent, app):
         wx.Panel.__init__(self, parent, -1)
-  
+
+        self.slogfile = file("sumigetw-s.log", "wt")
+        self.slogfile.write("Started server log at %s\n" % time.asctime())
+
         self.app = app
         self.servlog = wx.TextCtrl(self, -1, 
                 style=wx.TE_MULTILINE | wx.TE_READONLY)
@@ -135,6 +179,8 @@ class SLogPanel(wx.Panel):
         self.SetAutoLayout(True)
         self.SetSizer(box)
         self.Layout()
+        
+        wx.EVT_TEXT_MAXLEN(self, self.servlog.GetId(), self.OnLogFull)
 
         self.started = False
 
@@ -147,40 +193,27 @@ class SLogPanel(wx.Panel):
         """Start sumiserv."""
 
         self.Write("Starting sumiserv...\n")
+
         import sumiserv
 
         def log(msg):
-            self.Write(str(msg) + "\n")
+            self.Write("%s\n" % msg)
         sumiserv.log = log
 
         thread.start_new_thread(wrap_thread, (sumiserv.main, ((),)))
         self.started = True
 
     def Write(self, msg):
-        self.servlog.AppendText(msg)
+        self.slogfile.write(msg)
+        try:
+            self.servlog.AppendText(msg)
+        except Exception, x:
+            print "Failed to write: %s, trying again." % msg
+            self.OnLogFull(None)
+            self.servlog.AppendText(msg)
 
-class CLogPanel(wx.Panel):
-    """Client log output."""
-    def __init__(self, parent, app):
-        wx.Panel.__init__(self, parent, -1)
-
-        self.app = app
-        self.textCtrl = wx.TextCtrl(self, -1, size=(-1, -1), 
-                         style=wx.TE_MULTILINE | wx.TE_READONLY)
-        box = wx.BoxSizer(wx.VERTICAL)
-        box.Add(self.textCtrl, 1, wx.EXPAND)
-        self.SetAutoLayout(True)
-        self.SetSizer(box)
-        self.Layout()
-
-        def log(msg):
-            if hasattr(self, "Write"):
-                self.Write(str(msg) + "\n")
-            print msg
-        sumiget.log = log
-
-    def Write(self, msg):
-        self.textCtrl.AppendText(msg)
+    def OnLogFull(self, event):
+        self.servlog.Clear()
 
 CTL_BANDWIDTH = 500
 CTL_CRYPTO = 501
