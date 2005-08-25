@@ -14,6 +14,8 @@ provably secure under random oracle model.
 # Created:20050731
 # By Jeff Connelly
 
+# $Id$
+
 from libsumi import pack_num, unpack_num, random_bytes, random_init
 
 def xor_str(a, b):
