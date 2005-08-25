@@ -286,7 +286,8 @@ extern int xxx##_setup(const unsigned char *key, int keylen, int rounds,
 /* XXX: Probably a good idea to use pt=ct, encrypt in-place. Can SWIG do
  * this with fixed-size chunks? %cstring*mutable* assumes NULL-terminated.
  * http://mailman.cs.uchicago.edu/pipermail/swig/2004-April/009613.html
- * Write a new typemap?
+ * Write a new typemap? Preferably use standard typemaps, so portable to other
+ * languages than Python.
  */
 extern void xxx##_ecb_encrypt(const unsigned char *xxx##_in,
     unsigned char *xxx##_out, symmetric_key *skey);
