@@ -1,6 +1,10 @@
 TO DO
 $Id$
 
+* Make a convenient way to invoke SUMI from the web, like .torrent files.
+  Initial idea was a sumi:transport/user/file URL, but creating a new MIME
+  type and setting the appropriate handler seems more portable, but is it 
+  worth it for a very small file?
 * Switch to standard 'logger' module for logging, if its worth it.
 * Look into ctypes instead of SWIG for LibTomCrypt, might be easier
 * Migrate from Python 2.3 to 2.4, and use os.urandom...

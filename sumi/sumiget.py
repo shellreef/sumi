@@ -1288,12 +1288,14 @@ Tried to use a valid directory of %s but it couldn't be accessed."""
         # Main thread is UDP server. There is no transport thread, its sendmsg
         self.recv_packets()   # start waiting before requesting
 
-    def on_exit(self):    # GUI uses this on_exit
+    def on_exit(self): 
+        """Called by GUI upon exiting."""
         log("Cleaning up...")
         import pprint
 
         savefile = open(config_file, "w")
         savefile.write("# Client configuration file\n")
+        savefile.write("# Saved by $Id$\n")
         savefile.write("# Please note - ALL COMMENTS IN THIS FILE WILL BE DESTROYED\n")
         # ^ I place all comments in config.py.default instead, or the docs
         pprint.pprint(self.config, savefile)

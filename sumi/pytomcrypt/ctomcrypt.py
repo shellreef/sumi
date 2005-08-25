@@ -4,7 +4,6 @@
 
 """
 A wrapper for the LibTomCrypt cryptography library.
-$Id$
 """
 
 import _ctomcrypt

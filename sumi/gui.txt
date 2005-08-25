@@ -5,6 +5,18 @@ $Id$
 BitTorrent has a nice GUI, also written in wxPython, could be partly based on
 that. Or IE's download dialog. Statistics should be added, possibly on a 
 separate tab, maybe like Azareus (BitTorrent-based) or whatever.
+ UPDATE 20050824: http://www.bittorrent.com/FAQ.html#language says:
+    What language is BitTorrent written in?
+
+    Python. And it uses GTK for its GUI.
+Previously (2004 December):
+http://mail.python.org/pipermail/edu-sig/2004-December/004237.html
+
+    What language is BitTorrent written in?
+
+    Python. And it uses wxWindows for its GUI.
+
+Not too surprising, given all the problems with wx. Maybe switch to GTK?
 
 Upon reflection since 20040720, I think the tabbed listbox interface is the
 best. BT's GUI is nice and simple, but has spawned clones with more 

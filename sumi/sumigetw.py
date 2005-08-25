@@ -1108,7 +1108,14 @@ class SUMIApp(wx.App):
         # If closed by "X" button on Win32, self.frame will already be
         # destroyed, so don't destroy it. But if closed programatically,
         # (by calling us--OnExit), then self.frame needs to be destroyed.
-        if (self.frame): self.frame.Close(True)
+        if self.frame: 
+            self.frame.Close(True)
+
+        # Use console-only log when shutting down, as log panel is unavailable
+        def console_log(msg):
+            print msg
+
+        sumiget.log = console_log
 
         self.client.on_exit()   # Save client config
         sys.exit(0)
