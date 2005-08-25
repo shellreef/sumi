@@ -1,4 +1,5 @@
-The SUMI Protocol  20040116 JC
+The SUMI Protocol  Created:20040116 JC
+$Id$
 
 Definitions
  message: a small control message sent via a secure two-way channel (C<->S)

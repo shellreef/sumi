@@ -1,8 +1,9 @@
-Data Channel Types  2004-02-06 JC (formerly titled "Carriers")
+Data Channel Types (was "carriers")  Created:2004-02-06JC
+$Id$
 
 Data channels, sometimes known as carriers, carry the data for SUMI.
 Conversly, transport channels ensure the reliability of the carrier channel
-data. The actual bulk file transfer goes on in the carrier.
+data. The actual bulk file transfer goes on in the data channel.
 
 At present sumiserv supports send_packet_SOCKET(), a spoofed UDP, which
 is easily received by a simple UDP server in sumiget.
@@ -19,6 +20,10 @@ Further ideas include:
 Update: ICMP echo mode (data_chan_type 'e') is now supported. Works by pinging
 a gateway with a spoofed source address, the gateway replies to this address
 which is really the client address, so it receives it.
+
+* NAT punch-through?
+http://www.mindcontrol.org/~hplus/nat-punch.html(requires a third-party)
+
 
 UNIMPLEMENTED IDEAS
 * ICMP Firewall Subversion (new idea 2004-07-20)

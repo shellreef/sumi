@@ -2,6 +2,8 @@
 # Created:20030402
 # By Jeff Connelly
 
+# $Id$
+
 # SUMI server
 # Now uses transport/ to communicate with client, and can
 # send data using UDP, ICMP, or raw Ethernet

@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 # Configuration file
 
+# $Id$
+
 {
 
 "global_mss": 5000,           # Allow no MSS larger than this

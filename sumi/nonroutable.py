@@ -2,6 +2,8 @@
 # Created:20040201
 # By Jeff Connelly
 
+# $Id$
+
 # non-routable (formerly bogus) networks dictionary
 
 import socket

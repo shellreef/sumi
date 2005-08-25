@@ -3,7 +3,9 @@
 Based on spec at http://www.faqs.org/rfcs/rfc1928.html.
 
 Created:20050815
-By Jeff Connelly"""
+By Jeff Connelly
+
+$Id$"""
 
 import socket
 import struct

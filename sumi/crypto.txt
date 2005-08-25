@@ -1,7 +1,10 @@
-Adding Crypto to SUMI 20050717
+Adding Crypto to SUMI
+$Id$
 
 Many different crypto libraries for Python:
- PyCrypto - the best, recommended by standard library documentation
+ PyTomCrypt - Python wrapper for LibTomCrypt; not currently used but after it
+              is done this could be the recommended library. Well-maintained.
+ PyCrypto - the best?, recommended by standard library documentation
  SSLCrypto - uses OpenSSL, but no AES, RNG is broken, huge bencoded output
  cryptkit.sf.net - slim, but from 2001, no bugfixes, no RSA
  ezPyCrypto - wrapper for PyCrypto
@@ -11,9 +14,10 @@ Many different crypto libraries for Python:
 
 Use public key cryptography (RSA) at first to exchange session keys & IV,
 then use AES in CTR mode to encrypt packets.
- XXX: consider ECC because of shorter key sizes & exp. attacks
-      cr.yp.to/nistp244.html maybe. ECC=Diffie-Hellman over ellipic curves.
-	  TODO: libtomcrypt Python wrapper, instead of old cryptkit
+
+crypt_req uses ECC instead of RSA because of shorter key sizes and exponential
+difficulty. cr.yp.to/nistp244.html. Uses EC-DH (Diffie-Hellman over elliptic
+curves).
 
 - cleartext
 + RSA

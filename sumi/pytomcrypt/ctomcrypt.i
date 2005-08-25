@@ -2,6 +2,8 @@
  * By Jeff Connelly
  * 
  * LibTomCrypt SWIG wrapper
+ *
+ * $Id$
  */
 
 %inline %{
@@ -275,9 +277,6 @@ extern int chc_register(int cipher);
 %cstring_chunk_output(unsigned char *anubis_out, 16);
 %cstring_chunk_output(unsigned char *khazad_out, 8);
 %cstring_chunk_output(unsigned char *saferp_out, 16);
-
-// error in input
-//%apply (char *STRING, int LENGTH) { (unsigned char *aes_in, 16) };
 
 %define WRAP_CIPHER(xxx)
 /*%apply unsigned char *OUTPUT { unsigned char *xxx##_out };*/

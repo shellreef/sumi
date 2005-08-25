@@ -1,5 +1,7 @@
-# 20040712 notes: USAGE: python setup.py py2exe
-# Run on a Windows machine
+# Setup SUMI using distutils
+# $Id$
+
+# 20040712 notes: USAGE: python setup.py py2exe (run on a Windows machine)
 
 # If you get "error: Permission denied", stop editing the Python in vi
 

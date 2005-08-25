@@ -2,6 +2,8 @@
 # Created:20040117
 # By Jeff Connelly
 
+# $Id$
+
 # Python library for common SUMI functions, shared between client and server
 
 import sys

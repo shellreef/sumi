@@ -2,8 +2,9 @@
  * By Jeff Connelly
  *
  * In-place XOR routines for use within Python.
+ *
+ * $Id*
  */
-
 
 /* Note: the fastest XOR in pure python I could manage is to 
    do a=list(s1), then XOR the list in-place using chr and ord, 

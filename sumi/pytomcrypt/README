@@ -1,4 +1,16 @@
 PyTomCrypt -- a Python wrapper for LibTomCrypt
 
+$Id$
+
 First you need to build LibTomCrypt with -fPIC. I had to also define 
 LTC_NO_ASM to get it to build properly on amd64. Then run make build.
+
+ld: /usr/local/lib/libtomcrypt.a(aes.o): relocation R_X86_64_32S can not be
+used when making a shared object; recompile with -fPIC
+
+http://64.233.187.104/search?q=cache:rXPUY4O_QlgJ:pvrguide.no-ip.com/bbs-old/viewtopic/12079.html+R_X86_64_32S+can+not+be+used+when+making+a+shared+object&hl=en&start=2
+says:
+
+AFAIK, AMD64 pretty much across the board requires you to inject -fPIC
+into every compilation. Probably wouldn't be a bad thing to add to the
+build system. 

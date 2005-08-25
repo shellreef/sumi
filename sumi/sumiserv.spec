@@ -1,3 +1,5 @@
+# $Id$
+
 a = Analysis([os.path.join(HOMEPATH,'support\\_mountzlib.py'), os.path.join(HOMEPATH,'support\\useUnicode.py'), 'sumiserv.py'],
              pathex=['X:\\p2p\\sumi'])
 pyz = PYZ(a.pure)

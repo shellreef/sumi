@@ -2,6 +2,8 @@
 # Created:20040201
 # By Jeff Connelly
 
+# $Id$
+
 # SUMI configuration file, default version
 # Copy this to config.py if you wish to restore defaults
 # Comments here are okay because, unlike config.py, its never overwritten
@@ -82,13 +84,8 @@
 # sumiget or sumiserv.)
 "share": True,
 
-# Encrypt your requests. 
-# Includes protection against active attacks. Enables interlock (~3s delay in
-# handshaking) and (in the future, maybe all-or-nothing transform (wait for 
-# entire file to decode)).
-#  - not needed with modtor, since it is already encrypted -
-"crypt_req": False,
-
-# Encrypt the data stream.
-"crypt_data": True,
+# Encrypt? If enabled:
+#  If transport is insecure, will encrypt requests (interlock, etc.)
+#  Encrypt the data stream
+"crypt": True,
 }

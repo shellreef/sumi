@@ -1,4 +1,5 @@
-Spoofing Capabilities     2003-08-03 JC
+Spoofing Capabilities     Created:2003-08-03 JC
+$Id$
 
 Major ISPs:
 "ISPs and major backbones don't effectively prevent bogon (unallocated and unannounced) IP space from traversing the wide Internet. Therefore a hacker with minimal sophistication can attack you from IP addresses that don't exist."

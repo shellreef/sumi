@@ -3,6 +3,8 @@
 # Created:20040117M
 # By Jeff Connelly
 
+# $Id$
+
 # SUMI downloader, invoke: sumiget.py <transport> <server> <filename>
 # See also: sumigetw.py
 

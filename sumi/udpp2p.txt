@@ -1,6 +1,8 @@
 udpp2p is another project - 
 http://udpp2p.sf.net/
 
+$Id$
+
 it mainly uses broadcasts, but a bug report on 
 http://sourceforge.net/tracker/index.php?func=detail&aid=732045&group_id=76192&atid=547683 suggests:
 

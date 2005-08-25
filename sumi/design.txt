@@ -1,4 +1,5 @@
-SUMI for Year 2004 20040101
+SUMI for Year 2004 and Beyond   Created:20040101
+$Id$
 Pseudo-code
 
 * SUMI Server *

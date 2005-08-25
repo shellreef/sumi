@@ -1,4 +1,5 @@
-Resuming SUMI 20040222
+Resuming SUMI Created:20040222
+$Id$
 
 Resuming a transfer is necessary in every file transfer program. SUMI should
 store:

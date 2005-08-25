@@ -191,9 +191,9 @@ vi: noexpandtab:
 	  - standalone irclib
 	  - mIRC
 	  - xchat (with patch)
-        - possibilities of others
+	  - possibilities of others
 	* sumigetw replaces wxfer; 
-          a standalone GUI interface to sumiget module
+	  standalone GUI interface to sumiget module
 	* addition of data channel transfer types, u, U, t, e 
 	* config.py and sumiserv.cfg loadable configuration files, eval()'d
 	* no "critical packet" in sumiserv, server sends continously but 

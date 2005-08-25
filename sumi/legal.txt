@@ -1,4 +1,5 @@
-Legal Notes 20040722
+Legal Notes         Created:20040722
+$Id$
 
 This file mostly has to do with distribution of distribution-restricted 
 materials, and may be of interest. SUMI can be used to distribute any data.

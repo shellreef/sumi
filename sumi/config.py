@@ -1,6 +1,7 @@
 # Client configuration file
 # Please note - ALL COMMENTS IN THIS FILE WILL BE DESTROYED
-{'allow_debug': True,
+{'rcsid': '$Id',
+ 'allow_debug': True,
  'allow_local': 1,
  'bandwidth': 56623104,
  'bandwidth1': 1500000,

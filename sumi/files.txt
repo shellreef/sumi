@@ -1,4 +1,5 @@
-SUMI PACKING LIST       20040722
+SUMI PACKING LIST       Created:20040722
+$Id$
 
  DIRECTORIES
 build/            used by py2exe during build process
@@ -26,7 +27,6 @@ config.py         sumiget(w) client configuration
 config.py.default default config.py
 sumiserv.cfg      sumiserv server configuration
 sumiserv.cfg.default sumiserv client default configuration
-getifaces.py      retrieve network interface information
 images.py         some images, taken from wxPython demo 
 libsumi.py        shared routines between client & server
 nonroutable.py    check if an address is routable

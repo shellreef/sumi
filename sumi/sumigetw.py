@@ -2,6 +2,8 @@
 # Created:2004-07-11
 # By Jeff Connelly
 
+# $Id$
+
 # wxWidgets GUI interface to sumiget
 
 import sumiget

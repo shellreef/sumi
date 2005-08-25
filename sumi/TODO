@@ -1,4 +1,5 @@
-TO DO   20050823JC
+TO DO
+$Id$
 
 * Switch to standard 'logger' module for logging, if its worth it.
 * Look into ctypes instead of SWIG for LibTomCrypt, might be easier

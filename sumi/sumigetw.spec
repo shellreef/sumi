@@ -1,4 +1,9 @@
+# McMillan installer (PyInstaller) specification file
+# (an alternative to py2exe, not currently used)
+
 # python C:\python23\installer\build.py sumigetw.spec
+
+# $Id$
 
 a = Analysis([os.path.join(HOMEPATH,'support\\_mountzlib.py'), os.path.join(HOMEPATH,'support\\useUnicode.py'), 'X:\\p2p\\sumi\\sumigetw.py'],
              pathex=['C:\\Python23\\Installer'])

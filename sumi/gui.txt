@@ -1,14 +1,19 @@
-GUI Notes   2004-02-22 JC
+GUI Notes    Created:2004-02-22JC
+
+$Id$
 
 BitTorrent has a nice GUI, also written in wxPython, could be partly based on
 that. Or IE's download dialog. Statistics should be added, possibly on a 
-separate tab, maybe like Azarus (BitTorrent-based) or whatever.
+separate tab, maybe like Azareus (BitTorrent-based) or whatever.
 
 Upon reflection since 20040720, I think the tabbed listbox interface is the
 best. BT's GUI is nice and simple, but has spawned clones with more 
 informative interfaces. I'll still remain using wxWidgets and Python, just
 like BitTorrent (a major inspiration for SUMI), to attain portability. The
 GUI should have tabs for transfers, client and (when integrated) server conf.
+
+Learn from BitTorrent. Bram created a simple GUI, but people still prefer
+the complicated, though more featureful Azareus GUI.
 
 As for the file icons, when applicable. sumiget and sumiserv can be sumo
 wrestlers. Doing different things or facing different ways, receiving and
