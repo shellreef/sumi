@@ -1,3 +1,5 @@
+$ Id$
+
 Common subdirectories: pcapy-0.10.3.orig/build and pcapy-0.10.3/build
 diff -u pcapy-0.10.3.orig/pcapy.cc pcapy-0.10.3/pcapy.cc
 --- pcapy-0.10.3.orig/pcapy.cc	Thu Aug 11 12:17:49 2005

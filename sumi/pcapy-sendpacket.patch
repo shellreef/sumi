@@ -1,3 +1,5 @@
+$ Id$
+
 diff -ur pcapy-0.10.3.orig/pcapobj.cc pcapy-0.10.3/pcapobj.cc
 --- pcapy-0.10.3.orig/pcapobj.cc	Thu Oct 23 17:00:52 2003
 +++ pcapy-0.10.3/pcapobj.cc	Thu Jun 16 15:05:20 2005
