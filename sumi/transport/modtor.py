@@ -74,14 +74,15 @@ def user_init(nick):
     # Use SOCKS to connect to hidden host over Tor's SOCKS proxy. SOCKS5
     # is supported natively; there is no need to Torify, and there is no
     # DNS leakage because the hostname is sent as is (not resolved here).
+    # Note: this may raise a socks5.Error
     s = socks5.connect_via((nick, PORT), ("localhost", TOR_PORT))
-   
+
     # For testing without SOCKS
     #s = socket.socket()
     #s.connect(("localhost", PORT))
     
     connections[nick] = s
-    print "user_init returning"
+    return True
 
 def transport_init():
     pass

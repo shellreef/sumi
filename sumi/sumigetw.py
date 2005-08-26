@@ -1030,8 +1030,7 @@ class SUMIApp(wx.App):
             self.SetInfo(nick, COL_STATUS, "Another transfer in progress")
             self.SetColor(nick, wx.RED)  # Maybe queue it instead?
         elif (cmd == "t_fail"): # transport failed to load
-            msg = args[0][1].args[0]
-            self.SetInfo(nick, COL_STATUS, "Bad transport: %s" % msg)
+            self.SetInfo(nick, COL_STATUS, "Bad transport: %s" % args[0])
             self.SetColor(nick, wx.RED)
         elif (cmd == "t_user"):
             self.SetInfo(nick, COL_STATUS, "Connecting...")

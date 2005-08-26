@@ -1236,12 +1236,12 @@ Tried to use a valid directory of %s but it couldn't be accessed."""
             sys.path.insert(0, os.path.dirname(sys.argv[0]))
             t = __import__("transport.mod" + transport, None, None,
                            ["transport_init", "sendmsg"])
-        except ImportError:
+        except ImportError, e:
             # Anytime a transfer fails, or isn't in progress, should pop it
             # So more transfers can come from the same users.
             self.clear_server(u)
             self.senders.pop(u["nick"])
-            self.callback(u["nick"], "t_fail", sys.exc_info())
+            self.callback(u["nick"], "t_fail", "Import: %s" % e)
             return False
 
         t.segment = segment
@@ -1279,9 +1279,11 @@ Tried to use a valid directory of %s but it couldn't be accessed."""
             u["user_init"] = t.user_init
             self.callback(u["nick"], "t_user")
             log("Initializing user...")
-            if u["user_init"](u["nick"]):
-                log("user_init(%s) failed" % u["nick"])
-                self.callback(u["nick"], "t_fail", "user_init failed")
+            try:
+                u["user_init"](u["nick"])
+            except Exception, e:
+                log("user_init(%s) failed: %s" % (u["nick"], e))
+                self.callback(u["nick"], "t_fail", "user_init: %s" % e)
                 return False
 
         return True
