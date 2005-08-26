@@ -5,11 +5,11 @@
  'allow_local': 1,
  'bandwidth': 56623104,
  'bandwidth1': 1500000,
- 'colwidths': [160, 123, 166, 55, 73, 69, 76, 99, 71, 49],
+ 'colwidths': [160, 130, 33, 55, 73, 69, 76, 99, 71, 49, 33, 39],
  'crypt': True,
  'data_chan_type': 'u',
  'dchanmode': 'socket',
- 'dl_dir': '/mnt/smb/p2p/sumi/incoming',
+ 'dl_dir': '/tmp',
  'interface': '\\Device\\NPF_{FDA97C53-F88D-486E-82B6-FBBD969F0F59}',
  'interface2': 'ndis0',
  'interface3': '\\Device\\NPF_{3530F223-8959-4928-88A5-1672C094D6A8}',
@@ -28,4 +28,4 @@
  'rwinsz': 5,
  'save_interval': 1,
  'share': False,
- 'winsize': (858, 228)}
+ 'winsize': (977, 240)}

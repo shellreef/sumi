@@ -1241,7 +1241,7 @@ Tried to use a valid directory of %s but it couldn't be accessed."""
             # So more transfers can come from the same users.
             self.clear_server(u)
             self.senders.pop(u["nick"])
-            self.callback(u["nick"], "t_fail", "Import: %s" % e)
+            self.callback(u["nick"], "t_import_fail", e)
             return False
 
         t.segment = segment
@@ -1283,7 +1283,7 @@ Tried to use a valid directory of %s but it couldn't be accessed."""
                 u["user_init"](u["nick"])
             except Exception, e:
                 log("user_init(%s) failed: %s" % (u["nick"], e))
-                self.callback(u["nick"], "t_fail", "user_init: %s" % e)
+                self.callback(u["nick"], "t_user_fail", e)
                 return False
 
         return True

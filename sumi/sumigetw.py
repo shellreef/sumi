@@ -39,15 +39,17 @@ from wx.lib.intctrl import IntCtrl, EVT_INT
 # Filename is first column so can use edit column to rename file
 COL_FILENAME = 0
 COL_PEER = 1
-COL_STATUS = 2
-COL_PROGRESS = 3
-COL_SIZE = 4
-COL_BYTES = 5
-COL_RATE = 6
-COL_FROM = 7
-COL_MISSING = 8
-COL_REXMITS = 9
-COL_ETA = 10
+COL_PREFIX = 2
+COL_VIA = 3
+COL_STATUS = 4
+COL_PROGRESS = 5
+COL_SIZE = 6
+COL_BYTES = 7
+COL_RATE = 8
+COL_FROM = 9
+COL_MISSING = 10
+COL_REXMITS = 11
+COL_ETA = 12
 COL_LAST = COL_ETA
 
 ID_EXIT = 100
@@ -548,10 +550,11 @@ class TransferPanel(wx.Panel, ColumnSorterMixin):
         info.m_image = -1
         info.m_format = 0
 
-        colnames = ['Filename', 'Peer', 'Status', 'Progress', 'Size', 
+        colnames = ['Filename', 'Peer', 'ID', 'T/D', 'Status', 
+                    'Progress', 'Size', 
                     'Bytes', 'Rate', 'From', 
                     'Missing', 'Rexmits', 'ETA']
-        colfmt = [0, 0, 0, wx.LIST_FORMAT_RIGHT, wx.LIST_FORMAT_RIGHT, 
+        colfmt = [0, 0, 0, 0, 0, wx.LIST_FORMAT_RIGHT, wx.LIST_FORMAT_RIGHT, 
                   wx.LIST_FORMAT_RIGHT, wx.LIST_FORMAT_RIGHT, 
                   wx.LIST_FORMAT_RIGHT, wx.LIST_FORMAT_RIGHT,
                   wx.LIST_FORMAT_RIGHT, 0, wx.LIST_FORMAT_RIGHT ]
@@ -771,19 +774,16 @@ class TransferPanel(wx.Panel, ColumnSorterMixin):
         print "Selected items:\n"
         index = self.list.GetFirstSelected()
         while index != -1:
-            print "      %s: %s\n" % (self.list.GetItemText(index), self.getColumnText(index, 1))
-            # TODO: Separate nick into its own column, seriously
-            snick = self.getColumnText(index, 1).split(" ")
-            if len(snick) >= 1:
-                snick = snick[0]
-            else:
-                continue
+            print "      %s: %s\n" % (self.list.GetItemText(index),
+                    self.getColumnText(index, COL_PEER))
+
+            snick = self.getColumnText(index, COL_PEER)
             self.app.client.abort(self.app.client.senders[snick])
             index = self.list.GetNextSelected(index)
     
     def OnResume(self, event): 
         #self.app.client.resume...
-        print "TODO: Resume"
+        print "TODO: Resume",self.currentItem
         thread.start_new_thread(wrap_thread, (self.app.ReqThread, (sys.argv[1],
             sys.argv[2], sys.argv[3])))
 
@@ -1029,8 +1029,11 @@ class SUMIApp(wx.App):
         elif (cmd == "1xferonly"):  # transfer already in progress
             self.SetInfo(nick, COL_STATUS, "Another transfer in progress")
             self.SetColor(nick, wx.RED)  # Maybe queue it instead?
-        elif (cmd == "t_fail"): # transport failed to load
+        elif (cmd == "t_import_fail"): # transport failed to load
             self.SetInfo(nick, COL_STATUS, "Bad transport: %s" % args[0])
+            self.SetColor(nick, wx.RED)
+        elif (cmd == "t_user_fail"): 
+            self.SetInfo(nick, COL_STATUS, "User failure: %s" % args[0])
             self.SetColor(nick, wx.RED)
         elif (cmd == "t_user"):
             self.SetInfo(nick, COL_STATUS, "Connecting...")
@@ -1054,10 +1057,11 @@ class SUMIApp(wx.App):
 
             self.SetInfo(nick, COL_STATUS, "Authenticating")
             self.SetInfo(nick, COL_FILENAME, filename)
-            self.SetInfo(nick, COL_SIZE, "%d" % size)
+            self.SetInfo(nick, COL_SIZE, str(size))
             self.SetInfo(nick, COL_BYTES, "0")
-            self.SetInfo(nick, COL_PEER, "%s [%s-%s-%s]" % 
-                (nick, prefix, transport, dchantype))
+            self.SetInfo(nick, COL_PEER, str(nick))
+            self.SetInfo(nick, COL_PREFIX, prefix)
+            self.SetInfo(nick, COL_VIA, "%s/%s" % (transport, dchantype))
 
             # can't set range to file size because multiples of 1048576
             # do not show up, at any SetValue(), in Win32 only

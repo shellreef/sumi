@@ -1,6 +1,16 @@
 TO DO
 $Id$
 
+* Fix bug, evident with modtor, where multicast is erroneously detected,
+  causing transfer to freeze on "Authenticating" after requests from clients
+  to the same address, but with different nicks (always different in modtor!)
+   Maybe disable multicast for now?
+* Fix bug, not sure what causes, but I'm trying to download #1 and it has one
+  remaining lost packet, but it just times out every time when resuming it.
+  Looks like sumiget is trying to ack to get more with a plain "n" but there
+  are no more non-lost packets for the server to continue sending! Server just
+  sends a zero-byte packet; but there are still gaps in the file!
+
 * Make a convenient way to invoke SUMI from the web, like .torrent files.
   Initial idea was a sumi:transport/user/file URL, but creating a new MIME
   type and setting the appropriate handler seems more portable, but is it 
