@@ -299,21 +299,21 @@ def handle_request(u, msg):
         log("Multicast group: %s:%s" % (u["addr"], casts[u["addr"]]))
 
         cs = casts[u["addr"]]
-        found = 0
+        found = False
         for c in cs:
             if clients.has_key(c) and clients[c].get("authenticated") == 2:
                 u["prefix"] = clients[c]["prefix"]
-                found = 1
+                found = True
                 break
 
-        if found == 0:
+        if not found:
             log("No transferring clients found, assuming unicast")
-            casts[u["addr"]] = { u["nick"]: 1 }
+            casts[u["addr"]] = { u["nick"]: True }
             mcast = 0
         else:
-            casts[u["addr"]][u["nick"]] = 1
+            casts[u["addr"]][u["nick"]] = True
 
-            log("    Reusing old prefix: %02x%02x%02x" % 
+            log("    Reusing old prefix [multicast]: %02x%02x%02x" % 
                 (ord(u["prefix"][0]), 
                  ord(u["prefix"][1]),
                  ord(u["prefix"][2])))
@@ -321,11 +321,20 @@ def handle_request(u, msg):
     else:
         # An array would do here, but a hash easily removes the possibility
         # of duplicate keys. List of clients that have the same address.
-        casts[u["addr"]] = { u["nick"]: 1 }
+        casts[u["addr"]] = { u["nick"]: True }
         mcast = 0
     u["mcast"] = mcast
 
     return args
+
+def remove_from_cast(u):
+    """Remove user from cast belonging to their address."""
+    if not u.has_key("addr") or casts.has_key(u["addr"]):
+        return False
+
+    casts[u["addr"]].pop(u["nick"])
+
+    return True
 
 def send_auth(u, file_info):
     """Send authentication packet to given user.
@@ -887,7 +896,7 @@ def xfer_thread(u):
     log("Transfer complete.")
 
 def destroy_client(u):
-    """Clear all information about a client."""
+    """Destroy all information about a client."""
     log("Severing all ties to %s" % u["nick"])
     try:
         casts[u["addr"]].pop(u["nick"])
@@ -895,13 +904,16 @@ def destroy_client(u):
             log("Last client for %s exited: %s" % (u["addr"], u["nick"]))
             # TODO: stop all transfers to this address
             casts.pop(u["addr"])
-        clients.pop(u["nick"])
         clear_client(u)
+        clients.pop(u["nick"])
     except:
         pass
 
 def clear_client(u):
     """Clear all fields about the user u, except for their nickname."""
+    
+    if u.has_key("addr") and casts.has_key(u["addr"]):
+        casts[u["addr"]].pop(u["nick"])
 
     # Use .clear() instead of {}
     nick = u["nick"]
@@ -961,7 +973,7 @@ def transfer_control(u, msg):
         pass 
     elif msg[0] == "n":          
         handle_nak(u, msg)
-    elif msg[0] == '!':        # abort transfer
+    elif msg[0] == "!":        # abort transfer
         log("Aborting transfer to %s" % u["nick"])
         destroy_client(u)
 
