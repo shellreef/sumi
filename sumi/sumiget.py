@@ -958,19 +958,11 @@ class Client(object):
         # because setting up crypto is the only time we receive transport
         # messages from the server. 
         log(">>>>> %s" % u["nick"])
-        def wrap():
-            try:
-                self.crypto_thread(u["nick"])
-            except: #Exception, x:
-                print "(thread) Exception: %s at %s" % (x,
-                        sys.exc_info()[2].tb_lineno)
-                raise x
         #thread.start_new_thread(self.crypto_thread, (u["nick"], ))
-        #thread.start_new_thread(wrap, ())
         thread.start_new_thread(self.wrap_thread, 
                 (self.crypto_thread, (u["nick"], )))
 
-    def wrap_thread(f, args):
+    def wrap_thread(self, f, args):
         try:
             f(*args)
         except Exception, x:
@@ -1301,6 +1293,8 @@ Tried to use a valid directory of %s but it couldn't be accessed."""
         supported.
         
         In the future, this interface should be more usable."""
+
+        self.validate_config()
         #thread.start_new_thread(self.thread_timer, ())
         #thread.start_new_thread(self.request, (transport, nick, file))
         thread.start_new_thread(self.wrap_thread, (self.thread_timer, ()))

@@ -40,3 +40,6 @@ cfastxor::
 
 test::
 	python sumigetw.py tor 5mg27ujynvojkdpq.onion \#1
+
+testc::
+	python sumiget.py tor 5mg27ujynvojkdpq.onion \#1
