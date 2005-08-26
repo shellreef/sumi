@@ -1,11 +1,11 @@
 # Client configuration file
+# Saved by $Id$
 # Please note - ALL COMMENTS IN THIS FILE WILL BE DESTROYED
-{'rcsid': '$Id',
- 'allow_debug': True,
+{'allow_debug': True,
  'allow_local': 1,
  'bandwidth': 56623104,
  'bandwidth1': 1500000,
- 'colwidths': [160, 123, 100, 55, 73, 69, 76, 99, 71, 49],
+ 'colwidths': [160, 123, 166, 55, 73, 69, 76, 99, 71, 49],
  'crypt': True,
  'data_chan_type': 'u',
  'dchanmode': 'socket',
@@ -24,6 +24,7 @@
  'myip3': '10.0.0.64',
  'myport': 2771,
  'passwd': '11111111111111111111111111111111',
+ 'rcsid': '$Id',
  'rwinsz': 5,
  'save_interval': 1,
  'share': False,

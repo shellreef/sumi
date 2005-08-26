@@ -101,16 +101,18 @@ class Client(object):
         if not u.has_key("fs"):
             log("Not saving resuming file for %s" % u["nick"])
             return
+    
+        fs = u["fs"]
 
-        u["fs"].seek(0)    
-        u["fs"].truncate()    # Clear
-        u["fs"].flush()
+        fs.seek(0)    
+        fs.truncate()    # Clear
+        fs.flush()
         if not finished:
             # .sumi file format: lostpkt1,lostpkt2,...,lostpktn,current_pkt
             lost = ",".join(map(str, u.get("lost", {}).keys()))
             lost += "," + str(u["at"])   # last is at, cur/last
-            u["fs"].write(lost)   # Overwrite with new lostdata
-            u["fs"].flush()
+            fs.write(lost)   # Overwrite with new lostdata
+            fs.flush()
             #print "WROTE LOST: ",lost
         else:    # NOT REACHED
             # Don't remove the resume file. Leave it around so know finished.
@@ -504,12 +506,12 @@ class Client(object):
 
     def handle_packet(self, data, addr):
         """Handle received packets."""
-        if len(data) < 6:   # prefix(3) + seqno(3)
+        if len(data) < SUMIHDRSZ:
             log("Short packet: %s bytes from %s" % (len(data), addr))
-            return
+            return False
 
-        prefix  = data[:3]
-        (seqno, ) = struct.unpack("!I", "\0" + data[3:6])
+        prefix = data[:3] 
+        seqno, = struct.unpack("!I", "\0" + data[3:6])  # 3-byte
 
         u = self.prefix2user(prefix)
         if not u:
@@ -518,6 +520,10 @@ class Client(object):
             log("DATA:UNKNOWN PREFIX! %s %s bytes from %s"
                     % (p,len(data),addr))
             return None
+
+        # Ignore aborted data
+        if u.get("aborted"):
+            return False
 
         u["retries"] = 0   # acks worked
 
@@ -534,9 +540,9 @@ class Client(object):
         # Port Address Translation--closely related to NAT, can mangle 
         # the srcport
         if seqno == 0:       # all 0's = auth packet
-            self.handle_auth(u, prefix, addr, data)
+            return self.handle_auth(u, prefix, addr, data)
         else:
-            self.handle_data(u, prefix, addr, seqno, data)
+            return self.handle_data(u, prefix, addr, seqno, data)
 
     def thread_timer(self):
         """Every RWINSZ seconds, send a nak of missing pkts up to that point."""
@@ -555,6 +561,11 @@ class Client(object):
         tmp_senders = self.senders.copy()
         for x in tmp_senders:
             u = self.senders[x]
+           
+            # If aborted or haven't got first packet, don't ack
+            if u.get("aborted") or not u.get("got_first"):
+                continue
+
             if not u.has_key("lost"):  # not xfering yet
                 u["retries"] = 0   # initialize
                 continue
@@ -1080,8 +1091,26 @@ Tried to use a valid directory of %s but it couldn't be accessed."""
         return u["sendmsg"](u["nick"], msg)
 
     def abort(self, u):
+        """Abort transfer to user."""
+
+        if u.get("aborted"):         # can only abort once
+            return False
+
         self.sendmsg(u, "!")
-        self.callback(u["nick"], "aborting")
+
+        # Keep around user, because server won't abort transfer immediately.
+        # Transport takes some time, and in that time we'll still be receiving
+        # packets; need to recognize them to ignore them. (Presumably, better
+        # to ignore them than keep them--if user wanted to abort, probably
+        # wants to abort immediately.) Keep prefix so can recognize.
+        prefix = u.get("prefix")
+        #self.clear_server(u)
+        u["prefix"] = prefix
+        u["aborted"] = True
+
+        self.callback(u["nick"], "aborted")
+
+        return True
 
     def make_request(self, u, file):
         """Build a message to request file and generate a random prefix."""
@@ -1118,7 +1147,7 @@ Tried to use a valid directory of %s but it couldn't be accessed."""
         return msg
 
     def clear_server(self, u):
-        """Clear information about a server, but saving their nick."""
+        """Clear information about a server, but save their nick."""
         nick = u["nick"]
         u.clear()
         u["nick"] = nick
@@ -1132,7 +1161,7 @@ Tried to use a valid directory of %s but it couldn't be accessed."""
         # command line args are now the sole form of user input;
         self.callback(nick, "t_wait")   # transport waiting, see below
 
-        if self.senders.has_key(nick):
+        if self.senders.has_key(nick) and not self.senders[nick].get("aborted"):
             # TODO: Index senders based on unique key..instead of nick
             # Then we could have multiple transfers from same user, same time!
             log("Already have an in-progress transfer from %s" % nick)
@@ -1343,6 +1372,7 @@ def pre_main(invoke_req_handler):
         pass 
     else:
         signal.signal(signal.SIGUSR1, invoke_req_handler)    # set handler
+    # Called by GUI on exit instead
     signal.signal(signal.SIGINT, on_exit)
 
     if len(sys.argv) >= 3:

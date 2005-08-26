@@ -778,12 +778,14 @@ class TransferPanel(wx.Panel, ColumnSorterMixin):
                 snick = snick[0]
             else:
                 continue
-            self.app.client.abort(snick)
+            self.app.client.abort(self.app.client.senders[snick])
             index = self.list.GetNextSelected(index)
     
     def OnResume(self, event): 
         #self.app.client.resume...
         print "TODO: Resume"
+        thread.start_new_thread(wrap_thread, (self.app.ReqThread, (sys.argv[1],
+            sys.argv[2], sys.argv[3])))
 
     def OnRename(self, event):
         self.list.EditLabel(self.currentItem)
@@ -889,6 +891,8 @@ class SUMIApp(wx.App):
         #wx.EVT_BUTTON(self.exit, ID_EXIT, self.OnExit)
         #wx.EVT_BUTTON(self.setup, ID_SETUP, self.OnSetup)
 
+        self.SetupStartfile()
+
         # Setup the SUMI 
         # Only really need one of these each per transfer
         thread.start_new_thread(wrap_thread, (self.client.thread_timer, ()))
@@ -917,6 +921,16 @@ class SUMIApp(wx.App):
 
         self.SetTopWindow(self.frame)
         return True
+
+    def SetupStartfile(self):
+        """Initialize os.startfile if it is not available on this platform."""
+
+        # Currently, os.startfile is only available on Win32. Provide a
+        # reasonable alternative if not available.
+        if not hasattr(os, "startfile"):
+            def startfile(file):
+                os.system(self.client.cfg.get("startfile", "firefox %s") % file)
+            os.startfile = startfile
 
     def RecvReq(self):
         """Sets up the request receiving, passes to an existing instance 
@@ -1010,10 +1024,7 @@ class SUMIApp(wx.App):
         # multiple transfers with same users is not yet supported. Could the
         # prefix be used to identify the columns instead? As of now, multiple
         # entries with same nick will always refer to the first with that nick.
-        if (cmd == "aborting"):   # aborting in progress
-            self.SetInfo(nick, COL_STATUS, "Aborting...")
-            # TODO: Stop request thread? It still sends acks...
-        elif (cmd == "t_wait"):   # waiting for transport
+        if (cmd == "t_wait"):   # waiting for transport
             self.SetInfo(nick, COL_STATUS, "Transport loading")
         elif (cmd == "1xferonly"):  # transfer already in progress
             self.SetInfo(nick, COL_STATUS, "Another transfer in progress")
@@ -1026,7 +1037,7 @@ class SUMIApp(wx.App):
             self.SetInfo(nick, COL_STATUS, "Connecting...")
         elif (cmd == "error"):
             self.SetInfo(nick, COL_STATUS, "Error: %s" % args[0])
-            self.SetColor(nick, wxRED)
+            self.SetColor(nick, wx.RED)
         elif (cmd == "req_sent"):  # request was sent
             self.SetInfo(nick, COL_STATUS, "Handshaking")
         elif (cmd == "req_count"): # request handshake countdown+status
@@ -1100,6 +1111,10 @@ class SUMIApp(wx.App):
             self.SetColor(nick, wx.Colour(32, 128, 32))   # a suitable green
             #self.info.SetLabel("Complete %d B @ %d kB/s: %s" % 
             #    (size, speed, all_lost))
+        elif (cmd == "aborted"):
+            self.SetInfo(nick, COL_STATUS, "Aborted")
+            self.SetColor(nick, wx.RED)
+            # TODO: Stop request thread? It still sends acks...
         else:
             print "??? Unrecognized command: %s %s" % (cmd, args)
             #assert False, "Unrecognized command: %s %s" % (cmd, args)
