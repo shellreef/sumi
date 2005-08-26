@@ -21,7 +21,7 @@ package:
 	cd sumi
 
 clean::
-	rm -f /home/jeff/p2p/sumi/incoming/*
+	rm -f incoming/*
 	rm -rf *.pyc
 	rm -rf transport/*.pyc
 	rm -rf cfastxor.o
@@ -38,3 +38,5 @@ cfastxor::
 	gcc -c cfastxor.c cfastxor_wrap.c -I/usr/local/include/python2.3
 	ld -shared cfastxor.o cfastxor_wrap.o -o _cfastxor.so
 
+test::
+	python sumigetw.py tor 5mg27ujynvojkdpq.onion \#1
