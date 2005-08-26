@@ -6,16 +6,12 @@ $Id$
   type and setting the appropriate handler seems more portable, but is it 
   worth it for a very small file?
 * Switch to standard 'logger' module for logging, if its worth it.
-* Look into ctypes instead of SWIG for LibTomCrypt, might be easier
+* Look into ctypes instead of SWIG for LibTomCrypt, might be easier(no amd64?)
 * Migrate from Python 2.3 to 2.4, and use os.urandom...
 * Look into FSP - http://cvs.sourceforge.net/viewcvs.py/fsp/fsp/INFO?view=auto
   it is slower than TCP, but can adapt very quickly to changing conditions
   see also: http://fsp.sourceforge.net/faq/index.html . its based on UDP, may
   be usable for a control algorithm. Also reinstate TFTP mode.
-**** Work on modtor.py, and have a flag for secure/insecure transports,
-     and if insecure, automatically enable crypt_req if crypto enabled, other-
-     wise can rely on transport to provide the transport security, but always
-     enable crypt_data if user wants crypto. 
 * Pcap: find out if interface is down. If not, refuse to use it.
 * Auto-configure many options:
  - If only one network interface up, use it (for 'interface')
@@ -23,8 +19,12 @@ $Id$
  - Use the MTU of the interface, or guess it based on datalink  
  - For "pcap" dchanmode, use the MAC of the interface for src_mac
  WMI can handle this on Win32, but currently commented out. TODO: look at it
+DONE * Work on modtor.py, and have a flag for secure/insecure transports,
+     and if insecure, automatically enable crypt_req if crypto enabled, other-
+     wise can rely on transport to provide the transport security, but always
+     enable crypt_data if user wants crypto. 
 * Find out why I have config.html,faq.html in . and doc/, & whats better
-  DONE with faq.html, but still need to merge config.html.
+  DONE with faq.html and config.html.
 * DONE--modtor Investigate tor (tor.eff.org) for a transport
 * Investigate AIM over HTTP proxy
 * Use LibTomCrypt for everything after wrapping it for Python
