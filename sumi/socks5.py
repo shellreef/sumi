@@ -30,11 +30,16 @@ ATYP_IPV6            = 0x04
 
 supported_methods = [METHOD_NO_AUTH]
 
-class Error(object):
-    def __init__(self, msg):
+class Error(Exception):
+    def __init__(self, msg, original_exception=None):
         self.msg = msg
+        self.original_exception = original_exception
+    
     def __str__(self):
-        return msg
+        return self.msg
+
+    def get_original_exception(self):
+        return self.original_exception
 
 def setup(socks_host, socks_port=1080):
     """Connects to given SOCKS proxy and negotiates authentication."""
@@ -42,7 +47,7 @@ def setup(socks_host, socks_port=1080):
     try:
         s.connect((socks_host, socks_port))
     except socket.error, e:
-        raise Error("couldn't connect to SOCKS: %s" % e)
+        raise Error("couldn't connect to SOCKS: %s" % e, e)
     
     negotiate(s)
 
@@ -67,8 +72,11 @@ def negotiate(s):
     # | 1  |   1    |
     # +----+--------+
     response = s.recv(2)
-    assert len(response) == 2, "invalid response from server: %s" % response
-    assert response[0] == chr(SOCKS_VER), "unrecognized server version"
+    if len(response) != 2:
+        raise Error("Unrecognized response from proxy: %s" % response)
+    if ord(response[0]) != SOCKS_VER:
+        raise Error("Proxy is using SOCKS%s, not SOCKS%s" 
+                % (ord(response[0]), SOCKS_VER))
 
     server_methods = map(ord, list(response[1:]))
     if METHOD_NO_ACCEPTABLE in server_methods:
@@ -91,7 +99,8 @@ def request(s, cmd, hostname, port):
 
     resp = s.recv(4)
     ver, rep, rsv, atyp = struct.unpack("!BBBB", resp)
-    assert ver == SOCKS_VER, "invalid version from server"
+    if ver != SOCKS_VER:
+        raise Error("Invalid version from server: %s != %s" % (ver, SOCKS_VER))
 
     if atyp == ATYP_IPV4:
         address = ".".join(map(str, struct.unpack("!BBBB", s.recv(4))))
@@ -101,7 +110,7 @@ def request(s, cmd, hostname, port):
     elif atyp == ATYP_IPV6:
         address = s.recv(16).encode("hex")  # could use some colons...
     else:
-        assert False, "unknown address type: %s" % atyp
+        raise Error("Unknown address type: %s" % atyp)
 
     port, = struct.unpack("!H", s.recv(2))
 
@@ -117,8 +126,11 @@ def connect_via(address, proxy=None, s=None):
     hostname, port = address
 
     if proxy:
-        s = socket.socket()
-        s.connect(proxy)
+        try:
+            s = socket.socket()
+            s.connect(proxy)
+        except socket.error, e:
+            raise Error(("connect_via proxy error: %s" % e), e)
 
     negotiate(s)
 
