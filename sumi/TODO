@@ -1,6 +1,12 @@
 TO DO
 $Id$
 
+* Files don't resume correctly if start transfer, stop it, then resume it
+  while the server is still sending (hasn't found out client died yet); server
+  tries multicast--reusing the existing transfer, but causes corruption. As
+  a workaround for now, wait until client stops previous transfer before
+  resuming--it works fine then, as far as I can tell.
+* Make sure files transfer correctly!
 * Fix bug, evident with modtor, where multicast is erroneously detected,
   causing transfer to freeze on "Authenticating" after requests from clients
   to the same address, but with different nicks (always different in modtor!)

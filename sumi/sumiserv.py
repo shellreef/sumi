@@ -301,7 +301,8 @@ def handle_request(u, msg):
         cs = casts[u["addr"]]
         found = False
         for c in cs:
-            if clients.has_key(c) and clients[c].get("authenticated") == 2:
+            if (clients.has_key(c) and clients[c].get("authenticated") == 2
+                    and not clients.has_key("xfer_stop")):
                 u["prefix"] = clients[c]["prefix"]
                 found = True
                 break
@@ -543,8 +544,9 @@ def handle_auth(u, msg):
     # again) if the prefix conflicts. This way the server can assign 
     # multiple clients the same prefix, and they all can get it!
     if u["mcast"]:
-        log("Since multicast, not starting another transfer")
-        return
+        #log("Since multicast, not starting another transfer")
+        log("Detected multicast, but starting new transfer regardless.")
+        #return
     else:
         log("Unicast - starting transfer")
 
@@ -840,7 +842,6 @@ def xfer_thread(u):
         if u["seqno"]:
             blocklen = datapkt(u, u["seqno"])
 
-        d = time.time() - u["ack_ts"]
 
         # * If peer doesn't send NAK within 2*RWINSZ, pause transfer (allocate_lock?)
         # * If above, and peer sends a NAK again, release the lock allowing to resume
@@ -853,12 +854,26 @@ def xfer_thread(u):
         #           (u["nick"], int(d), float(u["rwinsz"] * 2)))
         #     u["xfer_lock"].acquire()
 
-        # If haven't received ack from user since RWINSZ*5, stop.
-        if float(d) >= float(u["rwinsz"] * 5):
-            #u["xfer_lock"].acquire() 
-            log("Since we haven't heard from %s in %f (> %d), stopping" %  
-                (u["nick"], int(d), float(u["rwinsz"] * 5)))
-            u["xfer_stop"] = 1
+        # If haven't received ack from *all* users since RWINSZ*5, stop.
+        stop = True
+        for w_nick in casts[u["addr"]]:
+            w = clients[w_nick]
+            d = time.time() - w["ack_ts"]
+            if float(d) >= float(w["rwinsz"] * 5):
+                log("Haven't heard from %s in %f (> %d)" %  
+                    (w["nick"], int(d), float(w["rwinsz"] * 5)))
+            else:
+                stop = False
+                break
+
+        if stop:
+            log("Since no response from any users of cast %s, stopping"
+                    % casts[u["addr"]])
+            for w_nick in casts[u["addr"]]:
+                w = clients[w_nick]
+                #w["xfer_lock"].acquire() 
+                w["xfer_stop"] = 1
+            del casts[u["addr"]]
 
         # If transfer lock is locked (pause), then wait until unpaused
         #  might be better for us to stop transfer in 2*RWINSZ, but be polite
@@ -975,6 +990,7 @@ def transfer_control(u, msg):
         handle_nak(u, msg)
     elif msg[0] == "!":        # abort transfer
         log("Aborting transfer to %s" % u["nick"])
+        u["xfer_stop"] = 1
         destroy_client(u)
 
 def datapkt(u, seqno, is_resend=False):
@@ -1054,6 +1070,8 @@ def datapkt(u, seqno, is_resend=False):
         fatal(6, "internal: trying to send packet >MSS+HDR, should not happen")
 
     u["send"](u["src_gen"](), u["dst_gen"](), pkt)
+
+    u["data_ts"] = time.time()
 
     time.sleep(u["delay"])
 

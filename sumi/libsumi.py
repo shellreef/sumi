@@ -10,6 +10,7 @@ import sys
 import struct 
 import base64
 import sha
+import types
 from itertools import izip, chain
 
 SUMIHDRSZ = 6#bytes
@@ -219,6 +220,7 @@ def pack_range(a):
         
         pack_range([1,2,3,4,5,7,10,12,13,14) => "1-5,7,10,12-14"
     """
+    assert type(a) == types.ListType, "pack_range: %s not a list" % type(a)
     if len(a) == 0: return ""
     s = str(a[0])
     run = False

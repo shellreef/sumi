@@ -145,14 +145,14 @@ class Client(object):
         u["at"] = int(lostdata.pop())
 
         log("RESUMING AT %s" % u["at"])
-        log("IS_RESUMING: LOST: %s" % lostdata)
+        log("IS_RESUMING: LOST: %s" % pack_range(map(int, lostdata)))
         u["lost"] = {}
         for x in lostdata:
             try:
                 u["lost"][int(x)] = 1
             except ValueError:
                 pass    # don't add non-ints
-        log("LOADED LOSTS: %s" % u["lost"])
+        log("LOADED LOSTS: %s" % pack_range(u["lost"].keys()))
 
         # Initialize the rwin with empty hashes, mark off missings
         u["rwin"] = {}
@@ -479,9 +479,11 @@ class Client(object):
                     #print "ITS THERE!"
                     break  # this one wasn't lost, so already checked
 
-            if u["mcast"]:
-                log("using mcast, so not re-requesting these lost pkts")
-                # we'll get these packets next time around 
+            # Re-request packets even if using multicast
+            #if u["mcast"]:
+            #    log("using mcast, so not re-requesting these lost pkts")
+            #    # we'll get these packets next time around 
+
             if u.get("lost", {}).has_key(seqno):
                 u["lost"].pop(seqno)
                 log("Recovered packet %s %s" % (seqno, len(u["lost"])))
@@ -549,25 +551,26 @@ class Client(object):
         try:
             while 1:
                 time.sleep(self.rwinsz)
+                log("!! Calling timer")
                 self.on_timer()
-        except:
-            log("thread_timer exception: %s %s line=%s file=%s" 
-                    % (sys.exc_info(), sys.exc_info()[1].args, 
-                       sys.exc_info()[2].tb_lineno,
-                       sys.exc_info()[1].filename))
+        except None: #Exception, x:
+            log("thread_timer exception: %s" % x)
 
     def on_timer(self):
         """Acknowledge to all senders and update bytes/second."""
         tmp_senders = self.senders.copy()
         for x in tmp_senders:
             u = self.senders[x]
+            log("on_timer = %s" % x)
            
             # If aborted or haven't got first packet, don't ack
             if u.get("aborted") or not u.get("got_first"):
+                log("Skipping u since aborted/not first")
                 continue
 
             if not u.has_key("lost"):  # not xfering yet
                 u["retries"] = 0   # initialize
+                log("Skipping u since no lost")
                 continue
 
             # Update rate display
@@ -599,11 +602,10 @@ class Client(object):
             try:
                 # Some missing packets, finish it up
     
-                if len(u.get("lost", {})) > 100:
-                    log(u["lost"])
-                    log("Excessive amount of packet loss!")
-                    log("could be a programming error. quitting")
-                    raise SystemExit
+                if len(pack_range(u.get("lost", {}).keys())) > 100:
+                    log(pack_range(u["lost"].keys()))
+                    log("WARNING: Excessive amount of packet loss!")
+                    #raise SystemExit
 
                 # Join by commas, only lost packets after start_seqno
                 alost = u.get("lost", {}).keys()
@@ -613,9 +615,12 @@ class Client(object):
                 else:
                     log("WARNING: NO START_SEQO SET!")
                     ss = 0
+
+                # Previously, stopped re-requesting packets below start_seqno,
+                # but not anymore...
                 # NOTE: _y isn't localized here! Don't use x!
                 # won't request any lost packets with seqno's below start_seqno
-                alost = [ _y for _y in alost if _y >= ss ]
+                #alost = [ _y for _y in alost if _y >= ss ]
 
                 log("ALOST2 (ss=%s): %s" % (ss, len(alost)))
                 #lost = ",".join(map(str, alost))
@@ -639,7 +644,7 @@ class Client(object):
                 self.rwinsz_old = self.rwinsz# TODO: update if changes..but need
                                           # to give the win on first(right)
 
-            except KeyError:   # sender ceased existance
+            except None:   # sender ceased existance
                 pass
         return None
 
