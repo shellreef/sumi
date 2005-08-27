@@ -21,7 +21,7 @@
 # Note that SUMI downloaders are not anonymous, only uploaders. Uploading is
 # usually the dodgey activity. Canada has ruled downloading legal:
 #  http://news.zdnet.co.uk/business/legal/0,39020651,39118537,00.htm
-        # TODO: Make myport configurable, attempt to read myip from the  
+        # TODO: Attempt to read myip from the  
         #  network interfaces. Local IPs are bad, as they indicate they will  
         #  be translated by a NAT most likely, so warn and offer to use real IP
         #  but with EXTREME CAUTION.  
@@ -33,6 +33,8 @@
 #"myip": "4.34.151.113", 
 #"myip": "10.0.0.7",
 "myip": "",     # = get default IP
+
+# Port to listen on for receiving data. 53 might work well behind a firewall.
 "myport": 3490,
 
 # Your network medium's Maximum Tranmission Unit. Set this as high as you can
