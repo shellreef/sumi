@@ -710,6 +710,31 @@ class TransferPanel(wx.Panel, ColumnSorterMixin):
         print "OnDoubleClick item %s\n" % self.list.GetItemText(self.currentItem)
         #self.list.InsertImageStringItem(0, "hi", self.sm_dn)
         event.Skip()
+    
+    def OnResume(self, event): 
+        #self.app.client.resume...
+        #print "TODO: Resume",self.currentItem
+        #thread.start_new_thread(wrap_thread, 
+        #        (self.app.ReqThread, [sys.argv[1:]]))
+
+        index = self.list.GetFirstSelected()
+        while index != -1:
+            print "      %s: %s\n" % (self.list.GetItemText(index),
+                    self.getColumnText(index, COL_PEER))
+
+            snick = self.getColumnText(index, COL_PEER)
+
+            u = self.app.client.senders[snick]
+            transport, filename = u["transport"], u["filename"]
+            thread.start_new_thread(wrap_thread,
+                    (self.app.client.request, [[transport, snick, filename]]))
+
+            index = self.list.GetNextSelected(index)
+    
+    def OnRename(self, event):
+        self.list.EditLabel(self.currentItem)
+        print "TODO: Rename file"
+
 
     # Right-click item context menu, transfer-specific functions
     def OnRightClick(self, event):
@@ -781,16 +806,6 @@ class TransferPanel(wx.Panel, ColumnSorterMixin):
             self.app.client.abort(self.app.client.senders[snick])
             index = self.list.GetNextSelected(index)
     
-    def OnResume(self, event): 
-        #self.app.client.resume...
-        print "TODO: Resume",self.currentItem
-        thread.start_new_thread(wrap_thread, 
-                (self.app.ReqThread, [sys.argv[1:]]))
-
-    def OnRename(self, event):
-        self.list.EditLabel(self.currentItem)
-        print "TODO: Rename file"
-
     # Examples
     def OnPopupOne(self, event):
         print "Popup one\n"
@@ -969,7 +984,6 @@ class SUMIApp(wx.App):
         """Thread that handles a request."""
         
         self.client.set_callback(self.Callback)
-
         self.client.request(args)
 
         # End of thread
