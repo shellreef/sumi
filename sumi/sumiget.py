@@ -108,10 +108,21 @@ class Client(object):
         fs.truncate()    # Clear
         fs.flush()
         if not finished:
-            # .sumi file format: lostpkt1,lostpkt2,...,lostpktn,current_pkt
-            lost = ",".join(map(str, u.get("lost", {}).keys()))
-            lost += "," + str(u["at"])   # last is at, cur/last
-            fs.write(lost)   # Overwrite with new lostdata
+            #(old) .sumi file format: lostpkt1,lostpkt2,...,lostpktn,current_pkt
+            #lost = ",".join(map(str, u.get("lost", {}).keys()))
+            #lost += "," + str(u["at"])   # last is at, cur/last
+
+            # Overwrite with new lostdata
+            d = {}
+            d["lost"] = pack_range(u.get("lost", {}).keys())
+            d["at"] = str(u["at"])
+
+            # For torrent-like invoking
+            d["transport"] = u["transport"]
+            d["nick"] = u["nick"]
+            d["filename"] = u["filename"] 
+
+            fs.write(pack_dict(d))
             fs.flush()
             #print "WROTE LOST: ",lost
         else:    # NOT REACHED
@@ -139,18 +150,34 @@ class Client(object):
 
         #print "Incoming:",len(data),"bytes from",addr,"=",u["nick"]," #",seqno
 
-    def setup_resuming(self, u, lostdata):
-        """Setup data structures to resume a file."""
+    def load_transfer(self, filename):
+        """Load a .sumi file, returning (transport, nick, filename)."""
+        print "TODO: load_transfer from %s" % filename
 
-        u["at"] = int(lostdata.pop())
+        raw = file(filename, "rU").read()
+        if len(raw) == 0: 
+            return None
+
+        d = unpack_dict(raw)
+       
+        return (d["transport"], d["nick"], d["filename"])
+
+    def setup_resuming(self, u, lostdata, at):
+        """Setup data structures to resume a file.
+
+        lostdata is a packed range string of missing packets.
+        at is a string of the position to resume at in decimal."""
+
+        u["at"] = int(at)
 
         log("RESUMING AT %s" % u["at"])
-        log("IS_RESUMING: LOST: %s" % pack_range(map(int, lostdata)))
+        log("IS_RESUMING: LOST: %s" % lostdata)#pack_range(map(int, lostdata)))
         u["lost"] = {}
-        for x in lostdata:
+        for x in unpack_range(lostdata):
             try:
                 u["lost"][int(x)] = 1
-            except ValueError:
+            except None:#ValueError:
+                log("setup_resuming: ValueError: %s" % x)
                 pass    # don't add non-ints
         log("LOADED LOSTS: %s" % pack_range(u["lost"].keys()))
 
@@ -223,25 +250,31 @@ class Client(object):
             is_resuming = 0   # empty resume file, new download
 
         # Lost data format: lostpkt1,lostpkt2,...,current_pkt
-        lostdata = None
+        lostdata = ""
 
         # Check if the data file exists, and if so, resume off it
         if os.access(fn, os.R_OK):
             # The data file is readable, read lost data 
-            lostdata = u["fs"].read().split(",")
+            #lostdata = u["fs"].read().split(",")
+            d = unpack_dict(u["fs"].read())
+            if not d.has_key("lost") and not d.has_key("at"):
+                is_resuming = 0
+                log("Since no lost+at key, not resuming")
+            else:
+                lostdata = d["lost"]
+                at = d["at"]
+                is_resuming = 1
         else: 
             is_resuming = 0     # Can't read data file, so can't resume
 
         # Need at least an offset to resume...
-        if len(lostdata) <= 1: 
-            is_resuming = 0
         log("LEN LOSTDATA=%s" % len(lostdata))#,"and lostdata=",lostdata
 
         #is_resuming=0#FORCE
 
         # Setup lost packets
         if is_resuming:   # this works
-            self.setup_resuming(u, lostdata)
+            self.setup_resuming(u, lostdata, at)
         else:
             self.setup_non_resuming(u)
 
@@ -330,7 +363,7 @@ class Client(object):
             log("Downgrading MSS %s->%s" % (self.mss, new_mss))
 
             # If using crypto, MSS normally rounded to block size
-            if u["crypt_data"]: 
+            if not u["crypt_data"]: 
                 log("If this happens consistently, considering lowering MTU.")
 
             self.mss = new_mss
@@ -551,7 +584,7 @@ class Client(object):
         try:
             while 1:
                 time.sleep(self.rwinsz)
-                log("!! Calling timer")
+                #log("!! Calling timer")
                 self.on_timer()
         except None: #Exception, x:
             log("thread_timer exception: %s" % x)
@@ -561,16 +594,16 @@ class Client(object):
         tmp_senders = self.senders.copy()
         for x in tmp_senders:
             u = self.senders[x]
-            log("on_timer = %s" % x)
+            #log("on_timer = %s" % x)
            
             # If aborted or haven't got first packet, don't ack
             if u.get("aborted") or not u.get("got_first"):
-                log("Skipping u since aborted/not first")
+                #log("Skipping u since aborted/not first")
                 continue
 
             if not u.has_key("lost"):  # not xfering yet
                 u["retries"] = 0   # initialize
-                log("Skipping u since no lost")
+                #log("Skipping u since no lost")
                 continue
 
             # Update rate display
@@ -780,7 +813,7 @@ class Client(object):
             args = line.split()
             if (args[0] == "/get"):
                 try:
-                    self.request(*args)
+                    self.request(args)
                 except IndexError:
                     log("Usage: sumiget <transport> <server_nick> <file>")
             else:
@@ -1111,6 +1144,9 @@ Tried to use a valid directory of %s but it couldn't be accessed."""
 
     def make_request(self, u, file):
         """Build a message to request file and generate a random prefix."""
+
+        assert isinstance(file, basestring), "%s isn't a string" % file
+
         prefix = random_bytes(3)
         u["prefix"] = prefix
 
@@ -1150,10 +1186,27 @@ Tried to use a valid directory of %s but it couldn't be accessed."""
         u["nick"] = nick
         return u
 
-    def request(self, transport, nick, file):
-        """Request a file from a server.
-        
-        Return whether succeeded, but also callsback if fails."""
+    def request(self, args):
+        """Request a file from a server. args are
+        (.sumi filename) or (transport, nick, filename).
+
+        Returns nothing. Callback if fail."""
+
+        if len(args) == 1:
+            fn = args[0]
+            args = self.load_transfer(fn)
+            if not args:
+                log("Warning: %s could not be loaded" % fn)
+                # can't callback because don't have nick
+                #self.callback(nick, "bad_file", fn)
+                return
+
+        assert len(args) == 3, \
+                "Arguments needed: transport nick filename"
+
+        transport, nick, filename = args
+
+        self.callback(nick, "new_xfer", *args)
 
         # command line args are now the sole form of user input;
         self.callback(nick, "t_wait")   # transport waiting, see below
@@ -1165,7 +1218,7 @@ Tried to use a valid directory of %s but it couldn't be accessed."""
             log(self.senders)
             self.callback(nick, "1xferonly")
             #print "Senders: ", self.senders
-            return False
+            return
 
         self.senders[nick] = {}   # create
         u = self.senders[nick]
@@ -1174,7 +1227,9 @@ Tried to use a valid directory of %s but it couldn't be accessed."""
         # Setup transport system
         u["transport"] = transport
         if not self.load_transport(transport, u):
-            return False
+            # Callback within load_transport
+            return
+        u["filename"] = filename
 
         u["handshake_count"] = 0
         u["handshake_status"] = "Handshaking"
@@ -1183,15 +1238,15 @@ Tried to use a valid directory of %s but it couldn't be accessed."""
             if not "recvmsg" in u:
                 log("Sorry, this transport lacks a recvmsg, so "
                         "transport encryption is not available.")
-                sys.exit(-1)
-                return False
+                self.callback(nick, "t_no_recvmsg", transport) 
+                return
             # Store request since its sent in halves
-            u["request_clear"] = self.make_request(u, file)
+            u["request_clear"] = self.make_request(u, filename)
             self.setup_transport_crypto(u)
         else:
             # Even if crypt is enabled, with a secure transport don't encrypt
             # the request.
-            msg = self.make_request(u, file)
+            msg = self.make_request(u, filename)
             self.sendmsg(u, msg) 
 
         log("Sent")
@@ -1207,10 +1262,10 @@ Tried to use a valid directory of %s but it couldn't be accessed."""
 
         for x in range(maxwait, 0, -1):
             # If received fn in this time, then exists, so stop countdown
-            if not self.senders.has_key(u["nick"]):
-                return False    # some other error
+            #if not self.senders.has_key(u["nick"]):
+            #        return False    # some other error
             if u.has_key("fn"):
-                return True     # don't break - otherwise will timeout
+                return # don't break - otherwise will timeout
             u["handshake_count"] = x 
             self.callback(u["nick"], "req_count", x,
                     u["handshake_status"])
@@ -1219,7 +1274,7 @@ Tried to use a valid directory of %s but it couldn't be accessed."""
         self.callback(u["nick"], "timeout")
         self.clear_server(u)
         self.senders.pop(u["nick"])
-        return False
+        return 
 
     def set_callback(self, f):
         """Set callback to be used for handling notifications."""
@@ -1293,7 +1348,7 @@ Tried to use a valid directory of %s but it couldn't be accessed."""
 
         return True
 
-    def main(self, transport, nick, file):
+    def main(self, transport, nick, filename):
         """Text-mode client. There isn't much user-friendliness here--the
         callbacks simply dump the passed arguments to stdout. There used to
         be an interactive interface, cli_user_input, but it is no longer
@@ -1303,10 +1358,10 @@ Tried to use a valid directory of %s but it couldn't be accessed."""
 
         self.validate_config()
         #thread.start_new_thread(self.thread_timer, ())
-        #thread.start_new_thread(self.request, (transport, nick, file))
+        #thread.start_new_thread(self.request, (transport, nick, filename))
         thread.start_new_thread(self.wrap_thread, (self.thread_timer, ()))
         thread.start_new_thread(self.wrap_thread, (self.request, 
-            (transport, nick, file)))
+            (transport, nick, filename)))
 
         # This thread will release() input_lock, letting thread_request to go
         #transport_init()
@@ -1352,10 +1407,10 @@ def on_sigusr1(signo, intsf):
     (transport, nick, filename) = open(base_path + "run", 
         "rb").readline().split("\t")
     log("-> %s %s %s " % (transport,nick,filename))
-    #Client().main(transport, nick, file)
+    #Client().main(transport, nick, filename)
     # TODO: it needs to be possible to run multiple xfers per program, fix it
-    #client.main(transport, nick, file)   # Runs servers twice (init_t + udp)
-    #client.request(nick, file)    # Interrupted system call recvfrom(65535)
+    #client.main(transport, nick, filename) # Runs servers twice (init_t + udp)
+    #client.request(nick, filename)  # Interrupted system call recvfrom(65535)
     #sys.exit(0)
 
 # CLI uses this on-exit
@@ -1376,13 +1431,6 @@ def pre_main(invoke_req_handler):
     # Called by GUI on exit instead
     signal.signal(signal.SIGINT, on_exit)
 
-    if len(sys.argv) >= 3:
-        transport = sys.argv[1] 
-        nick, filename = sys.argv[2], sys.argv[3]
-    else:
-        log("Usage: sumiget <transport> <nick> <filename>")
-        sys.exit(-1)
-
     # 0=seperate program per transfer, 1=all in one (current)
     # =1 works in Unix using signals, but have to resize the frame.
     multiple_instances = 1
@@ -1393,8 +1441,7 @@ def pre_main(invoke_req_handler):
         # So signal it, pass control onto - it does work, not us
         master = open(base_path+"sumiget.pid","rb").read()
         if (len(master) != 0):   # If empty, be master
-            open(base_path + "run", "wb").write("%s\t%s\t%s" % 
-                (transport, nick, filename))
+            open(base_path + "run", "wb").write("\t".join(sys.argv[1:]))
             my_master = int(master)
             log("Passing to: %s" % my_master)
             failed = 0 
@@ -1424,9 +1471,8 @@ def pre_main(invoke_req_handler):
 if __name__ == "__main__":
     pre_main(on_sigusr1)
 
-    transport, nick, filename = sys.argv[1], sys.argv[2], sys.argv[3]
-
-    log("Getting <%s> from <%s> using <%s>..." % (filename, nick, transport))
+    if len(sys.argv) == 4:
+        log("Getting <%s> from <%s> using <%s>..." % (sys.argv[1:]))
 
     try:
         client = Client()

@@ -784,8 +784,8 @@ class TransferPanel(wx.Panel, ColumnSorterMixin):
     def OnResume(self, event): 
         #self.app.client.resume...
         print "TODO: Resume",self.currentItem
-        thread.start_new_thread(wrap_thread, (self.app.ReqThread, (sys.argv[1],
-            sys.argv[2], sys.argv[3])))
+        thread.start_new_thread(wrap_thread, 
+                (self.app.ReqThread, [sys.argv[1:]]))
 
     def OnRename(self, event):
         self.list.EditLabel(self.currentItem)
@@ -830,7 +830,7 @@ class SUMIApp(wx.App):
 
         self.client = sumiget.Client()
         
-        if len(sys.argv) < 4:
+        if len(sys.argv) == 1:
             usage = ("Usage: %s transport nick fn" % sys.argv[0] +
 "\n\nIf you are running this program manually, consider using one of the " +
 "client-side scripts in client-side/ to run SUMI.")
@@ -899,8 +899,8 @@ class SUMIApp(wx.App):
         thread.start_new_thread(wrap_thread, (self.client.recv_packets, ()))
    
         print "Sys args=", sys.argv 
-        thread.start_new_thread(wrap_thread, (self.ReqThread, (sys.argv[1],
-            sys.argv[2], sys.argv[3])))
+        thread.start_new_thread(wrap_thread, 
+                (self.ReqThread, [sys.argv[1:]]))
 
         # For IPC
         # As of 20040712, this is no longer needed! Uses sockets.
@@ -946,7 +946,7 @@ class SUMIApp(wx.App):
             # This means we're already running. Send command to ourself.
             print "Sending command to existing instance"
             ss.connect((REQHOST, REQPORT))
-            ss.send(sys.argv[1] + "\t" + sys.argv[2] + "\t" + sys.argv[3])
+            ss.send("\t".join(sys.argv[1:]))
             ss.close()
             sys.exit(0)
             # If this code is ran (above) but another instance is not
@@ -965,36 +965,12 @@ class SUMIApp(wx.App):
             thread.start_new_thread(wrap_thread, (self.ReqThread,
                 (transport, nick, fn)))
 
-    def ReqThread(self, transport, nick, filename):
+    def ReqThread(self, args):
         """Thread that handles a request."""
-        global nick2index, last_index
-
+        
         self.client.set_callback(self.Callback)
 
-        # nick2index associates the nickname with the location in the listbox
-        # TODO: Use transfer key instead, as its unique. Then might be able to
-        # do multiple transfers per nick
-        if nick2index.has_key(nick):
-            index = nick2index[nick]
-            if self.nb.xfpanel.getColumnText(index, COL_STATUS) == 'Transferring...':
-                print "ERROR: In-progress transfer from",nick,"at",index,"already"
-                print "Currently you can only have one transfer per user, sorry"
-                return 
-        else:
-            nick2index[nick] = last_index
-            index = nick2index[nick]
-            last_index += 1
-
-        print "Inserting at index",index
-        self.nb.xfpanel.list.InsertImageStringItem(index, nick, self.nb.xfpanel.sm_dn)
-        self.nb.xfpanel.itemDataMap[index] = [0] * (COL_LAST + 1)
-        self.SetInfo(nick, COL_FILENAME, filename)
-        self.SetInfo(nick, COL_PEER, nick)
-        self.SetInfo(nick, COL_STATUS, "Requesting")
-        #self.SizeCols()
-        # Will return -1 if fails immediately, 0 if success. But we also
-        # get callback messages, so set the error status there.
-        self.client.request(transport, nick, filename)
+        self.client.request(args)
 
         # End of thread
 
@@ -1024,19 +1000,52 @@ class SUMIApp(wx.App):
         # multiple transfers with same users is not yet supported. Could the
         # prefix be used to identify the columns instead? As of now, multiple
         # entries with same nick will always refer to the first with that nick.
-        if (cmd == "t_wait"):   # waiting for transport
+        if (cmd == "new_xfer"):
+            global nick2index, last_index
+            transport, nick, filename = args
+
+            # nick2index associates the nickname with the location in the listbox
+            # TODO: Use transfer key instead, as its unique. Then might be able to
+            # do multiple transfers per nick
+            if nick2index.has_key(nick):
+                index = nick2index[nick]
+                if self.nb.xfpanel.getColumnText(index, COL_STATUS) == 'Transferring...':
+                    print "ERROR: In-progress transfer from",nick,"at",index,"already"
+                    print "Currently you can only have one transfer per user, sorry"
+                    return 
+            else:
+                nick2index[nick] = last_index
+                index = nick2index[nick]
+                last_index += 1
+
+            print "Inserting at index",index
+            self.nb.xfpanel.list.InsertImageStringItem(index, nick, self.nb.xfpanel.sm_dn)
+            self.nb.xfpanel.itemDataMap[index] = [0] * (COL_LAST + 1)
+            self.SetInfo(nick, COL_FILENAME, filename)
+            self.SetInfo(nick, COL_PEER, nick)
+            self.SetInfo(nick, COL_STATUS, "Requesting")
+            #self.SizeCols()
+        elif (cmd == "t_wait"):   # waiting for transport
             self.SetInfo(nick, COL_STATUS, "Transport loading")
         elif (cmd == "1xferonly"):  # transfer already in progress
             self.SetInfo(nick, COL_STATUS, "Another transfer in progress")
             self.SetColor(nick, wx.RED)  # Maybe queue it instead?
+        elif (cmd == "bad_file"): 
+            self.SetInfo(nick, COL_STATUS, "Couldn't resume from %s" %
+                    args[0])
+            self.SetColor(nick, wx.RED)
         elif (cmd == "t_import_fail"): # transport failed to load
             self.SetInfo(nick, COL_STATUS, "Bad transport: %s" % args[0])
             self.SetColor(nick, wx.RED)
-        elif (cmd == "t_user_fail"): 
-            self.SetInfo(nick, COL_STATUS, "User failure: %s" % args[0])
+        elif (cmd == "t_no_recvmsg"):
+            self.SetInfo(nick, COL_STATUS, 
+                "Can't use %s w/ crypt_req (no recvmsg)" % args[0])
             self.SetColor(nick, wx.RED)
         elif (cmd == "t_user"):
             self.SetInfo(nick, COL_STATUS, "Connecting...")
+        elif (cmd == "t_user_fail"): 
+            self.SetInfo(nick, COL_STATUS, "User failure: %s" % args[0])
+            self.SetColor(nick, wx.RED)
         elif (cmd == "error"):
             self.SetInfo(nick, COL_STATUS, "Error: %s" % args[0])
             self.SetColor(nick, wx.RED)
@@ -1146,6 +1155,7 @@ class SUMIApp(wx.App):
 
 def wrap_thread(f, args):
     try:
+        print "Calling %s(%s)" % (f, args)
         f(*args)
     except None: #Exception, x:
         print "(thread) Exception: %s at %s" % (x,
@@ -1153,7 +1163,7 @@ def wrap_thread(f, args):
         raise x
 
 
-def main(argv):
+def main():
     print "Loading app..."
     app = SUMIApp()
     print "Running main loop"
@@ -1245,9 +1255,8 @@ def getSmallDnArrowImage():
     return wx.ImageFromStream(stream)
 
 
-
 if __name__ == "__main__":
-    main(sys.argv)
+    main()
 
 
 

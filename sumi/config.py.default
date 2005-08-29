@@ -8,7 +8,8 @@
 # Copy this to config.py if you wish to restore defaults
 # Comments here are okay because, unlike config.py, its never overwritten
 
-# See also config.html
+
+# NOTE: Config files are subject to breakage between versions.
 
 {
 # Where to save downloaded files - must end in a / (or \ for win32)

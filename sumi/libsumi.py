@@ -540,4 +540,19 @@ def mss2mtu(mss, dchantype):
         return mss + IPHDRSZ + ICMPHDRSZ
     raise Exception("mss2mtu: invalid dchantype: %s" % dchantype)
 
+def pack_dict(d):
+    """Convert a dictionary of ASCII strings to a single string."""
+    s = ""
+    for k in d:
+        s += "%s=%s\n" % (k, d[k])
+    return s
+
+def unpack_dict(s):
+    d = {}
+    for item in s.split("\n"):
+        if not "=" in item:
+            continue
+        k, v = item.split("=")
+        d[k] = v
+    return d
 
