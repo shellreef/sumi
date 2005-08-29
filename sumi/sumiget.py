@@ -8,6 +8,24 @@
 # SUMI downloader, invoke: sumiget.py <transport> <server> <filename>
 # See also: sumigetw.py
 
+# Copyright (C) 2003-2005  Jeff Connelly <jeffconnelly@users.sourceforge.net>
+
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation; either version 2
+# of the License, or (at your option) any later version.
+# 
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+# 
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, 
+# USA, or online at http://www.gnu.org/copyleft/gpl.txt .
+
+
 import thread
 import binascii
 import base64
@@ -37,6 +55,12 @@ input_lock = thread.allocate_lock()
 #transport = "python -u transport/sumi-irc.py"
 #global transport   
 #transport = "mirc"
+
+log("SUMI Client %s, Copyright (C) 2003-2005 Jeff Connelly" % SUMI_VER)
+log("SUMI comes with ABSOLUTELY NO WARRANTY; for details see LICENSE")
+log("This is free software, and you are welcome to redistribute it")
+log("under certain conditions; see LICENSE for details.")
+log("")
 
 base_path = os.path.abspath(os.path.dirname(sys.argv[0])) + os.sep
 config_file = base_path + "config.py"

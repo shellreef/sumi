@@ -21,6 +21,7 @@ Section "SUMI (required)"
  File "rawproxd"
  File "share\lptest"
  File "socks5.pyc"
+ File "LICENSE"
 
  ; This is for Windows uninstall
  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\SUMI" "DisplayName" "SUMI 0.8.12 beta"
