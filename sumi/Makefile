@@ -38,6 +38,9 @@ cfastxor::
 	gcc -c cfastxor.c cfastxor_wrap.c -I/usr/local/include/python2.3
 	ld -shared cfastxor.o cfastxor_wrap.o -o _cfastxor.so
 
+backup-cvs::
+	fetch http://cvs.sourceforge.net/cvstarballs/sumi-cvsroot.tar.bz2
+
 test::
 	python sumigetw.py tor 5mg27ujynvojkdpq.onion \#1
 
