@@ -8,7 +8,9 @@ vi: noexpandtab:
 	* GUI "Resume" works on multiple transfers at once
 	* Installer compressed with LZMA solid
 		Default compresion: 4493015, vs. LZMA solid: 3330921
-	  This is the smallest sumiinst of the 0.8 series
+	  Without WinPcap, it is the smallest sumiinst of the 0.8 series
+	* WinPcap 3.1 is now bundled with the installer
+	* Installer sets up file associations
 
 2005-08-25 Jeff Connelly <jeffconnelly@users.sourceforge.net>
 	* Fix abort, add GUI option to resume, and 'startfile' option

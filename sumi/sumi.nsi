@@ -3,6 +3,12 @@
 
 ; vim:tw=0:
 
+; SUMI Installer for Nullsoft Install System
+
+; Thanks to:
+;  Bram Cohen for bittorrent.nsi file association code
+;  Ulf Lamping for ethereal.nsi WinPcap install code
+
 ; Trying all the compression methods revealed this is the best
 SetCompressor /SOLID lzma
 
@@ -29,6 +35,7 @@ Section "SUMI (required)"
  File "rawproxd"
  File "share\lptest"
  File "socks5.pyc"
+ File "WinPcap_3_1.exe"
  File "LICENSE"
 
  ; This is for Windows uninstall
@@ -37,6 +44,16 @@ Section "SUMI (required)"
  WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\SUMI" "NoModify" 1
  WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\SUMI" "NoRepair" 1
  WriteUninstaller "uninstall.exe"
+SectionEnd
+
+Section "WinPcap"
+ ; Install WinPcap (mostly from ethereal.nsi)
+;lbl_winpcap_notinstalled:
+ SetOutPath $INSTDIR
+ File "WinPcap_3_1.exe"
+ ExecWait '"$INSTDIR\WinPcap_3_1.exe"' $0
+ DetailPrint "WinPcap installer returned $0"
+; SecRequired_skip_Winpcap:
 SectionEnd
 
 Var mirc_path
@@ -141,6 +158,19 @@ Section "Uninstall"
  Delete "$SMPROGRAMS\SUMI"
  Delete "$INSTDIR\*"
  RMDir /R "$INSTDIR"
+SectionEnd
+
+; From ethereal.nsi
+Section /o "Un.WinPcap" un.SecWinPcap
+ ;-------------------------------------------
+ SectionIn 2
+ ReadRegStr $1 HKEY_LOCAL_MACHINE "SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\WinPcapInst" "UninstallString"
+ ;IfErrors un.lbl_winpcap_notinstalled ;if RegKey is unavailable, WinPcap is not installed
+ ;MessageBox MB_OK "WinPcap $1"
+ ExecWait '$1' $0
+ DetailPrint "WinPcap uninstaller returned $0"
+ ;SetRebootFlag true
+ ;un.lbl_winpcap_notinstalled:
 SectionEnd
 
 
