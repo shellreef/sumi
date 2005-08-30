@@ -1,6 +1,11 @@
 ; Created:20040207
 ; By Jeff Connelly
 
+; vim:tw=0:
+
+; Trying all the compression methods revealed this is the best
+SetCompressor /SOLID lzma
+
 Name "SUMI"
 OutFile "sumiinst.exe"
 InstallDir "$PROGRAMFILES\SUMI"
@@ -24,7 +29,7 @@ Section "SUMI (required)"
  File "LICENSE"
 
  ; This is for Windows uninstall
- WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\SUMI" "DisplayName" "SUMI 0.8.12 beta"
+ WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\SUMI" "DisplayName" "SUMI 0.8.13 beta"
  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\SUMI" "UninstallString" '"$INSTDIR\uninstall.exe"'
  WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\SUMI" "NoModify" 1
  WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\SUMI" "NoRepair" 1

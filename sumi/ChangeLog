@@ -6,6 +6,8 @@ vi: noexpandtab:
 	* Add support for passing a .sumi filename to sumigetw
 	* New .sumi file format
 	* GUI "Resume" works on multiple transfers at once
+	* Installer compressed with LZMA solid
+		Default compresion: 4493015, vs. LZMA solid: 3330921
 
 2005-08-25 Jeff Connelly <jeffconnelly@users.sourceforge.net>
 	* Fix abort, add GUI option to resume, and 'startfile' option
