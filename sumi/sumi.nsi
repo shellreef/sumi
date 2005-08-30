@@ -14,6 +14,9 @@ Page components
 Page directory
 Page instfiles
 
+LicenseText "SUMI is distributed under the GNU General Public License."
+LicenseData "LICENSE"
+
 UninstPage uninstConfirm
 UninstPage instfiles
 
@@ -50,7 +53,7 @@ Section "mIRC Integration"
  IfFileExists $mirc_path mIRC_exists mIRC_gone
 
 mIRC_gone:
- MessageBox MB_OK "mIRC is not installed, this option requires mIRC."
+ MessageBox MB_OK "mIRC is not installed, not installing mIRC script."
  goto mIRC_end
 
 mIRC_exists:
@@ -107,20 +110,17 @@ install_it:
 mIRC_end:
 SectionEnd
 
-;Section "File association"
-; In future SUMI should be able to open .sumi or application/x-sumi's, which would have in them:
-; dchantype,
-; Use both MIME-type and extension:
-; (from bittorrent.nsi)
-; WriteRegStr HKCR .torrent "" bittorrent
-; WriteRegStr HKCR .torrent "Content Type" application/x-bittorrent
-; WriteRegStr HKCR "MIME\Database\Content Type\application/x-bittorrent" Extension .torrent
-; WriteRegStr HKCR bittorrent "" "TORRENT File"
-; WriteRegBin HKCR bittorrent EditFlags 00000100
-; WriteRegStr HKCR "bittorrent\shell" "" open
-; WriteRegStr HKCR "bittorrent\shell\open\command" "" `"$INSTDIR\btdownloadgui.exe" --responsefile "%1"`
-; WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\BitTorrent" "DisplayName" "BitTorrent 3.3"
-;  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\BitTorrent" "UninstallString" ;'"$INSTDIR\uninstall.exe"'
+Section "File association"
+; Use both MIME-type and extension: (based on bittorrent.nsi)
+WriteRegStr HKCR .sumi "" sumi.file
+WriteRegStr HKCR .sumi "Content Type" application/x-sumi
+WriteRegStr HKCR "MIME\Database\Content Type\application/x-sumi" Extension .sumi
+WriteRegStr HKCR sumi.file "" "SUMI Anonymous P2P"
+; Turn off prompting in Explorer & IE
+WriteRegBin HKCR sumi.file EditFlags 00000100
+WriteRegStr HKCR "sumi.file\shell" "" open
+WriteRegStr HKCR "sumi.file\shell\open\command" "" `"$INSTDIR\sumigetw.exe" "%1"`
+SectionEnd
 
 Section "Start Menu Shortcuts"
  CreateDirectory "$SMPROGRAMS\SUMI"
@@ -131,6 +131,10 @@ SectionEnd
 
 Section "Uninstall"
  DeleteRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\SUMI"
+
+ DeleteRegKey HKCR .sumi
+ DeleteRegKey HKCR "MIME\Database\Content Type\application/x-sumi"
+ DeleteRegKey HKCR sumi.file
 
  Delete "$SMPROGRAMS\SUMI\*"
  RMDir /R "$SMPROGRAMS\SUMI"
