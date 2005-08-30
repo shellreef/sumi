@@ -46,12 +46,13 @@ compile_transports()
 opts = {"py2exe": #{}
     # error: wpcap.dll: No such file or directory if WinPcap not installed
     {"dll_excludes": 
-        ["NPPTools.dll", "packet.dll", "wpcap.dll", "WanPacket.dll"]
+        ["NPPTools.dll", "packet.dll", "wpcap.dll", "WanPacket.dll"],
+      "excludes": ["pcapy"],
     }
 }
 
-setup(console=["sumiget.py"], options=opts)
-setup(windows=[
+setup(options=opts, console=["sumiget.py"])
+setup(options=opts, windows=[
 	{"script": "sumigetw.py",
 	"icon_resources": [(1, "sumi.ico")]}  # Icon from Keith Oakley 2004-08-11
 	], data_files=[
@@ -59,8 +60,7 @@ setup(windows=[
     ("client-side", without_cvs("client-side")),
     ("doc", without_cvs("doc")),
 	(".", ["sumi.ico"])])
-setup(console=["sumiserv.py"])
-
+setup(options=opts, console=["sumiserv.py"])
 
 # While it may seem like a good idea to include these WinPcap DLLs, it is not.
 # Instead, let the user install (the correct version) of WinPcap for their OS

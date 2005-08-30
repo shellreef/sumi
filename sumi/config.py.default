@@ -35,6 +35,9 @@
 #"myip": "10.0.0.7",
 "myip": "",     # = get default IP
 
+# Allow local IP addresses? ONLY ENABLE IF USING SUMI WITHIN A LAN!
+"allow_local": True,
+
 # Port to listen on for receiving data. 53 might work well behind a firewall.
 "myport": 3490,
 
