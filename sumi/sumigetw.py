@@ -864,18 +864,22 @@ class SUMIApp(wx.App):
         self.client = sumiget.Client()
         
         if len(sys.argv) == 1:
-            usage = ("Usage: %s transport nick fn" % sys.argv[0] +
-"\n\nIf you are running this program manually, consider using one of the " +
-"client-side scripts in client-side/ to run SUMI.")
+            usage = ("Welcome to SUMI. You can manually request a file by " +
+            "typing " + ("%s <transport> <nick> <filename> " % sys.argv[0]) +
+            "at the command line.\n\n" +
+            "An easier way to use SUMI is to open a .sumi file from the " +
+            "web, or install a script from the 'client-side' directory.\n\n" +
+            "For more information see http://sumi.sf.net/. SUMI will now " +
+            "close. Thank you for using SUMI!")
 
-            log(usage)
+            log("User doesn't know how to invoke program")
             
-            if self.client.config.get("allow_debug"):
+            if False and self.client.config.get("allow_debug"):
                 log("Using debug transport")
                 sys.argv = ['sumigetw', 'debug', 'no_user', 'no_file']
             else:
-                dlg = wx.MessageDialog(None, usage,
-                      "Invalid usage", wx.OK | wx.ICON_ERROR);
+                dlg = wx.MessageDialog(None, usage, "Welcome to SUMI",
+                    wx.OK | wx.ICON_INFORMATION)
                 dlg.ShowModal()
 
                 raise SystemExit
