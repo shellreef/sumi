@@ -1511,8 +1511,8 @@ def send_frame_ETHER(src_mac, dst_mac, payload, ethertype=0x0800): # IPv4
     
     import pcapy
     if not cfg.has_key("interface"):
-        log("The 'interface' configuration item is not set. ")
-        use_new_if() 
+        log"The 'interface' configuration item is not set. ")
+        use_new_if()
     p = pcapy.open_live(cfg["interface"], 1500, 1, 1)
 
     if not hasattr(p, "sendpacket"):
@@ -1554,7 +1554,7 @@ def ipmask2cidr(ip, mask):
     return "%s/%s" % (ip, leading_bits)
 
 def use_new_if():
-    """Use select_if() to allow choosing a new interface, then quit."""
+    """Use select_if() to select a new interface, then quit."""
     cfg["interface"], ip, mask, mtu_ignored = select_if()
 
     allow = ipmask2cidr(ip, mask)

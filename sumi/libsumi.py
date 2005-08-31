@@ -478,7 +478,7 @@ def datalink2mtu(d):
         }.get(d, 1500)
 
 def select_if():
-    """Display network interfaces, allow user to choose one.
+    """Display network interfaces, selecting the first one.
     
     Return (interface, ip, mask, mtu)."""
     import pcapy
@@ -512,20 +512,27 @@ def select_if():
                        "mtu": mtu, 
                        "dev": dev})
         i += 1
-    log("Please enter the number of an interface on the console")
-    log("or use Control-C on the console to exit.")
-    while True:
-        print "Which interface? "
-        try:
-            i = int(sys.stdin.readline().strip())
-        except:
-            print "Please enter an integer."
-            i = 0
-        if i < 0 or i > len(ifaces): continue
-        break
 
-    log("Selected interface #%s" % i)
-    interface = ifaces[i]["dev"]
+    # Removed the choice; doesn't work in GUI
+    #log("Please enter the number of an interface on the console")
+    #log("or use Control-C on the console to exit.")
+    #while True:
+    #    print "Which interface? "
+    #    try:
+    #        i = int(sys.stdin.readline().strip())
+    #    except:
+    #        print "Please enter an integer."
+    #        i = 0
+    #    if i < 0 or i > len(ifaces): continue
+    #    break
+    #
+    #log("Selected interface #%s" % i)
+    #interface = ifaces[i]["dev"]
+
+    assert len(ifaces) != 0, "No interfaces found!"
+
+    interface = ifaces[0]["dev"]
+
     log("Using interface %s" % interface)
 
     myip = ifaces[i]["ip"]
