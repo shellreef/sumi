@@ -176,10 +176,11 @@ class Client(object):
 
     def load_transfer(self, filename):
         """Load a .sumi file, returning (transport, nick, filename)."""
-        print "TODO: load_transfer from %s" % filename
+        log("Loading transfer from %s" % filename)
 
         raw = file(filename, "rU").read()
         if len(raw) == 0: 
+            log("%s couldn't be loaded, no data" % filename)
             return None
 
         d = unpack_dict(raw)
@@ -1217,8 +1218,11 @@ Tried to use a valid directory of %s but it couldn't be accessed."""
 
         Returns nothing. Callback if fail."""
 
+        assert type(args) == types.ListType, \
+                "request was passed %s, but isn't a list!" % str(args)
         if len(args) == 1:
             fn = args[0]
+            log("Loading from .sumi %s" % fn)
             args = self.load_transfer(fn)
             if not args:
                 log("Warning: %s could not be loaded" % fn)
@@ -1227,7 +1231,7 @@ Tried to use a valid directory of %s but it couldn't be accessed."""
                 return
 
         assert len(args) == 3, \
-                "Arguments needed: transport nick filename"
+                "Needed transport,nick,filename but got: %s" % str(args)
 
         transport, nick, filename = args
 

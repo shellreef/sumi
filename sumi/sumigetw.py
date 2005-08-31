@@ -90,7 +90,7 @@ class MainNotebook(wx.Notebook):
         self.nets = wx.Panel(self, -1)
         self.slog = SLogPanel(self, app)
         self.clog  = CLogPanel(self, app)
-        self.exit = wx.Panel(self, -1)
+        self.exit = ExitPanel(self, app)
         self.AddPage(self.xfpanel, "Transfers")
         self.AddPage(self.cfgc, "Client Setup")
         self.AddPage(self.clog,  "Client Log") 
@@ -134,10 +134,10 @@ class MainNotebook(wx.Notebook):
 
         # Use new instead of sel because on Win32, sel is 0 for the first
         # page change, but new is updated correctly
-        if (new == self.GetPageCount() - 1):  # Last page = Exit
-            self.app.OnCloseFrame()   # save win size
-            self.app.OnExit()
-            raise SystemExit
+        #if (new == self.GetPageCount() - 1):  # Last page = Exit
+        #    self.app.OnCloseFrame()   # save win size
+        #    self.app.OnExit()
+        #    raise SystemExit
 
         if old == 1:    # Client configuration tab, if change, validate
             if not self.ValidateConfig():
@@ -186,6 +186,16 @@ class CLogPanel(wx.Panel):
 
     def OnLogFull(self, event):
         self.textCtrl.Clear()
+
+class ExitPanel(wx.Panel):
+    """Panel to exit."""
+    def __init__(self, parent, app):
+        wx.Panel.__init__(self, parent, -1)
+
+        self.app = app
+
+        log("INIT EXITPANEL")
+
 
 class SLogPanel(wx.Panel):
     """Server log panel."""
@@ -846,8 +856,19 @@ class TransferPanel(wx.Panel, ColumnSorterMixin):
         w,h = self.GetClientSizeTuple()
         self.list.SetDimensions(0, 0, w, h)
 
-# SUMI application
+class DropTarget(wx.FileDropTarget):
+    """Target to notify SUMIApp when files are dropped."""
+    def __init__(self, app, drop):
+        wx.FileDropTarget.__init__(self)
+        self.app = app
+        self.drop = drop
+
+    def OnData(self, *args):
+        self.GetData()
+        self.app.OnDropFiles(self.drop.GetFilenames())
+
 class SUMIApp(wx.App):
+    """The SUMI GUI application."""
     def __init__(self):
         wx.App.__init__(self, 0)
 
@@ -881,6 +902,13 @@ class SUMIApp(wx.App):
         self.frame = wx.Frame(None, -1, "SUMI", pos=(50,50), 
                         style=wx.NO_FULL_REPAINT_ON_RESIZE |
                         wx.DEFAULT_FRAME_STYLE | wx.TAB_TRAVERSAL)
+
+        # Drag and drop -- eventually calls OnDropFiles here
+        drop = wx.FileDataObject()
+        self.drop_target = DropTarget(self, drop)
+        self.drop_target.SetDataObject(drop)
+        self.frame.SetDropTarget(self.drop_target)
+        self.frame.DragAcceptFiles(True)
 
         self.frame.icon = wx.Icon("sumi.ico", wx.BITMAP_TYPE_ICO)
         if self.frame.icon:
@@ -943,6 +971,7 @@ class SUMIApp(wx.App):
         
            This is used to allow one sumigetw instance to handle multiple
            requests, not serving."""
+
         ss = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
             ss.bind((REQHOST, REQPORT))
@@ -958,6 +987,7 @@ class SUMIApp(wx.App):
             # running, then REQPORT is in use by someone else. Change REQPORT.
         ss.listen(5)
         thread.start_new_thread(wrap_thread, (self.RecvReqThread, (ss,)))
+
 
     def RecvReqThread(self, ss):
         """Thread that receives socket connections in order to handle 
@@ -1163,6 +1193,13 @@ class SUMIApp(wx.App):
         self.client.config["winsize"] = self.frame.GetSizeTuple()
         if (evt != 0): evt.Skip()
 
+    def OnDropFiles(self, filenames):
+        #filenames = self.dropped_files.GetFilenames()
+        log("DROP: %s" % str(filenames))
+        for f in filenames:
+            thread.start_new_thread(wrap_thread, 
+                    (self.ReqThread, [[f]]))
+
 def wrap_thread(f, args):
     try:
         print "Calling %s(%s)" % (f, args)
@@ -1171,7 +1208,6 @@ def wrap_thread(f, args):
         print "(thread) Exception: %s at %s" % (x,
                 sys.exc_info()[2].tb_lineno)
         raise x
-
 
 def main():
     print "Loading app..."
