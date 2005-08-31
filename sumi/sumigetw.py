@@ -141,7 +141,8 @@ class MainNotebook(wx.Notebook):
 
         if old == 1:    # Client configuration tab, if change, validate
             if not self.ValidateConfig():
-                #event.Veto()  # causes all sorts of problems
+                # Used to cause problems, but doesn't seem to now
+                event.Veto()
                 pass
 
         event.Skip()   #  requires especially on Win32
@@ -730,11 +731,6 @@ class TransferPanel(wx.Panel, ColumnSorterMixin):
         event.Skip()
     
     def OnResume(self, event): 
-        #self.app.client.resume...
-        #print "TODO: Resume",self.currentItem
-        #thread.start_new_thread(wrap_thread, 
-        #        (self.app.ReqThread, [sys.argv[1:]]))
-
         index = self.list.GetFirstSelected()
         while index != -1:
             print "      %s: %s\n" % (self.list.GetItemText(index),
@@ -870,11 +866,9 @@ class SUMIApp(wx.App):
                     "SUMI will now close. Thank you for using SUMI!")
 
             log("User doesn't know how to invoke program")
-            
-            if False and self.client.config.get("allow_debug"):
-                log("Using debug transport")
-                sys.argv = ['sumigetw', 'debug', 'no_user', 'no_file']
-            else:
+           
+            # Useful for testing without a transfer
+            if not self.client.config.get("allow_no_req"):
                 dlg = wx.MessageDialog(None, usage, "Welcome to SUMI",
                     wx.OK | wx.ICON_INFORMATION)
                 dlg.ShowModal()
@@ -907,24 +901,6 @@ class SUMIApp(wx.App):
 
         wx.EVT_CLOSE(self.frame, self.OnCloseFrame)
 
-        # This is all commented out because we use a wx.Notebook now
-        #self.xfpanel = TransferPanel(self.frame, self)
-        #self.setup = wx.Button(self.frame, ID_SETUP, "&Setup")
-        #self.exit = wx.Button(self.frame, ID_EXIT, "E&xit")
-        #btns = wx.BoxSizer(wx.HORIZONTAL)
-        #box = wx.BoxSizer(wx.VERTICAL)
-        #box.Add(self.xfpanel, 5, wx.EXPAND)  # Button proportion
-        #box.Add(btns, 1, wx.EXPAND)
-        ## Row of buttons
-        #btns.Add(self.setup, 1, wx.EXPAND)
-        #btns.Add(self.exit, 1, wx.EXPAND)
-        #self.frame.SetAutoLayout(True)
-        #self.frame.SetSizer(box)
-        #self.frame.Layout()
-
-        #wx.EVT_BUTTON(self.exit, ID_EXIT, self.OnExit)
-        #wx.EVT_BUTTON(self.setup, ID_SETUP, self.OnSetup)
-
         self.SetupStartfile()
 
         # Setup the SUMI 
@@ -933,16 +909,11 @@ class SUMIApp(wx.App):
         thread.start_new_thread(wrap_thread, (self.client.recv_packets, ()))
    
         print "Sys args=", sys.argv 
-        thread.start_new_thread(wrap_thread, 
-                (self.ReqThread, [sys.argv[1:]]))
-
-        # For IPC
-        # As of 20040712, this is no longer needed! Uses sockets.
-        #if (sys.platform == 'win32'):
-        ## Note: this is wrong, GetHandle is supposed to be applied to the wnd
-        #    sumiget.save_pid(self.GetHandle())
-        #else:
-        #    sumiget.save_pid(os.getpid())
+        if len(sys.argv) != 1:
+            thread.start_new_thread(wrap_thread, 
+                    (self.ReqThread, [sys.argv[1:]]))
+        else:
+            log("No request specified! Starting up without.")
 
         self.frame.Show(True)
         # Restore saved window size

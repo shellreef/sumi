@@ -1,8 +1,8 @@
 # Client configuration file
 # Saved by $Id$
 # Please note - ALL COMMENTS IN THIS FILE WILL BE DESTROYED
-{'allow_debug': True,
- 'allow_local': 1,
+{'allow_local': True,
+ 'allow_no_req': True,
  'bandwidth': 56623104,
  'bandwidth1': 1500000,
  'colwidths': [160, 130, 33, 55, 115, 69, 76, 99, 71, 49, 75, 39],
