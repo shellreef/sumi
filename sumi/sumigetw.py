@@ -914,7 +914,11 @@ class SUMIApp(wx.App):
         self.drop_target = DropTarget(self, drop)
         self.drop_target.SetDataObject(drop)
         self.frame.SetDropTarget(self.drop_target)
-        self.frame.DragAcceptFiles(True)
+        if hasattr(self.frame, "DragAcceptFiles"):
+            log("Enabling drag-and-drop")
+            self.frame.DragAcceptFiles(True)
+        else:
+            log("Disabling drag-and-drop, not supported")
 
         self.frame.icon = wx.Icon("sumi.ico", wx.BITMAP_TYPE_ICO)
         if self.frame.icon:
@@ -1007,10 +1011,9 @@ class SUMIApp(wx.App):
 
             cs, addr = r
             data = cs.recv(256)
-            transport, nick, fn = data.split("\t")
+            args = data.split("\t")
             print "Received req from",addr,"=",data
-            thread.start_new_thread(wrap_thread, (self.ReqThread,
-                (transport, nick, fn)))
+            thread.start_new_thread(wrap_thread, (self.ReqThread, (args,)))
 
     def ReqThread(self, args):
         """Thread that handles a request."""

@@ -1511,7 +1511,7 @@ def send_frame_ETHER(src_mac, dst_mac, payload, ethertype=0x0800): # IPv4
     
     import pcapy
     if not cfg.has_key("interface"):
-        log"The 'interface' configuration item is not set. ")
+        log("The 'interface' configuration item is not set. ")
         use_new_if()
     p = pcapy.open_live(cfg["interface"], 1500, 1, 1)
 

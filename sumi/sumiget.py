@@ -1125,7 +1125,7 @@ tab of sumigetw.""" % (self.myip, self.config["myip"])
         if len(self.config.get("dl_dir", "")) == 0 or not \
                 os.access(self.config["dl_dir"], os.W_OK | os.X_OK | os.R_OK):
             new_dir = base_path + "incoming"
-            log("Warning: dl_dir %s inaccessible, using %s instead" %
+            log("Notice: dl_dir %s inaccessible, using %s instead" %
                     (self.config["dl_dir"], new_dir))
            
             if not os.access(new_dir, os.W_OK | os.X_OK | os.R_OK):
@@ -1417,7 +1417,7 @@ Tried to use a valid directory of %s but it couldn't be accessed."""
 
             savefile.write("""# Client configuration file
 # Saved by $Id$
-# Please note - ALL COMMENTS IN THIS FILE WILL BE DESTROYED""")
+# Please note - ALL COMMENTS IN THIS FILE WILL BE DESTROYED\n""")
             # ^ I place all comments in config.py.default instead, or the docs
             pprint.pprint(self.config, savefile)
             savefile.close()

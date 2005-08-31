@@ -13,8 +13,8 @@
 
 {
 # Where to save downloaded files - must end in a / (or \ for win32)
-#"dl_dir": "/home/jeff/p2p/sumi/incoming/", 
-"dl_dir": "C:\\",
+# If empty, uses base_path + 'incoming'.
+"dl_dir": "",
 "save_interval": 1,#s   # Save resuming file every X seconds
         # Your IP and your port - these must be INTERNET ACCESSIBLE! That means
         # use your public IP, and forward a UDP port on your router  
