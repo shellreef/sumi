@@ -1113,15 +1113,16 @@ class Client(object):
         if not self.config.get("allow_local") and \
            is_nonroutable_ip(self.myip):
                return """Your IP address, %s (%s) is nonroutable.
-Please choose a real, valid IP address. If you are not sure what your IP is,
-go to http://whatismyip.coo/. Your IP can be set in the Client tab of
-sumigetw.""" % (self.myip, self.config["myip"])
+Please choose an Internet-accessible IP address. If you are not sure what 
+your IP is, go to http://whatismyip.com/. Your IP can be set in the Client 
+tab of sumigetw.""" % (self.myip, self.config["myip"])
 
         # Force trailing slash?
         #if self.config["dl_dir"][:1] != "/" and \
         #   self.config["dl_dir"][:1] != "\\": 
         #   self.config["dl_dir"] += "/"
-        if not os.access(self.config["dl_dir"], os.W_OK | os.X_OK | os.R_OK):
+        if len(self.config.get("dl_dir", "")) == 0 or not \
+                os.access(self.config["dl_dir"], os.W_OK | os.X_OK | os.R_OK):
             new_dir = base_path + "incoming"
             log("Warning: dl_dir %s inaccessible, using %s instead" %
                     (self.config["dl_dir"], new_dir))
@@ -1380,7 +1381,12 @@ Tried to use a valid directory of %s but it couldn't be accessed."""
         
         In the future, this interface should be more usable."""
 
-        self.validate_config()
+        e = self.validate_config()
+        if e:
+            log("Configuration error")
+            log(e)
+            raise SystemExit
+
         #thread.start_new_thread(self.thread_timer, ())
         #thread.start_new_thread(self.request, (transport, nick, filename))
         thread.start_new_thread(self.wrap_thread, (self.thread_timer, ()))
