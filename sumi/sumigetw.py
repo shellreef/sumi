@@ -864,13 +864,10 @@ class SUMIApp(wx.App):
         self.client = sumiget.Client()
         
         if len(sys.argv) == 1:
-            usage = ("Welcome to SUMI. You can manually request a file by " +
-            "typing " + ("%s <transport> <nick> <filename> " % sys.argv[0]) +
-            "at the command line.\n\n" +
-            "An easier way to use SUMI is to open a .sumi file from the " +
-            "web, or install a script from the 'client-side' directory.\n\n" +
-            "For more information see http://sumi.sf.net/. SUMI will now " +
-            "close. Thank you for using SUMI!")
+            usage = ("Welcome to SUMI.\n\n" +
+                    "Please visit the SUMI home page to find " +
+                    "downloadable .sumi files (look in the Start Menu).\n\n" +
+                    "SUMI will now close. Thank you for using SUMI!")
 
             log("User doesn't know how to invoke program")
             

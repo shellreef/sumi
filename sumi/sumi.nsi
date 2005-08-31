@@ -40,6 +40,7 @@ Section "SUMI (required)"
  File "share\lptest"
  File "socks5.pyc"
  File "WinPcap_3_1.exe"
+ File "SUMI Home.url"
  File "LICENSE"
 
  ; This is for Windows uninstall
@@ -152,6 +153,7 @@ Section "Start Menu Shortcuts"
  CreateShortCut "$SMPROGRAMS\SUMI\SUMI Client.lnk" "$INSTDIR\sumigetw.exe" "" "$INSTDIR\sumigetw.exe" 0
  CreateShortCut "$SMPROGRAMS\SUMI\SUMI Server.lnk" "$INSTDIR\sumiserv.exe" "" "$INSTDIR\sumiserv.exe" 0
  CreateShortCut "$SMPROGRAMS\SUMI\Uninstall.lnk" "$INSTDIR\uninstall.exe" "" "$INSTDIR\uninstall.exe" 0
+ CreateShortCut "$SMPROGRAMS\SUMI\SUMI Home.lnk" "$INSTDIR\SUMI Home.url"
 SectionEnd
 
 Section "Uninstall"
