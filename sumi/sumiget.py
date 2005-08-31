@@ -1412,13 +1412,17 @@ Tried to use a valid directory of %s but it couldn't be accessed."""
         log("Cleaning up...")
         import pprint
 
-        savefile = open(config_file, "w")
-        savefile.write("# Client configuration file\n")
-        savefile.write("# Saved by $Id$\n")
-        savefile.write("# Please note - ALL COMMENTS IN THIS FILE WILL BE DESTROYED\n")
-        # ^ I place all comments in config.py.default instead, or the docs
-        pprint.pprint(self.config, savefile)
-        savefile.close()
+        try:
+            savefile = open(config_file, "w")
+
+            savefile.write("""# Client configuration file
+# Saved by $Id$
+# Please note - ALL COMMENTS IN THIS FILE WILL BE DESTROYED""")
+            # ^ I place all comments in config.py.default instead, or the docs
+            pprint.pprint(self.config, savefile)
+            savefile.close()
+        except IOError, e:
+            log("!! Couldn't save configuration file: %s" % e)
 
         self.set_callback(lambda *x: 0)
 
@@ -1431,8 +1435,9 @@ Tried to use a valid directory of %s but it couldn't be accessed."""
                 self.abort(self.senders[x])
 
         log("Exiting now")
-        sys.exit()
-        os._exit()
+        raise SystemExit
+        #sys.exit()
+        #os._exit()
 
 def on_sigusr1(signo, intsf):
     """SIGUSR1 is used on Unix for signalling multiple transfers."""

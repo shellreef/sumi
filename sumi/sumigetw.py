@@ -132,13 +132,6 @@ class MainNotebook(wx.Notebook):
  
         print "OnPageChange: ",old,new,sel
 
-        # Use new instead of sel because on Win32, sel is 0 for the first
-        # page change, but new is updated correctly
-        #if (new == self.GetPageCount() - 1):  # Last page = Exit
-        #    self.app.OnCloseFrame()   # save win size
-        #    self.app.OnExit()
-        #    raise SystemExit
-
         if old == 1:    # Client configuration tab, if change, validate
             if not self.ValidateConfig():
                 # Used to cause problems, but doesn't seem to now
@@ -194,8 +187,21 @@ class ExitPanel(wx.Panel):
 
         self.app = app
 
-        log("INIT EXITPANEL")
+        # Close whenever the exit panel is displayed (tab clicked), not
+        # whenever focus is set to it (EVT_SET_FOCUS), as that would
+        # require clicking the panel itself.
+        wx.EVT_PAINT(self, self.Terminate)
 
+    def Terminate(self, event):
+        log("Gracefully closing")
+       
+        try:
+            self.app.OnCloseFrame()   # save win size
+            self.app.OnExit()
+        except Exception, x:
+            if not isinstance(x, SystemExit):
+                log("!! Exception when closing: %s: %s" % (str(sys.exc_info()), x))
+        raise SystemExit
 
 class SLogPanel(wx.Panel):
     """Server log panel."""
@@ -1185,7 +1191,6 @@ class SUMIApp(wx.App):
         sumiget.log = console_log
 
         self.client.on_exit()   # Save client config
-        sys.exit(0)
 
     def OnCloseFrame(self, evt=0):
         # Save size of *frame* (not xfpanel) before the frame closes
