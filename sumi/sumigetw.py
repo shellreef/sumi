@@ -994,10 +994,16 @@ class SUMIApp(wx.App):
     def RecvReqThread(self, ss):
         """Thread that receives socket connections in order to handle 
             additional requests after the program is started."""
-        while 1:
-            (cs, addr) = ss.accept()
+        while True:
+            r = ss.accept()
+            # Sometimes raises 'ValueError: unpack list of wrong size'
+            if type(r) != types.ListType and len(r) != 2:
+                log("Accept returned: "+str(r))
+                break
+
+            cs, addr = r
             data = cs.recv(256)
-            (transport, nick, fn) = data.split("\t")
+            transport, nick, fn = data.split("\t")
             print "Received req from",addr,"=",data
             thread.start_new_thread(wrap_thread, (self.ReqThread,
                 (transport, nick, fn)))
