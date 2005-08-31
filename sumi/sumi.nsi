@@ -90,7 +90,7 @@ Section "mIRC Integration"
  IfFileExists $mirc_path mIRC_exists mIRC_gone
 
 mIRC_gone:
- MessageBox MB_OK "mIRC is not installed, not installing mIRC script."
+ DetailPrint "mIRC is not installed, not installing mIRC script."
  goto mIRC_end
 
 mIRC_exists:
