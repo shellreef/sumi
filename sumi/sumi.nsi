@@ -50,9 +50,10 @@ Section "SUMI (required)"
  WriteUninstaller "uninstall.exe"
 SectionEnd
 
-Section "WinPcap"
+Section "WinPcap (required)"
  ; Currently this is required--can't run without it, even if don't use it :(
- SectionIn RO
+ ; However give the user an option to deselect it, if they already have it.
+ ;SectionIn RO
  ; Install WinPcap (mostly from ethereal.nsi)
 ;lbl_winpcap_notinstalled:
  SetOutPath $INSTDIR
