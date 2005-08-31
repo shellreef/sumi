@@ -5,6 +5,10 @@
 
 ; SUMI Installer for Nullsoft Install System
 
+; TODO: why does http://www.nirsoft.net/utils/myuninst.html show
+;  "WinPcap 3.1 3.1.0.27 CACE Technologies WinPcap 3.1 installer" in the
+; description of SUMI? Where is it set?
+
 ; Thanks to:
 ;  Bram Cohen for bittorrent.nsi file association code
 ;  Ulf Lamping for ethereal.nsi WinPcap install code
@@ -47,6 +51,8 @@ Section "SUMI (required)"
 SectionEnd
 
 Section "WinPcap"
+ ; Currently this is required--can't run without it, even if don't use it :(
+ SectionIn RO
  ; Install WinPcap (mostly from ethereal.nsi)
 ;lbl_winpcap_notinstalled:
  SetOutPath $INSTDIR
@@ -56,10 +62,23 @@ Section "WinPcap"
 ; SecRequired_skip_Winpcap:
 SectionEnd
 
+Section "File association"
+; Use both MIME-type and extension: (based on bittorrent.nsi)
+WriteRegStr HKCR .sumi "" sumi.file
+WriteRegStr HKCR .sumi "Content Type" application/x-sumi
+WriteRegStr HKCR "MIME\Database\Content Type\application/x-sumi" Extension .sumi
+WriteRegStr HKCR sumi.file "" "SUMI Anonymous P2P"
+; Turn off prompting in Explorer & IE
+WriteRegBin HKCR sumi.file EditFlags 00000100
+WriteRegStr HKCR "sumi.file\shell" "" open
+WriteRegStr HKCR "sumi.file\shell\open\command" "" `"$INSTDIR\sumigetw.exe" "%1"`
+SectionEnd
+
 Var mirc_path
 
-; TODO: Add client-side/mirc.txt to aliases.ini
+; Add client-side/mirc.txt to aliases.ini
 Section "mIRC Integration"
+ SectionIn 2
  ; Detect where mIRC was installed
  ReadRegStr $mirc_path HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\mIRC" "UninstallString"
  Call StripPath
@@ -125,18 +144,6 @@ install_it:
 
 
 mIRC_end:
-SectionEnd
-
-Section "File association"
-; Use both MIME-type and extension: (based on bittorrent.nsi)
-WriteRegStr HKCR .sumi "" sumi.file
-WriteRegStr HKCR .sumi "Content Type" application/x-sumi
-WriteRegStr HKCR "MIME\Database\Content Type\application/x-sumi" Extension .sumi
-WriteRegStr HKCR sumi.file "" "SUMI Anonymous P2P"
-; Turn off prompting in Explorer & IE
-WriteRegBin HKCR sumi.file EditFlags 00000100
-WriteRegStr HKCR "sumi.file\shell" "" open
-WriteRegStr HKCR "sumi.file\shell\open\command" "" `"$INSTDIR\sumigetw.exe" "%1"`
 SectionEnd
 
 Section "Start Menu Shortcuts"
