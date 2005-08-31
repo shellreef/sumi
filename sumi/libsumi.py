@@ -486,8 +486,6 @@ def select_if():
     # getnet()/getmask() return all 0's in 0.10.3, unless the patch
     # "pcapy.getnet.patch" is applied, or a newer version fixes it.
 
-    # TODO: I'd like a warning if an interface is used without an IP;
-    # because I do that often (switching between WiFi & Ethernet).
     import pcapy
     ifaces = []
     log("%s. %-16s %-16s %5s\n\t%s\n" % (
@@ -503,6 +501,8 @@ def select_if():
         # the datalink field to guestimate the MTU.
         mtu = datalink2mtu(p.datalink()) 
         ip = p.getnet()
+        # Don't list interfaces without IP addresses--probably means
+        # they are down.
         if ip == "0.0.0.0": 
             continue            # skip for brevity
         mask = p.getmask()
