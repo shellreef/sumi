@@ -43,6 +43,8 @@ Section "SUMI (required)"
  File "SUMI Home.url"
  File "LICENSE"
 
+ CreateDirectory "$INSTDIR\incoming"
+
  ; This is for Windows uninstall
  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\SUMI" "DisplayName" "SUMI 0.8.13 beta"
  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\SUMI" "UninstallString" '"$INSTDIR\uninstall.exe"'
@@ -154,7 +156,8 @@ Section "Start Menu Shortcuts"
  CreateShortCut "$SMPROGRAMS\SUMI\SUMI Server.lnk" "$INSTDIR\sumiserv.exe" "" "$INSTDIR\sumiserv.exe" 0
  CreateShortCut "$SMPROGRAMS\SUMI\Uninstall.lnk" "$INSTDIR\uninstall.exe" "" "$INSTDIR\uninstall.exe" 0
  CreateShortCut "$SMPROGRAMS\SUMI\SUMI Home.lnk" "$INSTDIR\SUMI Home.url"
- CreateShortCut "$SMPROGRAMS\SUMI\Downloaded Files.lnk" "$INSTDIR\incoming"
+;XXX: Windows behaves oddly--asked what program to open the directory with?!
+; CreateShortCut "$SMPROGRAMS\SUMI\Downloaded Files.lnk" "$INSTDIR\incoming"
 SectionEnd
 
 Section "Uninstall"
