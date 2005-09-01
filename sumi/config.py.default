@@ -80,7 +80,7 @@
 "irc_nick": "sumiget", # This should be redelegated in transport-specific opt
 
 # Column widths for sumigetw
-'colwidths': [160, 136, 107, 55, 73, 69, 76, 99, 71, 49],
+'colwidths': [160, 107, 56, 55, 115, 69, 76, 99, 71, 49, 75, 39],
 
 # Window size for sumigetw
 "winsize": (858, 220),
