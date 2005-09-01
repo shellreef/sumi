@@ -23,8 +23,8 @@ ss/               a few screenshots
 sumiget.py        SUMI Client Core
 sumigetw.py       wxPython SUMI Client
 setup.py          distutils script to package a win32 executable
-config.py         sumiget(w) client configuration
-config.py.default default config.py
+config.txt        sumiget(w) client configuration
+config.txt.default default config.txt
 sumiserv.cfg      sumiserv server configuration
 sumiserv.cfg.default sumiserv client default configuration
 images.py         some images, taken from wxPython demo 
@@ -40,7 +40,7 @@ ping.py           3rd-party implementation of ping
 
  DOCUMENTATION
 faq.html          Q&A about sumi
-config.html       config.py manual
+config.html       config.txt/sumiserv.cfg manual
 
 TODO              list of things to do
 ChangeLog         list of changes

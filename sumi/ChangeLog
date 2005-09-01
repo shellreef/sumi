@@ -5,6 +5,7 @@ vi: noexpandtab:
 2005-08-31 Jeff Connelly <jeffconnelly@users.sourceforge.net>
 	* Drag-and-drop support in GUI (try dropping a .sumi file into it)
 	* Allow modirclib to be used with crypt_req
+	* Rename config.py to config.txt
 
 2005-08-29 Jeff Connelly <jeffconnelly@users.sourceforge.net>
 	* Add support for passing a .sumi filename to sumigetw

@@ -731,7 +731,7 @@ class TransferPanel(wx.Panel, ColumnSorterMixin):
 
     def OnColEndDrag(self, event):
         # Save new column width in config, then 
-        # save config to config.py, like with sumiserv
+        # save config to config.txt, like with sumiserv
         w = [0] * COL_LAST
         for x in range(0, COL_LAST):
             w[x] = self.list.GetColumnWidth(x)

@@ -63,7 +63,7 @@ log("under certain conditions; see LICENSE for details.")
 log("")
 
 base_path = os.path.abspath(os.path.dirname(sys.argv[0])) + os.sep
-config_file = base_path + "config.py"
+config_file = base_path + "config.txt"
 log("Using config file: %s" % config_file)
 
 # Setup run-time path for loading transports
@@ -809,7 +809,7 @@ class Client(object):
                 self.config["interface"] = devs[0]
                 log("Automatically setting to %s" % self.config["interface"])
             else:
-                log("*** Please set 'interface' in config.py to one of ")
+                log("*** Please set 'interface' in config.txt to one of ")
                 log("*** the interfaces above and restart.")
                 sys.exit(-5)
         import sumiserv
@@ -1069,12 +1069,12 @@ class Client(object):
                 log("Using IP: %s" % self.myip)
         else:
             log("IP not specified, getting network interface list...")
-            log("\nSelect an interface, or set 'myip' in config.py for auto.")
+            log("\nSelect an interface, or set 'myip' in config.txt for auto.")
 
             (self.config["interface"], self.config["myip"], ignore,
                 self.config["mtu"]) = select_if()
 
-            log("Saving settings. Please review them in config.py, edit "
+            log("Saving settings. Please review them in config.txt, edit "
                     "as necessary, and restart.")
             self.on_exit()
 
@@ -1438,7 +1438,7 @@ Tried to use a valid directory of %s but it couldn't be accessed."""
             savefile.write("""# Client configuration file
 # Saved by $Id$
 # Please note - ALL COMMENTS IN THIS FILE WILL BE DESTROYED\n""")
-            # ^ I place all comments in config.py.default instead, or the docs
+            # ^ I place all comments in config.txt.default instead, or the docs
             pprint.pprint(self.config, savefile)
             savefile.close()
         except IOError, e:

@@ -1222,6 +1222,7 @@ Error: %s: %s""" % (sys.exc_info()[0], sys.exc_info()[1]))
         log("Pcap: Error opening %s: %s" % (cfg["interface"],
             pcapy.PcapError))
         use_new_if()
+        p = pcapy.open_live(cfg["interface"], 1500, 1, 0)
 
     if not hasattr(p, "sendpacket"):
         fatal(10, """Your pcapy is lacking sendpacket, please use modified
@@ -1559,7 +1560,7 @@ def ipmask2cidr(ip, mask):
     return "%s/%s" % (ip, leading_bits)
 
 def use_new_if():
-    """Use select_if() to select a new interface, then quit."""
+    """Use select_if() to select a new interface."""
     cfg["interface"], ip, mask, mtu_ignored = select_if()
 
     allow = ipmask2cidr(ip, mask)
@@ -1567,8 +1568,8 @@ def use_new_if():
     cfg["src_allow"] = allow
     set_src_allow(allow)
 
-    log("Please restart and verify the new settings in sumiserv.cfg")
-    on_exit()
+    #log("Please restart and verify the new settings in sumiserv.cfg")
+    #on_exit()
 
 def send_packet_UDP_SOCKET(src, dst, payload):
     """Send a UDP packet from src to dst.

@@ -35,7 +35,7 @@ Section "SUMI (required)"
  SetOutPath $INSTDIR
  File /r "dist\*"
  File /oname=sumiserv.cfg "sumiserv.cfg.default"
- File /oname=config.py "config.py.default" 
+ File /oname=config.txt "config.txt.default" 
  File "rawproxd"
  File "share\lptest"
  File "socks5.pyc"

@@ -531,7 +531,8 @@ def select_if():
 
     assert len(ifaces) != 0, "No interfaces found!"
 
-    interface = ifaces[0]["dev"]
+    i = 0
+    interface = ifaces[i]["dev"]
 
     log("Using interface %s" % interface)
 
