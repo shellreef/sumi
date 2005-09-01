@@ -1,0 +1,133 @@
+List of places SUMI has been mentioned 20050830JC
+Purpose: read users comments so can improve
+
+http://www.zeropaid.com/bbs/showthread.php?t=25531
+http://www.zeropaid.com/bbs/showthread.php?t=25953
+http://www.zeropaid.com/bbs/showthread.php?t=26728&page=2&pp=15
+
+== (was in TODO) ==
+From briangrunt on Feb3rd,2004 
+http://www.zeropaid.com/bbs/showthread.php?t=17969
+I don't know how to contact anyone directly and so will post my idea here.
+
+Mute tries to achieve privacy by avoiding direct connections. I read the "how it works'' doc, and it does seem that mute should successfully keep users safe from lawsuits--however, it does it at the cost of speed and possibly other features.
+
+I'm no network expert, but would it be possible to make an asymmetric connection protocol? In essence, search/download requests would go out on the network, not trying to hide the IP of the person who wants to download. This is because it's relatively safe to download--as I understand it, some place or other even deemed it legal.
+
+When the user finds a download they want, sources initiate a connection to the destination computer, always spoofing/leaving the return IP address blank. In other words, the source can send directly to the destination. But since the destination does not know the IP of the source, it would instead route ACK or other network control signals, Mute-style, through the network. This would greatly ease the burden on the network, since ACK and other network control signals are very lightweight, low bandwidth, especially compared to what mute currently has to route through.
+
+Of course, in order for this to work, spoofing must work correctly. Sadly, as I understand it, most/many types of internet service allow the ISP to know who really sent a packet even if the return address is spoofed or blank. They can theoretically then insert the correct return address before routing the packet on. The question then, is how often they do this in practice--and I don't know the answer to that question. Each host, though, should be able to perform a simple test to see whether they can successfully perform spoofing, maybe through a simple series of pings perhaps.
+
+So, what do you think of this idea?
+> exactly like SUMI! i really should integrate MUTE!
+
+From tr1sk Eddie Sohn on mute-net.sf.net
+*http://sourceforge.net/forum/forum.php?thread_id=1017118&forum_id=283651 
+*a proposal on MUTE almost exactly like SUMI, a subset of
+
+The key strength of MUTE is its ability to offer two-way secure anonymous
+communication. Unfortunately, this comes at the cost of download speed. 
+> IRC does too if netmask spoofed, but MUTE would be better, if slower
+By routing every file through multiple MUTE nodes, many users have to pay for
+one user downloading a file. Also, download speeds are limited by the weakest 
+link in the chain. Since upload speeds are often lower than download speeds, performance is dropped even further. 
+> Yeah, its like i2p (iip file transfer, very slow)
+In real world use, this leads to an environment were even the highest 
+bandwidth users are downloading files at modem speeds. Even worse, as more 
+users start joining this network very little bandwidth will be available to 
+enable long-term scalability.
+
+A powerful solution is available if the file sender is allowed to know the 
+recipients IP address. When a user requests a file, he includes his machines 
+encrypted IP address in the message. 
+> sumi send, but how can the IP be encrypted? Oh - Public Key Encryption.
+> Recipient would need to send its pubkey, and sender send pubkey, client
+> encrypts w/ its privkey, sender encrypts with its privkey. Secure! Like an
+> OTP, but in theory breakable, and the covert channel doesn't have to be
+> secure.
+The sender can then use IP address spoofing to transfer the file to the recipient. Throughout the transmission, the senders true identity remains protected. This offers very fast one-way secure communication from the sender to the recipient. 
+> The essense of SUMI!
+Unfortunately, files cant be sent via the internet with only one-way communication due to the lossy nature of internet packets. Luckily, MUTE already offers two-way secure communication with limited bandwidth. Now the file recipient can send back packet acknowledgements to the sender through MUTE without ever knowing his IP address. This places minimal load on the MUTE network since each packet receipt can be acknowledged with a single bit, and acknowledgements can be bundled and sent out with long time intervals.
+> Exactly what I came up with.
+
+There are four problems with this solution. The first is the sharers knowledge of the recipients IP address. The sender (X) now has the recipients (Y) virtual MUTE address and IP address. If X were an adversary, he could use this information to his advantage.
+>Yes, a real problem with SUMI.
+For a limited time, any shared file hosted by Ys virtual address can be mapped to his IP address by X. If X were to search and find a file hosted by Y, He would be able to map Ys IP address to the file. Fortunately, MUTE has a very elegant solution to this problem. There is no limit to the number of virtual addresses that can be mapped to each user. User Y can be given two virtual addresses: A and B. He can respond to all sharing queries with address A and search for files with address B. Now user X can only map address B to an IP address. When searching for files hosted by virtual address B, he will find none. All those files are being shared under the virtual address A.
+
+The second problem is the ability to successfully transmit spoofed packets. Modifying the IP headers on packets via raw sockets is only allowed on Windows 2000/XP and Linux/Unix. This could prohibit Windows 9x users from using the system. It appears compatibility could be added to older systems by using a library such as WinPcap (http://winpcap.polito.it/). 
+> Maybe? Worth a try--SUMI doesn't use WinPcap yet.
+Nevertheless, even if the packet is successfully transmitted by the sender, some routers may detect the spoofed packet and drop it. 
+> Also a problem. Using IPs in same subnet or ISP helps a lot, but logins may
+> prevent the spoofing. "Prefixes", like 4/24 for 4.0.0.0-4.255.255.255. 
+Furthermore, if the sender uses a NAT router (those linksys and netgear boxes that are used to share an internet connection), it could modify the IP header, effectively unspoofing the packet. Unfortunately, I do not know enough about the underlying network protocols to definitively state whether spoofing can be made to work in these situations. Hopefully another developer with low level networking experience will have more to add on this topic.
+> Also as far as I know it can't. These NATs forward IP packets, all which have
+>IP addresses, so using another IP transport protocol won't help much. NATs do 
+>it indiscriminately. The fix I've came up with is setting up a box as a NAT
+>and operating on the NAT box itself, not behind it. NAT is evil, it prohibits
+>communication! Could the NAT box's firmware be hacked to not change IPs that
+>are not from the network. Maybe software NATs could forward packets from
+>anywhere, but only change the source address if its from the local network.
+
+The third problem is MAC addresses. Every Ethernet packet contains the intermediate source and destination MAC addresses. The source MAC address is modified on the packet each time it reaches a router; however, if the packet never hits a router, the users MAC address will be known by the receiver. The likelihood of a security breach here is very slim, since the sender and recipient would have to be on the same local network. This security problem would be unlikely to affect most Internet users; however, it could make using the program on large local networks, like universities, less secure. One potential solution would be to use the WinPcap library to create raw packets, which would allow the MAC addresses to be forged.
+> Great idea, never thought of that. U's don't have routers everywhere. I
+> considered this idea but saw no use of it, Universities are the use.
+
+The final problem is firewalls. If a user is behind a firewall and is unable to open any ports, fast one-way communication cant be established between the sender and the receiver. [...] firewalled clients would not create the same unresponsive environment that plagued the Gnutella push style network. Firewalled users would not be able to download any files, and correctly configured users could download freely from both firewalled and non-firewalled users.
+> Solution: ICMPs go through firewalls! Some at least. ICMP echo reply usu.
+> does, otherwise every ping will time out. This is implemented in SUMI with
+> the "e" (echo) mode right now, which bounces the packets of another host.
+> Sending arbitrary type & code ICMPs would be much better. Need winpcap.
+
+Another option is to have a middleman receive the file and give it to the user. For example, a firewalled MUTE node could ask one of its neighbors, all of whom must have their firewall open, to request the file and forward it to them. The contents of the transmission would be encrypted so that the middleman is unaware of the actual file or information being transferred. Lastly, if no other option is acceptable, this project could be forked into one that was firewall friendly and one that wasnt.
+> I don't think thats such a good idea; too much bandwidth.
+
+I hope this transfer method helps optimize MUTE. There are still questions that need to be answered before this theory is proven feasible. I have posted this message with the hope that other users will help resolve these issues and see this technology to fruition. Even if this method is never incorporated into MUTE, I hope it will help give new ideas to other developers. Once again, congratulations on a fantastic network design."
+>
+
+== (was in es5-spoof.txt) ==
+Notes on PXP from ES5
+
+$Id$
+
+Taken from
+http://www.zeropaid.com/bbs/showthread.php?p=216287#post216287
+with my comments in >>
+
+eivioolla
+Registered User
+
+Joined: Feb 2003
+Location: Finland
+	
+
+    Quote: Originally Posted by Malicious Intent
+    EDIT: No I havn't tried the PXP release, last time I installed that program it was disarster. I just want to know how it works. 
+
+
+Well, the head programmer posted a pretty good description of it on Slyck forums sometime ago. Basically it binds a dummy network interface with a fake IP address to your system and uses that on sends. I guess the searches and the necessary loopback traffic is proxied trough other PXP nodes. It's naturally based on UDP.
+
+-edit- Found it so here's a quote from that post
+
+    Quote: There is an alternative that doesn't use proxies but uses ip spoofing.
+
+    1) Server sets up fake ip address (adds another address (fake) to its LAN adapter, easy to do). Does not require HDR_INCL TCP support.
+>> This is interesting...useful idea. IP_HDRINCL is not available everywhere.
+>> in bsd, "ifconfig fxp0 alias 192.168.69.1"?
+>> or maybe, change the ip(?) ifconfig dummyif0 inet w.x.y.z netmask m.m.m.m up
+>> But what is "HDR_INCL" TCP support??
+
+    2) Server advertises its files to Supernode but Supernode stores 9 fake addresses along with one real address of Server
+
+    3) Client finds file, and receives 10 addresses. Client requests large segment of file to all 10 addresses.
+
+    4) Server answers request from fake ip address.
+
+    5) Traffic control etc done by method similar to 3. Protocol is optimized to require as little backtraffic (client to server) as possible.
+
+    5) Client never knows real ip address with certainty enough to file lawsuit, but gets file.
+
+    Some people cannot ip spoof for various reasons, however, the large number that can ip spoof discredit ip addresses in the entire network. After suing a few innocent grandmothers and 5 year olds, attacker gives up.
+>> ISP firewalls
+
+    Theoretical? No, this is called PXP and is actually working on one particular P2P application.
+
