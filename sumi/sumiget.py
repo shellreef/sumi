@@ -1017,7 +1017,7 @@ class Client(object):
         for i in range(3):
             log("Generating key #%s" % i)
             # XXX: ECC key generation crashes on amd64
-            ckeys.append(ecc(ord(random_bytes(1))))
+            ckeys.append(ecc(ord(random_bytes(1)) + 1))
        
         # Send our public keys to server
         raw = ""
