@@ -92,7 +92,7 @@ def irc_thread(callback):
         log("Joined, releasing lock")
         irc_lock.release()
         # Tell client we're good to go
-        callback("(unlock_transport)", "irclib")
+        callback("(transport_ready)", "irclib")
 
     irc.add_global_handler("privmsg", on_msg)
     irc.add_global_handler("nicknameinuse", on_nickinuse)

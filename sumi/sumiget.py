@@ -49,7 +49,7 @@ if sys.platform == 'win32':
     import mmap
 
 # Uncomment to allow irclib
-#import irclib
+import irclib
 
 input_lock = thread.allocate_lock()
 #transport = "python -u transport/sumi-irc.py"
@@ -889,7 +889,7 @@ class Client(object):
         """Handle a message received from the server on the transport.
         Used for crypto."""
       
-        if nick == "(unlock_transport)":
+        if nick == "(transport_ready)":
             log("Releasing transport lock: %s" % msg)
             transports[msg].release()
 
