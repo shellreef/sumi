@@ -120,7 +120,6 @@ class Client(object):
 
     def save_lost(self, u, finished=0):
         """Write the resume file for transfer from the user."""
-        finished=0    # no special case
 
         if not u.has_key("fs"):
             log("Not saving resuming file for %s" % u["nick"])
@@ -131,33 +130,27 @@ class Client(object):
         fs.seek(0)    
         fs.truncate()    # Clear
         fs.flush()
-        if not finished:
-            #(old) .sumi file format: lostpkt1,lostpkt2,...,lostpktn,current_pkt
-            #lost = ",".join(map(str, u.get("lost", {}).keys()))
-            #lost += "," + str(u["at"])   # last is at, cur/last
 
-            # Overwrite with new lostdata
-            d = {}
-            d["lost"] = pack_range(u.get("lost", {}).keys())
-            d["at"] = str(u["at"])
+        # Overwrite with new lostdata
+        d = {}
+        d["lost"] = pack_range(u.get("lost", {}).keys())
+        d["at"] = str(u["at"])
 
-            # For torrent-like invoking
-            d["transport"] = u["transport"]
-            d["nick"] = u["nick"]
-            d["filename"] = u["filename"] 
+        # For torrent-like invoking
+        d["transport"] = u["transport"]
+        d["nick"] = u["nick"]
+        d["filename"] = u["filename"] 
 
-            fs.write(pack_dict(d))
-            fs.flush()
-            #print "WROTE LOST: ",lost
-        else:    # NOT REACHED
-            # Don't remove the resume file. Leave it around so know finished.
-            #lfn = (self.config["dl_dir"] + os.path.sep 
-            #      + u["fn"] + ".sumi")
-            #print "Removing resume file ",lfn
-            #os.unlink(lfn) 
-            # Mark as finished
-            u[x]["fs"].write("FIN")
-            u[x]["fs"].flush() 
+        # Conditionally save these keys
+        export = ["irc_server", "irc_port", "irc_channel",
+            "irc_channel_password"]
+        for k in export:
+            if u.has_key(k):
+                d[k] = u[k]
+
+        fs.write(pack_dict(d))
+        fs.flush()
+        #print "WROTE LOST: ",lost
 
     def prefix2user(self, prefix):
         """Find user that is associated with the random prefix; which is the
