@@ -154,6 +154,7 @@ Section "Start Menu Shortcuts"
  CreateShortCut "$SMPROGRAMS\SUMI\SUMI Server.lnk" "$INSTDIR\sumiserv.exe" "" "$INSTDIR\sumiserv.exe" 0
  CreateShortCut "$SMPROGRAMS\SUMI\Uninstall.lnk" "$INSTDIR\uninstall.exe" "" "$INSTDIR\uninstall.exe" 0
  CreateShortCut "$SMPROGRAMS\SUMI\SUMI Home.lnk" "$INSTDIR\SUMI Home.url"
+ CreateShortCut "$SMPROGRAMS\SUMI\Downloaded Files.lnk" "$INSTDIR\incoming"
 SectionEnd
 
 Section "Uninstall"
