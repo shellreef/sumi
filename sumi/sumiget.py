@@ -175,7 +175,7 @@ class Client(object):
         #print "Incoming:",len(data),"bytes from",addr,"=",u["nick"]," #",seqno
 
     def load_transfer(self, filename):
-        """Load a .sumi file, returning (transport, nick, filename)."""
+        """Load a .sumi file, returning a dictionary for 'u'."""
         log("Loading transfer from %s" % filename)
 
         raw = file(filename, "rU").read()
@@ -183,9 +183,17 @@ class Client(object):
             log("%s couldn't be loaded, no data" % filename)
             return None
 
-        d = unpack_dict(raw)
-       
-        return (d["transport"], d["nick"], d["filename"])
+        d_all = unpack_dict(raw)
+        
+        # Allow only certain fields for security
+        allow = ["transport", "nick", "filename", "irc_server",
+            "irc_port", "irc_channel", "irc_channel_password"]
+        d = {}
+        for k in d_all.keys():
+            if k in allow:
+                d[k] = d_all[k]
+    
+        return d
 
     def setup_resuming(self, u, lostdata, at):
         """Setup data structures to resume a file.
@@ -408,7 +416,7 @@ class Client(object):
                "s":addr[0], "h":hashcode, "o":u["at"] + 1})
         if u.has_key("crypto_state"):
             #u["sessiv"] = inc_str(u["sessiv"])
-            auth = b64(self.encrypt(u["nick"], auth))
+            auth = b64(self.encrypt(u, auth))
             log("Encrypted sumi auth: %s" % auth)
         else:
             auth = "sumi auth " + auth
@@ -873,13 +881,18 @@ class Client(object):
         e = encrypt_msg(msg, u["sesskey"], u["sessiv"])
         return e
 
-    def decrypt(self, nick, msg):
+    def decrypt(self, u, msg):
         """Decrypt a message using nick's key and IV."""
         return decrypt_msg(msg, u["sesskey"], u["sessiv"])
 
     def handle_server_message(self, nick, msg):
         """Handle a message received from the server on the transport.
         Used for crypto."""
+      
+        if nick == "(unlock_transport)":
+            log("Releasing transport lock: %s" % msg)
+            transports[msg].release()
+
         if not self.senders.has_key(nick):
             return False
 
@@ -1013,22 +1026,32 @@ class Client(object):
 
         log("Our keys: %s" % b64(raw))
         u["ckeys"] = ckeys
+        
+        # Wait for server's public keys. Start a receiving thread here
+        # because setting up crypto is the only time we receive transport
+        # messages from the server.  N.B.: if recvmsg() is called, it must
+        # be called BEFORE the first sendmsg() (see modirclib.py).
+        #thread.start_new_thread(self.crypto_thread, (u["nick"], ))
+
+        # Lock released when connected
+        transports[u["transport"]] = thread.allocate_lock()
+        transports[u["transport"]].acquire()
+        thread.start_new_thread(self.wrap_thread, 
+                (self.crypto_thread, (u, )))
+
+        # Wait until connected before sending sendmsg!
+        log("Waiting for crypto_thread...")
+        transports[u["transport"]].acquire()
 
         u["sent_sec"] = time.time()
         self.sendmsg(u, "sumi sec %s" % b64(raw))
 
-        # Wait for server's public keys. Start a receiving thread here
-        # because setting up crypto is the only time we receive transport
-        # messages from the server. 
         log(">>>>> %s" % u["nick"])
-        #thread.start_new_thread(self.crypto_thread, (u["nick"], ))
-        thread.start_new_thread(self.wrap_thread, 
-                (self.crypto_thread, (u["nick"], )))
 
     def wrap_thread(self, f, args):
         try:
             f(*args)
-        except Exception, x:
+        except None:# Exception, x:
             print "(thread) Exception: %s at %s" % (x,
                     sys.exc_info()[2].tb_lineno)
             raise x
@@ -1223,12 +1246,15 @@ Tried to use a valid directory of %s but it couldn't be accessed."""
         if len(args) == 1:
             fn = args[0]
             log("Loading from .sumi %s" % fn)
-            args = self.load_transfer(fn)
+            u = self.load_transfer(fn)
+            args = u["transport"], u["nick"], u["filename"]
             if not args:
                 log("Warning: %s could not be loaded" % fn)
-                # can't callback because don't have nick
+                # can't callback because don't necessarily have nick
                 #self.callback(nick, "bad_file", fn)
                 return
+        else:
+            u = {}      # create
 
         assert len(args) == 3, \
                 "Needed transport,nick,filename but got: %s" % str(args)
@@ -1249,7 +1275,7 @@ Tried to use a valid directory of %s but it couldn't be accessed."""
             #print "Senders: ", self.senders
             return
 
-        self.senders[nick] = {}   # create
+        self.senders[nick] = u    # initialize
         u = self.senders[nick]
         u["nick"] = nick
 
@@ -1335,6 +1361,7 @@ Tried to use a valid directory of %s but it couldn't be accessed."""
 
         t.segment = segment
         t.cfg = self.config
+        t.u = u
         t.log = log
         t.capture = capture
         t.get_tcp_data = get_tcp_data
@@ -1351,7 +1378,7 @@ Tried to use a valid directory of %s but it couldn't be accessed."""
         log("crypt_data=%s, crypt_req=%s" % (u["crypt_data"], u["crypt_req"]))
 
         # Initialize if not
-        if transports.has_key(transport) and transports[transport]:
+        if transports.get(transport):
             pass    # already initialized
             log("Not initing %s" % transport)
         else:

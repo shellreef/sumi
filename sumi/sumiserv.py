@@ -675,7 +675,7 @@ def handle_sec(u, msg):
         pkeys.append(skeys[i].DH_recv(ckeys[i]))
     u["sesskey"] = hash128(pkeys[0]) + hash128(pkeys[1])
     u["sessiv"] = pkeys[2]
-    log("session key/iv: %s" % (u["sesskey"], u["sessiv"]))
+    log("session key/iv: %s %s" % (u["sesskey"], u["sessiv"]))
 
     # Calculate and save unencrypted nonce (nonce), and two halves encrypted.
     nonce, nonce_1, nonce_2 = generate_nonce(u)
@@ -822,9 +822,14 @@ def load_transport(transport):
 Please specify a valid 'transport' in sumiserv.cfg""" % (transport, e))
 
     import sumiget
+    
     # Export some useful functions to the transports
     t.segment = sumiget.segment
     t.cfg = cfg
+
+    # Set u to cfg so irclib can find its config info there (server, etc.)--
+    # unlike the client, this information is not per-server.
+    t.u = cfg  
     t.capture = capture
     t.get_tcp_data = get_tcp_data
     t.human_readable_size = human_readable_size

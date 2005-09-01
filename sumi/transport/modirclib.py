@@ -12,6 +12,10 @@
 # (i.e., not using this module) but if none of that matters to you,
 # (i.e., you're not using a real IRC client) modirclib can be just what you want
 
+# Note: 
+# - 'cfg' is used for program-wide settings, such as _my_ nickname
+# - 'u' is used for per-user settings, such as _the server's_ irc nickname
+
 import irclib
 import thread
 import sys
@@ -34,20 +38,6 @@ def on_nickinuse(c, e):
 def on_notregistered(c, e):
     log("We have not registered.")
 
-def on_welcome(c, e):
-    log("We're logged in")
-    c.mode(cfg["irc_nick"], "+ix")
-
-    for chan in cfg["irc_chans"]:
-        key = cfg["irc_chans"][chan]
-        log("Joining channel %s..." % chan)
-        log(c.join(chan, key))
-    irc_lock.release()
-
-def on_umodeis(c, e):
-    modes = e.arguments()
-    log("User modes: %s" % modes)
-    
 def on_cantjoin(c, e):
     (chan, errmsg) = e.arguments()
     log("Can't join %s: %s" % (chan, errmsg))
@@ -55,17 +45,25 @@ def on_cantjoin(c, e):
 def on_quit(c, e):
     nick, msg = irclib.nm_to_n(e.source()), e.arguments()[0]
     log("User quit: <%s>%s" % (nick, msg))
-    import sumiserv
-    clients = sumiserv.clients
-    if (clients.has_key(nick)):
-        clients[nick]["xfer_stop"] = 1     # Terminate transfer thread
+    #XXX doesn't work--should have a callback
+    #import sumiserv
+    #clients = sumiserv.clients
+    #if (clients.has_key(nick)):
+    #    clients[nick]["xfer_stop"] = 1     # Terminate transfer thread
 
+def on_umodeis(c, e):
+    modes = e.arguments()
+    log("User modes: %s" % modes)
+    
 def generic_callback(user, msg):
     log("<%s> %s" % (user, msg))
 
 def irc_thread(callback):
     global server
     irc = irclib.IRC()
+
+    #log("Inside irc_thread, acquiring lock")
+    #irc_lock.acquire()
 
     def on_msg(c, e):
         try:
@@ -76,6 +74,25 @@ def irc_thread(callback):
                 (irclib.nm_to_n(e.source()), sys.exc_info()))
         #nick, msg = irclib.nm_to_n(e.source()), e.arguments()[0]
         #print "MSG:%s:%s" % (nick, msg)  
+
+    def on_welcome(c, e):
+        log("We're logged in")
+        c.mode(cfg["irc_nick"], "+ix")
+
+        # Program-wide channels to join
+        for chan in cfg.get("irc_chans", {}):
+            key = cfg["irc_chans"][chan]
+            log("Joining channel %s..." % chan)
+            log(c.join(chan, key))
+     
+        if u.get("irc_channel"):
+            log("Joining channel for %s: %s" % (u["nick"], u["irc_channel"]))
+            log(c.join(u["irc_channel"], u.get("irc_channel_password","")))
+
+        log("Joined, releasing lock")
+        irc_lock.release()
+        # Tell client we're good to go
+        callback("(unlock_transport)", "irclib")
 
     irc.add_global_handler("privmsg", on_msg)
     irc.add_global_handler("nicknameinuse", on_nickinuse)
@@ -88,14 +105,14 @@ def irc_thread(callback):
     irc.add_global_handler("badchannelkey", on_cantjoin)
     irc.add_global_handler("quit", on_quit)
     server = irc.server()
-    log("Connecting to IRC server %s:%s as %s..." % (cfg["irc_server"], 
-        cfg["irc_port"], 
+    log("Connecting to IRC server %s:%s as %s..." % (u["irc_server"], 
+        int(u["irc_port"]), 
         cfg["irc_nick"]))
     try:
-        server.connect(cfg["irc_server"], cfg["irc_port"], cfg["irc_nick"])
+        server.connect(u["irc_server"], int(u["irc_port"]), cfg["irc_nick"])
     except irclib.ServerConnectionError, e:
         log("Error connecting to %s port %s"
-                % (cfg["irc_server"], cfg["irc_port"]))
+                % (u["irc_server"], int(u["irc_port"])))
         log("%s %s" % (e, dir(e)))
         sys.exit(1)
     log("OK.")
@@ -106,15 +123,15 @@ def irc_thread(callback):
     try:
         log("irc.process_forever()")
         irc.process_forever()
-    except KeyboardInterrupt, SystemExit:
+    except (KeyboardInterrupt, SystemExit):
         callback(None, "on_exit")
 
 # List files to channels
 def thread_notify():
-    """List all files to joined channels."""
-    global server, cfg
+    """List all files to joined channels (used by server)."""
+    global server, cfg, u
     #join_lock.acquire()
-    if (cfg["sleep_interval"] == 0):     # 0=no public listings
+    if not cfg.get("sleep_interval"):  # False,0,None,empty=no public listings
         return
 
     while 1:
@@ -145,10 +162,14 @@ def thread_notify():
 
 def sendmsg(nick, msg):
     if not server:
-        thread.start_new_thread(irc_thread, (generic_callback,))
-        log("Waiting to join channels...")
+        assert False#DBG
         irc_lock.acquire()    # wait until channels joined
-        log("Acquired lock")
+        # Its valid to call sendmsg() without recvmsg() first (which calls
+        # irc_thread with a custom callback not in a thread), it just means
+        # that we'll have to start irc_thread in the background.
+        thread.start_new_thread(irc_thread, (generic_callback,))
+        log("sendmsg() called for first time, connecting...")
+        log("Acquired lock, releasing it")
         irc_lock.release()
     segment(nick, msg, 550, sendmsg_1)
 
@@ -165,10 +186,23 @@ def sendmsg_1(nick, msg):
     irc_lock.release()
 
 def transport_init():
-    irc_lock.acquire()   # will be released when channels are joined
+    required = ["irc_server", "irc_port"]
+    for k in required:
+        if not u.has_key(k):
+            log(("Error: irclib requires key %s, try using a .sumi file with " +
+                    "this key specified.") % str(k))
+            import os
+            os._exit(1)
+    log("irclib: keys in u: " + str(u.keys()))
+    # Inside recvmsg() instead
     #thread.start_new_thread(irc_thread, ())
-    pass
 
 def recvmsg(callback):
+    irc_lock.acquire()
+    # Since sendmsg() starts its own irc_thread() when first called, cannot
+    # call recvmsg() after it or will end up with TWO irc_thread()s!
+    assert not server, \
+            "recvmsg() called after sendmsg()"
+    log("recvmsg() starting irc_thread")
     irc_thread(callback)
 
