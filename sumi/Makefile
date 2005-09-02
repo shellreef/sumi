@@ -41,6 +41,9 @@ cfastxor::
 backup-cvs::
 	fetch http://cvs.sourceforge.net/cvstarballs/sumi-cvsroot.tar.bz2
 
+backup-wiki:
+	ssh jeffconnelly@shell.berlios.de ./dump > wiki-`date +%Y%m%d`.sql
+
 test::
 	python sumigetw.py tor 5mg27ujynvojkdpq.onion \#1
 
