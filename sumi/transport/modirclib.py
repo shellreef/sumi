@@ -171,6 +171,8 @@ def sendmsg(nick, msg):
         log("sendmsg() called for first time, connecting...")
         log("Acquired lock, releasing it")
         irc_lock.release()
+    # What is maximum IRC message length? Depends on nickname, command length
+    # (len('PRIVMSG')), etc. if there is a limit...this seems to work OK.
     segment(nick, msg, 550, sendmsg_1)
 
 def to_all(chans, msg):

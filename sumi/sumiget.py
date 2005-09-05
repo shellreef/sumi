@@ -87,20 +87,32 @@ sys.stdout = unbuffered_stdout()
 
 # Used by transports to segment messages
 def segment(nick, msg, max, callback):
+    """Segment message 'msg' into 'max'-byte-sized message segments,
+    calling callback(nick, message segment) for each segment. Continued
+    messages begin with ">"; the last segment has no ">".
+    
+    Used by transports. Useful to overcome length limitations of a transport,
+    such as IRC's privmsg. If a transport has length limitations, it should
+    segment on the maximum message length (hopefully larger than 5 as in this
+    example) in its sendmsg() and pass sendmsg_1(), by convention, as the
+    callback, to perform the actual message sending.
+
+>>> a=[]
+>>> def keep(nick, msg):
+...     a.append((nick, msg))
+...
+>>> segment("nick", "hello world", 5, keep)
+>>> a
+[('nick', '>hell'), ('nick', '>o wo'), ('nick', 'rld')]
+>>>"""
     n = 0
-    # Length of each segment, to overcome limitations of IRC privmsg's, the
-    # msg will be split into segments within range of privmsg limit. The
-    # last segment has no ">" prefix, other segments do.
-    #MAX_LEN = 550#3#512 - len(":PRIVMSG") - len(nick)
     prefix = ">"
-    #print "I'm segmenting **%s**" % (msg) 
-    while len(msg[n:n+max]):
+    max -= len(prefix)
+    while len(msg[n:n + max]):
         if n + max >= len(msg):
+            max += len(prefix)
             prefix = ""
-        #print ">", nick, prefix + msg[n:n+max]
         callback(nick, prefix + msg[n:n+max])
-        #sendmsg_1(prefix + msg[n:n+max])
-        #print(prefix + msg[n:n+MAX_LEN])
         n += max
 
 class Client(object):
@@ -1397,11 +1409,13 @@ Tried to use a valid directory of %s but it couldn't be accessed."""
 
         return True
 
-    def main(self, transport, nick, filename):
+    def main(self, args):
         """Text-mode client. There isn't much user-friendliness here--the
         callbacks simply dump the passed arguments to stdout. There used to
         be an interactive interface, cli_user_input, but it is no longer
         supported.
+
+        args: arguments, without argv[0]
         
         In the future, this interface should be more usable."""
 
@@ -1414,8 +1428,7 @@ Tried to use a valid directory of %s but it couldn't be accessed."""
         #thread.start_new_thread(self.thread_timer, ())
         #thread.start_new_thread(self.request, (transport, nick, filename))
         thread.start_new_thread(self.wrap_thread, (self.thread_timer, ()))
-        thread.start_new_thread(self.wrap_thread, (self.request, 
-            (transport, nick, filename)))
+        thread.start_new_thread(self.wrap_thread, (self.request, (args, )))
 
         # This thread will release() input_lock, letting thread_request to go
         #transport_init()
@@ -1527,14 +1540,27 @@ def pre_main(invoke_req_handler):
     #pidf.write(str(os.getpid()))
     #pidf.close() 
 
+def doctest():
+    import doctest
+
+    log("sumiget running doctests...")
+
+    failures, tests = doctest.testmod()#verbose=1)
+    sys.exit(failures != 0)
+
+
 if __name__ == "__main__":
+    if len(sys.argv) == 2 and sys.argv[1] == "-t":
+        # sumiget's only command line flag: self-test and exit
+        doctest()
+
     pre_main(on_sigusr1)
 
     if len(sys.argv) == 4:
-        log("Getting <%s> from <%s> using <%s>..." % (sys.argv[1:]))
+        log("Getting <%s> from <%s> using <%s>..." % tuple(sys.argv[1:]))
 
     try:
         client = Client()
-        client.main(transport, nick, filename)
+        client.main(sys.argv[1:])
     except (KeyboardInterrupt, SystemExit):
         on_exit(None, None)
