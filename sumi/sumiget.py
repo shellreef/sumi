@@ -97,6 +97,8 @@ def segment(nick, msg, max, callback):
     example) in its sendmsg() and pass sendmsg_1(), by convention, as the
     callback, to perform the actual message sending.
 
+    Segment into messages of 5 byte or fewer, calling keep() on each part:
+
 >>> a=[]
 >>> def keep(nick, msg):
 ...     a.append((nick, msg))
@@ -130,8 +132,37 @@ class Client(object):
 
         self.set_callback(self.default_cb)   # override me please
 
-    def save_lost(self, u, finished=0):
-        """Write the resume file for transfer from the user."""
+    def save_lost(self, u, finished=False):
+        r'''Write the resume file for transfer from the user.
+
+The saved file will clobber the previous resume file, but will contain 
+enough information to resume the transfer from its current state. The data is
+written to the filehandle from the "fs" key:
+
+>>> import tempfile
+>>> u = {}
+>>> u["fs"] = tempfile.TemporaryFile()
+>>> u["lost"] = {1:True,2:True,5:True}
+>>> u["at"]=10
+>>> u["transport"] = "debug"
+>>> u["nick"] = "nick"
+>>> u["filename"] = "#1"
+>>> c.save_lost(u)
+>>> u["fs"].seek(0)
+>>> u["fs"].read()
+'nick=nick\ntransport=debug\nat=10\nlost=1-2,5\nfilename=#1\n'
+>>>
+
+
+If "fs" is not present, the resuming file will not be written:
+
+>>> c.save_lost({"nick":"someone"})
+Not saving resuming file for someone
+>>>
+
+    The 'finished' parameter is set if the file is complete and the resume
+    file should be closed.
+'''
 
         if not u.has_key("fs"):
             log("Not saving resuming file for %s" % u["nick"])
@@ -162,22 +193,30 @@ class Client(object):
 
         fs.write(pack_dict(d))
         fs.flush()
-        #print "WROTE LOST: ",lost
+
+        if finished:
+            fs.close()
 
     def prefix2user(self, prefix):
         """Find user that is associated with the random prefix; which is the
-        only way to identify the source. Return None if no user."""
-       
+        only way to identify the source. Return None if no user.
+
+        O(n) performance, time-wise.
+
+>>> c.senders["alice"]    = {"prefix": 'ABC', "nick": 'alice'}
+>>> c.senders["bob"]      = {"prefix": 'DEF', "nick": 'bob'}
+>>> c.prefix2user("ABC") == c.senders["alice"]
+True
+>>> c.prefix2user("DEF") == c.senders["bob"]
+True
+>>> c.prefix2user("XYZ") is None
+True
+>>>"""
         # The data structures aren't setup very efficiently.
         for x in self.senders:
-            if self.senders[x].has_key("prefix") and \
-               self.senders[x]["prefix"] == prefix:
-                #xprint "DATA:Prefix=%02x%02x%02x its %s" %\
-                #    (tuple(map(ord, prefix)) + (x, ))
+            if self.senders[x].get("prefix") == prefix:
                 return self.senders[x]
         return None
-
-        #print "Incoming:",len(data),"bytes from",addr,"=",u["nick"]," #",seqno
 
     def load_transfer(self, filename):
         """Load a .sumi file, returning a dictionary for 'u'."""
@@ -336,7 +375,7 @@ class Client(object):
 
             #log("Decrypted payload: %s" % ([data],))
         
-        if u["crypt_data"]:
+        if u.get("crypt_data"):
             # Decrypt payload, THEN hash. Note that crypt_data enables auth
             # pkt to be encrypted, since it goes over the data channel.
             u["ctr"] = u["data_iv"]
@@ -578,7 +617,28 @@ class Client(object):
             self.callback(u["nick"], "lost", ())
 
     def handle_packet(self, data, addr):
-        """Handle received packets."""
+        """Handle received packets.
+
+        Packets less than SUMIHDRSZ bytes are discarded and return False:
+
+>>> c.handle_packet("foo",())
+Short packet: 3 bytes from ()
+False
+>>>
+        Users are looked up by their prefix for packets of sufficient size.
+        Unrecognized prefixes return None and are discarded:
+
+>>> c.handle_packet("A"*6,())
+DATA:UNKNOWN PREFIX! 414141 6 bytes from ()
+>>>
+
+        Data from aborted transfers is discarded and returns False. 
+
+        Otherwise, 'retries' is zeroed, 'last_msg' is set to the timestamp,
+        and 'at' is set to the received sequence number. Finally the data
+        is passed to handle_auth if seqno is 0, handle_data if not.
+"""
+
         if len(data) < SUMIHDRSZ:
             log("Short packet: %s bytes from %s" % (len(data), addr))
             return False
@@ -594,8 +654,8 @@ class Client(object):
                     % (p,len(data),addr))
             return None
 
-        # Ignore aborted data
         if u.get("aborted"):
+            log("Ignoring aborted data")
             return False
 
         u["retries"] = 0   # acks worked
@@ -611,7 +671,7 @@ class Client(object):
         # (so a null can easily be prepended for conversion to a long),
         # this used to be partially stored in the source port, but PAT--
         # Port Address Translation--closely related to NAT, can mangle 
-        # the srcport
+        # the srcport. So srcport isn't used at all by SUMI.
         if seqno == 0:       # all 0's = auth packet
             return self.handle_auth(u, prefix, addr, data)
         else:
@@ -720,11 +780,12 @@ class Client(object):
         return None
 
     def finish_xfer(self, u):
-        """Finish the file transfer."""
+        """Finish the file transfer. Save the lost data, notify the 
+        server and callback."""
 
         # Nothing lost anymore, update. Saved as ",X" where X = last packet.
         log("DONE - UPDATING")
-        self.save_lost(u, 1)
+        self.save_lost(u, True)
 
         self.sendmsg(u, "sumi done")
 
@@ -1341,6 +1402,7 @@ Tried to use a valid directory of %s but it couldn't be accessed."""
         self.callback = f
 
     def default_cb(self, cmd, *args):
+        """Default callback: prints received command."""
         log("(CB)%s: %s" % (cmd, ",".join(list(map(str, args)))))
 
     def load_transport(self, transport, u):
@@ -1543,15 +1605,20 @@ def pre_main(invoke_req_handler):
 def doctest():
     import doctest
 
+    # Available to all doctests for convenience
+    global c
+    c = Client()
+
     log("sumiget running doctests...")
 
-    failures, tests = doctest.testmod()#verbose=1)
+    failures, tests = doctest.testmod()
     sys.exit(failures != 0)
 
 
 if __name__ == "__main__":
-    if len(sys.argv) == 2 and sys.argv[1] == "-t":
-        # sumiget's only command line flag: self-test and exit
+    if len(sys.argv) >= 2 and sys.argv[1] == "-t":
+        # sumiget's only command line flag: -t is self-test and exit
+        # (can also pass -t -v for verbose, handled by doctest module)
         doctest()
 
     pre_main(on_sigusr1)
