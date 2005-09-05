@@ -47,6 +47,7 @@ def unpack_args(raw):
     """Parse arguments in the form of aFOO\tbBAR\tcQUUX\to23948\tfhello
     world. Each parameter begins with a single letter, followed by its value,
     separated by tabs."""
+
     args = {}
     for x in raw.split("\t"):
         args[x[:1]] = x[1:]
@@ -158,7 +159,12 @@ def get_udp_data(pkt_data):
     return get_transport_data(pkt_data, 8)
 
 def b64(data):
-    """Base64 data, without newlines."""
+    """Base64 data, without newlines.
+    
+    >>> b64("spam")
+    'c3BhbQ=='
+
+    """
     b = base64.encodestring(data)
     b = b.replace("\n", "")   # annoying...
     return b
@@ -191,11 +197,34 @@ def get_cipher():
 
 def interleave(evens, odds):
     """Interleave evens with odds, such that 
-    interleave(a[0::2], a[1::2) == a."""
+    interleave(a[0::2], a[1::2) == a.
+
+    Typical usage:
+   
+>>> msg="interlocked"
+>>> e = msg[0::2]
+>>> o = msg[1::2]
+>>> e, o 
+('itrokd', 'nelce')
+>>> interleave(e, o)
+'interlocked'
+
+>>> interleave("xyzzy"[0::2], "xyzzy"[1::2])
+'xyzzy'
+
+>>> interleave("abcd"[0::2], "abcd"[1::2])
+'abcd'
+
+    """
     #return "".join(imap("".join, izip(evens, odds)))
     # Better--uses itertools 
-    return "".join(chain(*(izip(evens, odds))))
-
+    i = "".join(chain(*(izip(evens, odds))))
+    if len(i) != len(evens) + len(odds):
+         # If interleaved string is odd length, append last character.
+         # There might be a better way to do this...
+         i += evens[-1]
+    return i
+    
 def hash160(msg):
     """Return a 160-bit SHA-1 digest."""
     # TODO: Use SHA-2 hashes, esp. SHA-256
@@ -235,8 +264,17 @@ def take(data, n, at):
 def pack_range(a):
     """Pack a list of lost packets sorted ascending, a, 
     into a compact string with ranges. For example:
-        
-        pack_range([1,2,3,4,5,7,10,12,13,14) => "1-5,7,10,12-14"
+    
+    >>> pack_range([1,5,7])
+    '1,5,7'
+    >>> pack_range([1,2,3,4,5,7,10,12,13,14])
+    '1-5,7,10,12-14'
+    >>> pack_range(42)
+    Traceback (most recent call last):
+    AssertionError: pack_range: <type 'int'> not a list
+    >>> pack_range([])
+    ''
+
     """
     assert type(a) == types.ListType, "pack_range: %s not a list" % type(a)
     if len(a) == 0: return ""
@@ -257,8 +295,15 @@ def unpack_range(s):
     """Unpack a string packed with pack_range into a corresponding list.
     The string may contain multiple integers separated by commas, and 
     inclusive ranges specified by start-end. For example:
-
-        unpack_range("1-5,7,10,12-14") => [1,2,3,4,5,7,10,12,13,14]
+    
+    >>> unpack_range("1-3")
+    [1, 2, 3]
+    >>> unpack_range("1,2,3")
+    [1, 2, 3]
+    >>> unpack_range("")
+    []
+    >>> unpack_range("1-5,7,10,12-14")
+    [1, 2, 3, 4, 5, 7, 10, 12, 13, 14]
     """
     a = []
     # This kind of compression is used within some print dialogs for the
@@ -341,7 +386,20 @@ def calc_blockno(seqno, payloadsz):
         bytes range   seqno   block range
          0 - 1456        1       0-91
          1457 - 2913     2       92-183
-         ...             3       184-275"""
+         ...             3       184-275
+
+    Assuming cipher is AES:
+
+    >>> from Crypto.Cipher import AES
+    >>> get_cipher() == AES
+    True
+    >>> calc_blockno(1, 1456)
+    0
+    >>> calc_blockno(2, 1456)
+    92
+    >>> calc_blockno(3, 1456)
+    184
+    """
     bs = get_cipher().block_size
     return (bs + payloadsz) * (seqno - 1) / bs 
 
@@ -582,3 +640,8 @@ def unpack_dict(s):
         d[k] = v
     return d
 
+if __name__ == "__main__":
+    random_init()
+
+    import doctest
+    doctest.testmod()
