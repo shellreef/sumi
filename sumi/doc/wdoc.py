@@ -12,6 +12,7 @@ import urllib
 import urllib2
 import httplib
 import gzip
+import popen2
 from xml.sax import saxutils, handler, make_parser
 
 #httplib.HTTPConnection.debuglevel=1
@@ -98,6 +99,7 @@ class MWXError(Exception):
 
 # XML SAX parser
 class MediaWikiXML(handler.ContentHandler):
+    """Parse MediaWiki XML exports and call global convertArticle."""
     def __init__(self):
         handler.ContentHandler.__init__(self)
 
@@ -182,14 +184,9 @@ class MediaWikiXML(handler.ContentHandler):
     def endText(self):
         # Preserve whitespace
         self._wikitext = self._text
-        
-        print "Title: %s" % self._title
-        print "TS: %s" % self._timestamp
-        print "Contributor: %s" % self._contributor
-        print "Comment: %s" % self._comment
-        print "Text: %s bytes" % len(self._wikitext)
-        print
-        # TODO: feed to wt2db
+       
+        convertArticle(self._title, self._timestamp, self._contributor,
+                self._comment, self._wikitext)
 
     def characters(self, content):
         self._text += content
@@ -197,6 +194,21 @@ class MediaWikiXML(handler.ContentHandler):
     def ignorableWhitespace(self, whitespace):
         # Keep it for the wikitext
         self._text += content
+
+def convertArticle(title, timestamp, contributor, comment, wikitext):
+    print "Title: %s" % title
+    print "Timestamp: %s" % timestamp
+    print "Contributor: %s" % contributor
+    print "Comment: %s" % comment
+    print "WikiText: %s bytes" % len(wikitext)
+    
+    # Feed to wt2db
+    o, i = popen2.popen2("wt2db")
+    i.write(wikitext)
+    i.close()
+    print "DocBook: %s bytes" % len(o.read())
+
+    print
 
 site = "sumi.berlios.de/wiki";
 
@@ -208,6 +220,4 @@ fx  = gzip.GzipFile("wiki.xml.gz", "rb")
 parser = make_parser()
 parser.setContentHandler(MediaWikiXML())
 parser.parse(fx)
-
-# TODO: Feed to wt2db.
 
