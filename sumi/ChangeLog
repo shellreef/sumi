@@ -2,6 +2,12 @@ SUMI ChangeLog
 $Id$
 vi: noexpandtab:
 
+2005-09-05 Jeff Connelly <jeffconnelly@users.sourceforge.net> - 0.8.13a
+	* Added a few doctests
+	* SUMI is listed on Slyck.com!
+	* This is a source-only release; there are only minor changes from
+	  the 0.8.13 binary Win32 release. 
+
 2005-09-01 Jeff Connelly <jeffconnelly@users.sourcforge.net> - 0.8.13
 
 2005-08-31 Jeff Connelly <jeffconnelly@users.sourceforge.net>
