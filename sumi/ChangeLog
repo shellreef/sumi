@@ -2,6 +2,9 @@ SUMI ChangeLog
 $Id$
 vi: noexpandtab:
 
+2005-09-06 Jeff Connelly <jeffconnelly@users.sourceforge.net>
+	* Added doc/wdoc.py to extract articles from SUMIWiki, pipe to wt2db
+
 2005-09-05 Jeff Connelly <jeffconnelly@users.sourceforge.net> - 0.8.13a
 	* Added a few doctests
 	* SUMI is listed on Slyck.com!
