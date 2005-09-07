@@ -4,6 +4,7 @@ vi: noexpandtab:
 
 2005-09-06 Jeff Connelly <jeffconnelly@users.sourceforge.net>
 	* Added doc/wdoc.py to extract articles from SUMIWiki, pipe to wt2db
+	* In server, if 'interface' is blank, autoselect using use_new_if()
 
 2005-09-05 Jeff Connelly <jeffconnelly@users.sourceforge.net> - 0.8.13a
 	* Added a few doctests

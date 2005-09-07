@@ -1209,17 +1209,14 @@ WinPcap (for Win32) or libpcap from tcpdump (for Unix)?
 Error: %s: %s""" % (sys.exc_info()[0], sys.exc_info()[1]))
 
 
-    if cfg["interface"] == "":
-        devs = pcapy.findalldevs()
-        if len(devs) == 1:
-            cfg["interface"] = devs[0]
-            log("Single network interface, auto-selected %s" %
-                    cfg["interface"])
+    if len(cfg["interface"]) == 0:
+        log("No interface specified...looking up:")
+        use_new_if()
 
     try:
         p = pcapy.open_live(cfg["interface"], 1500, 1, 0)
     except pcapy.PcapError:
-        log("Pcap: Error opening %s: %s" % (cfg["interface"],
+        log("Pcap: Error opening |%s|: %s" % (cfg["interface"],
             pcapy.PcapError))
         use_new_if()
         p = pcapy.open_live(cfg["interface"], 1500, 1, 0)
@@ -1692,8 +1689,6 @@ def main(argv):
     if hasattr(signal, "SIGUSR2"):
         signal.signal(signal.SIGUSR2, sigusr2)
         log("Use kill -USR2 %s to reload" % os.getpid())
-    else:
-        log("No SIGUSR2, not setting up handler")
 
     setup_config()
 
