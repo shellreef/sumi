@@ -3,6 +3,8 @@ $Id$
 vi: noexpandtab:
 
 2005-09-07 Jeff Connelly <jeffconnelly@users.sourceforge.net>
+	* Add another Win32 distribution without an installer (win32noinst
+	  target), released as 0.8.13b with all changes below.
 	* Installer runs uninstaller if an old version already exists (#1284284)
 	* Don't include old HTML documentation with distribution; latest docs
 	  are on wiki and should eventually be converted and distributed with SUMI
