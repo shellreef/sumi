@@ -66,7 +66,8 @@ setup(options=opts, windows=[
 	], data_files=[
 	("transport", glob.glob("transport/*.pyc")),
     ("client-side", without_cvs("client-side")),
-    ("doc", without_cvs("doc")),
+    # Don't include docs; on Wiki now  (todo: convert from wiki)
+    #("doc", without_cvs("doc")),
 	(".", ["sumi.ico"])])
 setup(options=opts, console=["sumiserv.py"])
 
