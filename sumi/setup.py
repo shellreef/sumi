@@ -66,6 +66,8 @@ setup(options=opts, windows=[
 	], data_files=[
 	("transport", glob.glob("transport/*.pyc")),
     ("client-side", without_cvs("client-side")),
+    (".", ["socks5.pyc", "SUMI Home.url", "LICENSE", "share/lptest",
+        "rawproxd"]),
     # Don't include docs; on Wiki now  (todo: convert from wiki)
     #("doc", without_cvs("doc")),
 	(".", ["sumi.ico"])])

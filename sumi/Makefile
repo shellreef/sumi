@@ -1,4 +1,4 @@
-RLS="0.8.13"
+RLS="0.8.13b"
 
 all:: rawproxd
 
@@ -6,8 +6,14 @@ rawproxd:: rawproxd.c
 	#gcc -static rawproxd.c -o rawproxd
 	gcc -g hash/md5a.c rawproxd.c -o rawproxd_native
 
-exe:
+win32exe:
 	python setup.py py2exe
+
+win32noinst:
+	rm -f ../sumi-win32-no_installer-${RLS}.zip
+	cp config.txt.default dist/config.txt
+	cp sumiserv.cfg.default dist/sumiserv.cfg
+	cd dist && zip -r ../../sumi-win32-no_installer-${RLS}.zip *
 
 package:
 	cd /home/jeff/p2p/
