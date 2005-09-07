@@ -2,6 +2,11 @@ SUMI ChangeLog
 $Id$
 vi: noexpandtab:
 
+2005-09-07 Jeff Connelly <jeffconnelly@users.sourceforge.net>
+	* Installer runs uninstaller if an old version already exists (#1284284)
+	* Don't include old HTML documentation with distribution; latest docs
+	  are on wiki and should eventually be converted and distributed with SUMI
+
 2005-09-06 Jeff Connelly <jeffconnelly@users.sourceforge.net>
 	* Added doc/wdoc.py to extract articles from SUMIWiki, pipe to wt2db
 	* In server, if 'interface' is blank, autoselect using use_new_if(),
