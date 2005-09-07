@@ -97,7 +97,7 @@ mIRC_gone:
  goto mIRC_end
 
 mIRC_exists:
- ;MessageBox MB_OK "Congratulations, you've got mIRC!"
+ DetailPrint "Found mIRC"
 
  ; TODO: Open aliases.ini, check for ";sumi-mirc X" (version is currently 0). If
  ; not there, put it there. If version less, delete all from ;sumi-mirc to closing }.
@@ -109,8 +109,8 @@ mIRC_exists:
 repeat:
  ; Check for reading ";sumi-mirc X
  FileRead $4 $1                  ; read line into $1
- IfErrors install_it            ; EOF and didn't find it
- StrCpy $3 $1 2 1                ; get XX of nXX=(lineno), assuming its >9 and <99
+ IfErrors install_it             ; EOF and didn't find it
+ StrCpy $3 $1 2 1            ; get XX of nXX=(lineno), assuming its >9 and <99
  Push $1                         ; search within this...
  Push ";sumi-mirc"               ; for this...
  Call StrStr                     ; find it in it
