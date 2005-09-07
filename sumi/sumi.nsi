@@ -10,6 +10,7 @@
 ; description of SUMI? Where is it set?
 
 ; Thanks to:
+;  Nullsoft for their great NSIS program
 ;  Bram Cohen for bittorrent.nsi file association code
 ;  Ulf Lamping for ethereal.nsi WinPcap install code
 
@@ -19,6 +20,40 @@ SetCompressor /SOLID lzma
 Name "SUMI"
 OutFile "sumiinst.exe"
 InstallDir "$PROGRAMFILES\SUMI"
+
+; http://nsis.sourceforge.net/wiki/Auto-uninstall_old_before_installing_new
+Function .onInit
+  ReadRegStr $R0 HKLM \
+  "Software\Microsoft\Windows\CurrentVersion\Uninstall\SUMI" \
+  "UninstallString"
+  StrCmp $R0 "" done
+ 
+  MessageBox MB_OKCANCEL|MB_ICONEXCLAMATION \
+  "SUMI is already installed. $\n$\nClick 'OK' to remove the \
+  previous version or 'Cancel' to cancel this upgrade." \
+  IDOK uninst_old
+  Abort
+  
+;Run the uninstaller
+uninst_old:
+  ClearErrors
+  ExecWait '$R0 _?=$INSTDIR' ;Do not copy the uninstaller to a temp file
+ 
+  IfErrors no_remove_uninstaller
+  goto ok_remove_uninstaller
+    ;You can either use Delete /REBOOTOK in the uninstaller or add some code
+    ;here to remove to remove the uninstaller. Use a registry key to check
+    ;whether the user has chosen to uninstall. If you are using an uninstaller
+    ;components page, make sure all sections are uninstalled.
+  no_remove_uninstaller:
+    MessageBox MB_ICONEXCLAMATION \
+        "There was an error uninstalling the old version.\n\nPlease close SUMI and uninstall it manually."
+        Abort
+  ok_remove_uninstaller:
+  
+done:
+ 
+FunctionEnd
 
 Page components
 Page directory
