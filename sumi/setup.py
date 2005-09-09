@@ -39,7 +39,7 @@ def compile_transports():
 
         if not os.access(f + "c", os.R_OK):
             print "Failed to compile transport %s" % f
-            sys.exit(-1)
+            raise SystemExit
 
 compile_transports()
 
