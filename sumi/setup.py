@@ -16,12 +16,13 @@ import py2exe
 import glob
 import os
 
-def without_cvs(dir_name):
-    """List a directory without the CVS directory."""
+def without_hidden(dir_name):
+    """List a directory without hidden directories (most importantly .svn)."""
     a = os.listdir(dir_name)
     b = []
     for x in a:
-        if x != "CVS": b.append(dir_name + os.path.sep + x)
+        if not x.startswith("."): 
+            b.append(dir_name + os.path.sep + x)
     return b
 
 def compile_transports():
@@ -65,11 +66,11 @@ setup(options=opts, windows=[
 	"icon_resources": [(1, "sumi.ico")]}  # Icon from Keith Oakley 2004-08-11
 	], data_files=[
 	("transport", glob.glob("transport/*.pyc")),
-    ("client-side", without_cvs("client-side")),
+    ("client-side", without_hidden("client-side")),
     (".", ["socks5.pyc", "SUMI Home.url", "LICENSE", "share/lptest",
         "rawproxd"]),
     # Don't include docs; on Wiki now  (todo: convert from wiki)
-    #("doc", without_cvs("doc")),
+    #("doc", without_hidden("doc")),
 	(".", ["sumi.ico"])])
 setup(options=opts, console=["sumiserv.py"])
 
