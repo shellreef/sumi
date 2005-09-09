@@ -203,10 +203,12 @@ def convertArticle(title, timestamp, contributor, comment, wikitext):
     print "WikiText: %s bytes" % len(wikitext)
     
     # Feed to wt2db
-    o, i = popen2.popen2("wt2db")
+    o, i = popen2.popen2("wt2db -x")
     i.write(wikitext)
     i.close()
-    print "DocBook: %s bytes" % len(o.read())
+    db = o.read()
+    print "DocBook: %s bytes" % len(db)
+    file("tmp/%s.xml" % title, "wt").write(db)
 
     print
 

@@ -1,0 +1,50 @@
+--- tmp/UDP For Anonymity.xml	Fri Sep  9 00:48:07 2005
++++ UDP.xml	Fri Sep  9 00:49:08 2005
+@@ -6,10 +6,20 @@
+   "http://docbook.org/xml/4.3/ent/iso-num.ent">
+   %ISOnum;
+ ]>
+-
+ <article>
+-<para>This document describes some ideas about using UDP to achieve anonymity, discussing several alternatives and culminating at an introduction to SUMI. SUMI has changed significantly since the writing of this article but the basic concepts still apply.
+-</para>
++    <title>UDP For Anonymity</title>
++    <articleinfo>
++        <author>
++            <personname>
++                <firstname>Jeff</firstname>
++                <surname>Connelly</surname>
++            </personname>
++        </author>
++    </articleinfo>
++    <para>This document describes some ideas about using UDP to achieve anonymity, discussing several alternatives and culminating at an introduction to SUMI. SUMI has changed significantly since the writing of this article but the basic concepts still apply.
++    </para>
++    <sect1 id='udp-for-anonymity'>
++        <title>UDP For Anonymity</title>
+ <sect2 id='the-need-for-anonymity'><title id='the-need-for-anonymity-title'>The Need for Anonymity</title>
+ <para>Not discussed here.
+ </para>
+@@ -40,7 +50,7 @@
+ </para>
+ </listitem>
+ <listitem>
+-<para>Difficult for intermediate routers to discover source & dest
++<para>Difficult for intermediate routers to discover source and dest
+ </para>
+ </listitem>
+ <listitem>
+@@ -84,7 +94,7 @@
+ </para>
+ </listitem>
+ <listitem>
+-<para>Transfer: Recipient &lt- Sender
++    <para>Transfer: Recipient -> Sender
+ </para>
+ <para>Advantages:
+ </para>
+@@ -250,4 +260,5 @@
+ </para>
+ </sect3>
+ </sect2>
++</sect1>
+ </article>
