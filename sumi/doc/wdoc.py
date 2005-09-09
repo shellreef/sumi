@@ -214,10 +214,10 @@ def convertArticle(title, timestamp, contributor, comment, wikitext):
 
 site = "sumi.berlios.de/wiki";
 
-#pages = all_pages(site)
-#fx = fetch_xml(site, pages)
+pages = all_pages(site)
+fx = fetch_xml(site, pages)
 #XXX: Use old version for debug purposes
-fx  = gzip.GzipFile("wiki.xml.gz", "rb")
+#fx  = gzip.GzipFile("wiki.xml.gz", "rb")
 
 parser = make_parser()
 parser.setContentHandler(MediaWikiXML())
