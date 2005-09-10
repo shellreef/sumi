@@ -96,7 +96,7 @@ class MainNotebook(wx.Notebook):
         self.AddPage(self.clog,  "Client Log") 
         self.AddPage(self.cfgs, "Server Setup")
         self.AddPage(self.slog, "Server Log")
-        self.AddPage(self.exit, "Exit Now")
+        self.AddPage(self.exit, "Save and Exit")
 
         # TODO: design images, assign them here
         # Transfers - cables, data
