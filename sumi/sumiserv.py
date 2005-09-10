@@ -771,7 +771,7 @@ def recvmsg(nick, msg):
        Returns True if successful, False if unsuccessful, or
        None if neither (multipart continuation)."""
 
-    if nick == None and msg == "on_exit":
+    if nick is None and msg == "on_exit":
         on_exit()
 
     log("<%s>%s" % (nick, msg))
@@ -1150,7 +1150,7 @@ def sendto_raw(s, data, dst):
 
     global raw_proxy
     try:
-        if raw_proxy == None:
+        if raw_proxy is None:
             r=s.sendto(data, dst)
             #log("RET=%s" % r)
         else:
