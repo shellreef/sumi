@@ -380,6 +380,9 @@ True
             # pkt to be encrypted, since it goes over the data channel.
             u["ctr"] = u["data_iv"]
             log("DEC AP WITH: %s" % u["ctr"])
+            assert len(data[SUMIHDRSZ:]) % get_cipher().block_size == 0, \
+                    "Length of data is %s, not multiple of cipher bs %s" % (
+                            len(data[SUMIHDRSZ:]), get_cipher().block_size)
             data = data[0:SUMIHDRSZ] + u["crypto_obj"].decrypt(
                     data[SUMIHDRSZ:])
 
@@ -403,7 +406,7 @@ True
             if recvd_hash != derived_hash:
                 log("Server verification failed! %s != %s" % (
                         ([recvd_hash], [derived_hash])))
-                clear_server(u)
+                self.clear_server(u)
                 return
             log("Server verified: interlock nonce matches auth pkt nonce")
         else:
@@ -644,7 +647,8 @@ DATA:UNKNOWN PREFIX! 414141 6 bytes from ()
             return False
 
         prefix = data[:3] 
-        seqno, = struct.unpack("!I", "\0" + data[3:6])  # 3-byte
+        seqno, = struct.unpack("!I", data[3:7])  # 4-bytes
+        crc32 = data[7:11]
 
         u = self.prefix2user(prefix)
         if not u:

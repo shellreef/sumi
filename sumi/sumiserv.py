@@ -38,6 +38,7 @@ import os
 import md5
 import time
 import Queue
+import zlib
 import libsumi
 
 from libsumi import *
@@ -96,7 +97,7 @@ load_cfg()
 resend_queue = Queue.Queue(0)
 clients = { }
 casts = { }
-SUMIHDRSZ = 6 
+#SUMIHDRSZ = 6  # moved to libsumi
 IPHDRSZ = 20 
 ICMPHDRSZ = 8
 UDPHDRSZ = 8  
@@ -372,10 +373,14 @@ def send_auth(u, file_info):
     if not u.has_key("prefix1"):
         return sendmsg_error(u, "missing prefix")
 
+    assert isinstance(u["prefix1"], str), "prefix1 isn't a string"
+    assert len(u["prefix1"]) == 3, "prefix1 isn't 3 bytes"
+
     # Build the authentication packet using the client-requested prefix
-    # 3-byte prefix, 3-byte seqno (0)
-    pkt = "%s\0\0\0" % u["prefix1"]
-    assert len(pkt) == SUMIHDRSZ, "pkt + seqno != SUMIHDRSZ";
+    # 3-byte prefix, 4-byte seqno (0 for auth), 4-byte CRC32 (0 for now)
+    pkt = u["prefix1"] + "\0\0\0\0" + "\0\0\0\0"
+
+    assert len(pkt) == SUMIHDRSZ, "pkt header(%s) != SUMIHDRSZ" % len(pkt);
 
     # Payload is file information, followed by random data, up to MSS
     payload = file_info
@@ -675,7 +680,7 @@ def handle_sec(u, msg):
         pkeys.append(skeys[i].DH_recv(ckeys[i]))
     u["sesskey"] = hash128(pkeys[0]) + hash128(pkeys[1])
     u["sessiv"] = pkeys[2]
-    log("session key/iv: %s %s" % (u["sesskey"], u["sessiv"]))
+    log("session key/iv: %s %s" % ([u["sesskey"]], [u["sessiv"]]))
 
     # Calculate and save unencrypted nonce (nonce), and two halves encrypted.
     nonce, nonce_1, nonce_2 = generate_nonce(u)
@@ -1028,10 +1033,6 @@ def datapkt(u, seqno, is_resend=False):
        Returns the length of the data sent.
        
        Delegates actual sending to a send_packet_* function."""
-    if seqno > 16777216:
-        destroy_client(u)
-        return sendmsg_error(u, "file too large: 8-10GB is " 
-                "the limit, depending on MSS")
 
     # self.mss was payloadsz            
 
@@ -1091,8 +1092,9 @@ def datapkt(u, seqno, is_resend=False):
 
         data = ciphertext
 
-    pkt = u["prefix"]        # 3-byte prefix
-    pkt += struct.pack("!I", seqno)[1:]  # 3-byte seq no
+    pkt = u["prefix"]               # 3-byte prefix
+    pkt += struct.pack("!I", seqno) # 4-byte seq no
+    pkt += "\0\0\0\0"               # 4-byte CRC32 (0 until calculated)
     if len(pkt) != SUMIHDRSZ:
         fatal(5, "internal failure: header not expected size")
     pkt += data 

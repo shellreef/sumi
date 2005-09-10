@@ -31,7 +31,7 @@ from itertools import izip, chain
 
 SUMI_VER = "0.8.13"
 
-SUMIHDRSZ = 6#bytes
+SUMIHDRSZ = 11#bytes
 UDPHDRSZ = 8#bytes
 IPHDRSZ = 20#bytes
 SUMIAUTHHDRSZ = 4#bytes
