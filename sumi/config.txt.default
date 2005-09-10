@@ -91,7 +91,7 @@
 # If True, sumigetw will load and run sumiserv to enable sharing. 
 # Otherwise, sumigetw will only run sumiget. (Does not affect standalone
 # sumiget or sumiserv.)
-"share": True,
+"share": False,
 
 # Encrypt? If enabled:
 #  If transport is insecure, will encrypt requests (interlock, etc.)
