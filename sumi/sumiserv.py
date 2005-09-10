@@ -408,7 +408,10 @@ def send_auth(u, file_info):
         payload = u["crypto_obj"].encrypt(payload)
     pkt += payload
 
-    u["authpkt_enc"] = pkt
+    pkt = calc_crc(pkt)
+
+    # Never used anywhere
+    #u["authpkt_enc"] = pkt
 
     # Send raw UDP from: src_gen(), to: dst_gen()
     # This will trigger client to send sumi auth
@@ -1098,6 +1101,9 @@ def datapkt(u, seqno, is_resend=False):
     if len(pkt) != SUMIHDRSZ:
         fatal(5, "internal failure: header not expected size")
     pkt += data 
+
+    pkt = calc_crc(pkt)
+
     if len(pkt) > u["mss"] + SUMIHDRSZ:
         fatal(6, "internal: trying to send packet >MSS+HDR, should not happen")
 

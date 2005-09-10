@@ -358,6 +358,9 @@ True
     def handle_auth(self, u, prefix, addr, data):
         """Handle the authentication packet."""
         log("Got auth packet from %s for %s" % (addr,u["nick"]))
+        
+        # Remove CRC from auth packet; its hashed before its filled in
+        data = data[:7] + "\0\0\0\0" + data[11:]
 
         if u.has_key("crypto_state"):
             g = time.time()
@@ -636,6 +639,7 @@ DATA:UNKNOWN PREFIX! 414141 6 bytes from ()
 >>>
 
         Data from aborted transfers is discarded and returns False. 
+        Data which fails CRC check is also discarded and returns False.
 
         Otherwise, 'retries' is zeroed, 'last_msg' is set to the timestamp,
         and 'at' is set to the received sequence number. Finally the data
@@ -649,6 +653,20 @@ DATA:UNKNOWN PREFIX! 414141 6 bytes from ()
         prefix = data[:3] 
         seqno, = struct.unpack("!I", data[3:7])  # 4-bytes
         crc32 = data[7:11]
+
+        if not check_crc(data):
+            if seqno == 0:
+                # TODO: Re-request lost packet automatically. Currently, bail.
+                u = self.prefix2user(prefix)
+                if u:
+                    self.callback(u["nick"], "auth_crc_fail")
+                    #self.clear_server(u)
+                    # Stop countdown and abort-on-close
+                    u["handshake_error"] = True
+
+            # check_crc() will detailed info if it fails, but
+            # TODO: callback so GUI can show CRC errors
+            return False
 
         u = self.prefix2user(prefix)
         if not u:
@@ -1245,6 +1263,9 @@ Tried to use a valid directory of %s but it couldn't be accessed."""
         if u.get("aborted"):         # can only abort once
             return False
 
+        if u.get("handshake_error"): # never got pass handshake
+            return False
+
         self.sendmsg(u, "!")
 
         # Keep around user, because server won't abort transfer immediately.
@@ -1390,7 +1411,11 @@ Tried to use a valid directory of %s but it couldn't be accessed."""
             #if not self.senders.has_key(u["nick"]):
             #        return False    # some other error
             if u.has_key("fn"):
-                return # don't break - otherwise will timeout
+                return    # Success: don't break - otherwise will timeout.
+            if u.has_key("handshake_error"):
+                self.clear_server(u)
+                u["handshake_error"] = True
+                return    # Error set by callback already, get out
             u["handshake_count"] = x 
             self.callback(u["nick"], "req_count", x,
                     u["handshake_status"])

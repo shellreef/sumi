@@ -434,7 +434,7 @@ class CConfigPanel(wx.Panel):
         # EAC uses wx.FileDialog and ignores the filename. I like that idea,
         # because wx.DirDialog isn't as good in my opinion.
         
-        if (not os.access(self.app.client.config["dl_dir"], os.W_OK | os.X_OK)):
+        if not os.access(self.app.client.config["dl_dir"], os.W_OK | os.X_OK):
             # Can't read or cd to directory so default to current directory
             self.app.client.config["dl_dir"] = os.getcwd()
         dlg = wx.FileDialog(self, "Choose location", 
@@ -1079,6 +1079,13 @@ class SUMIApp(wx.App):
         elif (cmd == "1xferonly"):  # transfer already in progress
             self.SetInfo(nick, COL_STATUS, "Another transfer in progress")
             self.SetColor(nick, wx.RED)  # Maybe queue it instead?
+        elif (cmd == "auth_crc_fail"):
+            # TODO: this should cause the pkt to be re-requested; it could
+            # just be a transient network error
+            self.SetInfo(nick, COL_STATUS, 
+                "Auth packet corrupted, please try again.")
+            self.SetColor(nick, wx.RED)
+            #XXX
         elif (cmd == "bad_file"): 
             self.SetInfo(nick, COL_STATUS, "Couldn't resume from %s" %
                     args[0])

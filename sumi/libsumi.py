@@ -26,6 +26,7 @@ import sys
 import struct 
 import base64
 import sha
+import zlib
 import types
 from itertools import izip, chain
 
@@ -639,6 +640,70 @@ def unpack_dict(s):
         k, v = item.split("=")
         d[k] = v
     return d
+
+# set_crc() and check_crc() aren't both called in the same program, but its
+# useful to keep them together here in case one changes.
+
+def calc_crc(pkt):
+    r'''Calculate the CRC32 of a SUMI packet and return a packet with the
+    CRC32 field filled in.
+
+>>> pkt = "fooXXXX\0\0\0\0ZZZZZZ"
+>>> calc_crc(pkt)
+'fooXXXX\xd25\xe93ZZZZZZ'
+>>> check_crc(calc_crc(pkt))
+True
+
+'''
+
+    # Make sure the CRC hasn't been filled in yet
+    assert pkt[7:11] == "\0\0\0\0", "calc_crc() on pkt without CRC=0!"
+
+    crc = struct.pack("!i", zlib.crc32(pkt))
+
+    return pkt[:7] + crc + pkt[11:]
+
+def check_crc(pkt):
+    r'''Check the CRC32 of a packet, returning True if it is correct.
+    
+    >>> pkt = calc_crc("fooXXXX\0\0\0\0ZZZZZZ")
+    >>> pkt
+    'fooXXXX\xd25\xe93ZZZZZZ'
+    >>> check_crc(pkt)
+    True
+    >>> check_crc(pkt[0:11])          # Detect truncation
+    (libsumi) CRC32 FAILURE: -2dca16cd vs 0e97bd2c
+    False
+    >>> check_crc('g' + pkt[1:])      # Detect modification
+    (libsumi) CRC32 FAILURE: -2dca16cd vs 55932270
+    False
+    '''
+
+    assert len(pkt) >= 11, "check_crc() on incomplete packet: %s" % len(pkt)
+
+    # Use lowercase i since zlib's CRC is signed
+    crc_pkt, = struct.unpack("!i", pkt[7:11])
+    crc_calc = zlib.crc32(pkt[:7] + "\0\0\0\0" + pkt[11:])
+
+    if crc_pkt != crc_calc:
+        prefix = pkt[0:3]
+        seqno, = struct.unpack("!I", pkt[3:7])
+
+        # If don't have L suffix, will cause warning:
+        #
+        #   FutureWarning: %u/%o/%x/%X of negative int will return a signed
+        #   string in Python 2.4 and up
+        # 
+        # And there doesn't seem to be an import __future__ statement to
+        # use this behavior, and filtering warnings is inelegant.
+        #
+        # And %+x should show the sign, but the + seems to be ignored.
+        #
+        # That is why I have to convert to long using *1L.
+        log("** CRC32 Failure from %s in %d: %.8x vs %.8x" % 
+                ([prefix], seqno, crc_pkt * 1L, crc_calc * 1L))
+
+    return crc_pkt == crc_calc
 
 if __name__ == "__main__":
     random_init()
