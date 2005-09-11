@@ -126,6 +126,16 @@ class Client(object):
         libsumi.log = log
         log("OK")
 
+        # Make sure file is writable
+        # os.access W_OK is not reliable across SMB shares
+        #try:
+        #    file(config_file, "a")
+        #except IOError:
+        #    log("The config file is not writable, but it must be")
+        #    log("in order to save settings. Please correct.")
+        #    raise SystemExit
+        # Problem: reporting to GUI, excluded for now
+
         # Now performed manually in sumigetw
         #self.validate_config()
         self.senders = {}
