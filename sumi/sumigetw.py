@@ -289,27 +289,13 @@ class CConfigPanel(wx.Panel):
                                      wx.Point(0, 0), wx.Size(-1, -1))
         self.bw = wx.ComboBox(self, CTL_BANDWIDTH, 
                              str(self.app.client.config["bandwidth"]), 
-                             wx.Point(80, 0),
+                             wx.Point(90, 0),
                              wx.Size(95, -1),
                              choices=bandwidths, style=wx.CB_DROPDOWN)
 
         wx.EVT_TEXT(self, CTL_BANDWIDTH, self.OnBandwidthChange)
 
-        # Cryptography. TODO: Get pre auth working, then really work on this.
-        # Also, make the listbox here one item high. Make it drop down.
-        #self.crypto_label = wx.StaticText(self, -1, "Cryptography:", 
-        #                        wx.Point(0, 30), wx.Size(-1, -1))
-        #self.crypto = wx.Choice(self, CTL_CRYPTO, wx.Point(80, 30), 
-        #                        wx.Size(-1, -1),
-        #                        choices=["None", 
-        #                                 "Symmetric (AES)", 
-        #                         "Asymmetric", 
-        #                         "One time pad"])
-        #self.cryptos = ['', 's', 'a', 'o']
-        #crypto2n = {'': 0, 's': 1, 'a': 2, 'o': 3}
-        #self.crypto.SetSelection(crypto2n[self.app.client.config["crypto"]])
-        #wx.EVT_CHOICE(self, CTL_CRYPTO, self.OnCryptoChange)
-        # TODO: Asymmetric encryption key (passwd)
+        # TODO: Checkbox for crypt
 
         # Data channel type
         # ICMP here has 2^16 combinations, for each type+code.
@@ -326,9 +312,10 @@ class CConfigPanel(wx.Panel):
         #    dchans_rep.append("ICMP Type=%d Code=0" % x)
         #    dchan2n["i%d,%d" % (x, 0)] = 2 + x
         #    self.dchans_code[x + 2] = "i%d,%d" % (x, 0)
-        self.dchan = wx.Choice(self, CTL_DCHAN, wx.Point(80, 70), 
+        self.dchan = wx.Choice(self, CTL_DCHAN, wx.Point(90, 70), 
                 wx.Size(-1, -1), choices=dchans_rep)
-        self.dchan.SetSelection(dchan2n[self.app.client.config["data_chan_type"]])
+        self.dchan.SetSelection(dchan2n[self.app.client.config
+                ["data_chan_type"]])
         wx.EVT_CHOICE(self, CTL_DCHAN, self.OnDChanChange)
 
         # Download directory, [...] common open file dialog
@@ -336,13 +323,13 @@ class CConfigPanel(wx.Panel):
                                         wx.Point(0, 110), wx.Size(-1, -1))
         self.dldir = wx.TextCtrl(self, CTL_DLDIR, 
                 self.app.client.config["dl_dir"],
-                wx.Point(80, 110), wx.Size(130, -1), 
+                wx.Point(90, 110), wx.Size(260, -1), 
         # Have to change dldir using browse button, can't edit it directly.
         # Possible but I don't allow this, so validation can be done in the
         # common dialog instead of in user program. 
                                 style=wx.TE_READONLY)
         self.dldir_browse = wx.Button(self, CTL_BROWSE, "...", 
-                                     wx.Point(80 + 130, 110), wx.Size(20, -1))
+                                     wx.Point(90 + 260, 110), wx.Size(20, -1))
         wx.EVT_BUTTON(self, CTL_BROWSE, self.OnDldirBrowse)
 
         # Send to IP Address ("" = get default IP)
@@ -352,7 +339,7 @@ class CConfigPanel(wx.Panel):
         if len(myip) == 0: myip = "(default)"
         self.myip = wx.TextCtrl(self, CTL_MYIP, 
                                myip, 
-                               wx.Point(250 + 80, 0), wx.Size(-1, -1))
+                               wx.Point(250 + 90, 0), wx.Size(-1, -1))
         wx.EVT_TEXT(self, CTL_MYIP, self.OnIPChange)
 
         # 16-bit (UDP) port, if applicable 
@@ -361,7 +348,7 @@ class CConfigPanel(wx.Panel):
         # IntCtrl is appealing, but not on Windows? Look into this.
         self.myport = IntCtrl(self, CTL_MYPORT, 
                                  self.app.client.config["myport"],
-                                 wx.Point(250 + 80, 80), wx.Size(-1, -1))
+                                 wx.Point(250 + 90, 80), wx.Size(-1, -1))
         self.myport.SetMin(0)   # 0 port..heh
         self.myport.SetMax(65535)
         EVT_INT(self, CTL_MYPORT, self.OnPortChange)
@@ -392,7 +379,7 @@ class CConfigPanel(wx.Panel):
                                       wx.Point(250, 40), wx.Size(-1, -1))
         self.mtu = IntCtrl(self, CTL_MTU, 
                              self.app.client.config["mtu"],
-                             wx.Point(250 + 80, 40), wx.Size(-1, -1))
+                             wx.Point(250 + 90, 40), wx.Size(-1, -1))
         EVT_INT(self, CTL_MTU, self.OnMTUChange)
 
         # TODO: Rwinsz, in seconds. Slider - 1 to 15 or so?
@@ -885,22 +872,6 @@ class SUMIApp(wx.App):
         self.RecvReq()
 
         self.client = sumiget.Client()
-        
-        if len(sys.argv) == 1:
-            usage = ("Welcome to SUMI.\n\n" +
-                    "Please visit the SUMI home page to find " +
-                    "downloadable .sumi files (look in the Start Menu).\n\n" +
-                    "SUMI will now close. Thank you for using SUMI!")
-
-            log("User doesn't know how to invoke program")
-           
-            # Useful for testing without a transfer
-            if not self.client.config.get("allow_no_req"):
-                dlg = wx.MessageDialog(None, usage, "Welcome to SUMI",
-                    wx.OK | wx.ICON_INFORMATION)
-                dlg.ShowModal()
-
-                raise SystemExit
 
         wx.InitAllImageHandlers()
 
@@ -957,10 +928,13 @@ class SUMIApp(wx.App):
         # Restore saved window size
         self.frame.SetSize(self.client.config["winsize"])
 
-        # Note; xfpanel size isn't set/retreived ever - only window size
-        #self.xfpanel.SetSize(self.client.config["winsize"])
-
-        self.nb.xfpanel.SetFocus()
+        # If no arguments, show config, else show transfer panel
+        if len(sys.argv) == 1:
+            log("No arguments--showing config")
+            self.nb.cfgc.SetFocus()
+            self.nb.SetSelection(1)
+        else:
+            self.nb.xfpanel.SetFocus()
 
         self.SetTopWindow(self.frame)
         return True
