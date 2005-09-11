@@ -705,6 +705,29 @@ def check_crc(pkt):
 
     return crc_pkt == crc_calc
 
+_abbrevs = [
+    (1 << 50L, "P"),
+    (1 << 40L, "T"),
+    (1 << 30L, "G"),
+    (1 << 20L, "M"),
+    (1 << 10L, "k"),
+    (1, "")
+    ]
+
+def human_readable_size(size):
+    """Convert a byte count to a human-readable size. From
+       http://mail.python.org/pipermail/python-list/1999-December/018406.html
+       and modified to suit the program's needs."""
+
+    for factor, suffix in _abbrevs:
+        if size >= factor:   # >= to repr "1024*1024" as "1M"
+            break
+    coef = (size/(factor * 1.0))
+    if (coef >= 10):    # larger coefficients can't have a pt, not enough room
+        return "%d" % (coef,) + suffix
+    else:               # smaller ones can because there's room, more info=good
+        return "%.1f" % (coef,) + suffix
+
 if __name__ == "__main__":
     random_init()
 
