@@ -1204,6 +1204,9 @@ DATA:UNKNOWN PREFIX! 414141 6 bytes from ()
             except:
                 return "MSS was not set, please set it in the Client tab."
 
+        log("Maximum file size (over UDP): %sB" % human_readable_size(
+            (self.mss - IPHDRSZ - UDPHDRSZ - SUMIHDRSZ) * 0xffffffffL))
+
         if self.config.get("crypt"):
             random_init()
 
