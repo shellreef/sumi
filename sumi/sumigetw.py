@@ -1053,14 +1053,17 @@ class SUMIApp(wx.App):
             global nick2index, last_index
             transport, nick, filename = args
 
-            # nick2index associates the nickname with the location in the listbox
-            # TODO: Use transfer key instead, as its unique. Then might be able to
-            # do multiple transfers per nick
+            # nick2index associates the nickname with the location in the list
+            # TODO: Use transfer key instead, as its unique. Then might be able
+            # to do multiple transfers per nick
             if nick2index.has_key(nick):
                 index = nick2index[nick]
-                if self.nb.xfpanel.getColumnText(index, COL_STATUS) == 'Transferring...':
-                    print "ERROR: In-progress transfer from",nick,"at",index,"already"
-                    print "Currently you can only have one transfer per user, sorry"
+                if self.nb.xfpanel.getColumnText(index, COL_STATUS) == \
+                    'Transferring...':
+                    print "ERROR: In-progress transfer from",\
+                            nick,"at",index,"already"
+                    print "Currently you can only have one"\
+                            "transfer per user, sorry"
                     return 
             else:
                 nick2index[nick] = last_index
@@ -1068,7 +1071,8 @@ class SUMIApp(wx.App):
                 last_index += 1
 
             print "Inserting at index",index
-            self.nb.xfpanel.list.InsertImageStringItem(index, nick, self.nb.xfpanel.sm_dn)
+            self.nb.xfpanel.list.InsertImageStringItem(index, nick, 
+                    self.nb.xfpanel.sm_dn)
             self.nb.xfpanel.itemDataMap[index] = [0] * (COL_LAST + 1)
             self.SetInfo(nick, COL_FILENAME, filename)
             self.SetInfo(nick, COL_PEER, nick)
@@ -1085,11 +1089,22 @@ class SUMIApp(wx.App):
             self.SetInfo(nick, COL_STATUS, 
                 "Auth packet corrupted, please try again.")
             self.SetColor(nick, wx.RED)
-            #XXX
         elif (cmd == "bad_file"): 
             self.SetInfo(nick, COL_STATUS, "Couldn't resume from %s" %
                     args[0])
             self.SetColor(nick, wx.RED)
+
+        elif (cmd == "hash_start"):
+            self.SetInfo(nick, COL_STATUS, "Verifying...")
+        elif (cmd == "hashing"):
+            self.SetInfo(nick, COL_BYTES, str(args[0]))
+        elif (cmd == "hash_ok"):
+            self.SetInfo(nick, COL_STATUS, "Verified OK")
+            self.SetColor(nick, wx.Colour(32, 128, 32))
+        elif (cmd == "hash_fail"):
+            self.SetInfo(nick, COL_STATUS, "Hash failed")
+            self.SetInfo(nick, wx.RED)
+
         elif (cmd == "t_import_fail"): # transport failed to load
             self.SetInfo(nick, COL_STATUS, "Bad transport: %s" % args[0])
             self.SetColor(nick, wx.RED)
@@ -1172,7 +1187,7 @@ class SUMIApp(wx.App):
             #self.SetInfo(nick, COL_FROM, ":".join(map(str, addr)))
             # just IP - I like this one better
             self.SetInfo(nick, COL_FROM, addr[0])
-        elif (cmd == "fin"):
+        elif (cmd == "xfer_fin"):       # Transfer finished
             (duration, size, speed, all_lost) = args
             self.SetInfo(nick, COL_STATUS, "Complete")
             self.SetInfo(nick, COL_RATE, "%d" % speed)

@@ -303,7 +303,7 @@ True
 
     def setup_file(self, u):
         """Setup the file to save to."""
-        fn = self.config["dl_dir"] + os.path.sep + u["fn"]
+        fn = self.config["dl_dir"] + os.path.sep + u["filename"]
         log("Opening %s for %s..." % (fn, u["nick"]))
         u["start"] = time.time()
 
@@ -415,9 +415,11 @@ True
         else:
             log("Skipping server verification, crypto disabled")
 
+        u["file_hash"], i = take(data, 20, i)
+    
         filename = data[i:data[i:].find("\0") + i]
 
-        u["fn"] = filename
+        u["filename"] = filename
         log("Filename: <%s>" % filename)
 
         # Server can change prefix we suggested (negotiated).
@@ -536,7 +538,7 @@ True
         if u["crypt_data"]:
             # Outer crypto: CTR mode
             u["ctr"] = (calc_blockno(seqno, self.mss) + u["data_iv"])
-            log("CTR:pkt %s -> %s" % (seqno, u["ctr"]))
+            #log("CTR:pkt %s -> %s" % (seqno, u["ctr"]))
             data = u["crypto_obj"].decrypt(data)
         
         # XXX: broken
@@ -805,7 +807,7 @@ DATA:UNKNOWN PREFIX! 414141 6 bytes from ()
         """Finish the file transfer. Save the lost data, notify the 
         server and callback."""
 
-        # Nothing lost anymore, update. Saved as ",X" where X = last packet.
+        # Nothing lost anymore, update. Saved as complete.
         log("DONE - UPDATING")
         self.save_lost(u, True)
 
@@ -813,10 +815,29 @@ DATA:UNKNOWN PREFIX! 414141 6 bytes from ()
 
         duration = time.time() - u["start"]
         u["fh"].close()
-        self.callback(u["nick"], "fin", duration, u["size"], 
+        self.callback(u["nick"], "xfer_fin", duration, u["size"], 
               u["size"] / duration / 1024, 
               u["all_lost"])
-        
+
+        self.callback(u["nick"], "hash_start")
+
+        # Verify the hash
+        def update_hash(n):
+            self.callback(u["nick"], "hashing", n)
+
+        log("Hashing...")
+        h1 = hash_file(self.config["dl_dir"] + os.path.sep + u["filename"],
+                update_hash)
+        h2 = u["file_hash"]
+        log("-> %s vs %s" % ([h1], [h2]))
+        if h1 != h2:
+            log("HASH FAILED!")
+            self.callback(u["nick"], "hash_fail")
+            raise SystemExit
+      
+        else:
+            self.callback(u["nick"], "hash_ok")
+
         #print "Transfer complete in %.6f seconds" % (duration)
         #print "All lost packets: ", u["all_lost"]
         #print str(u["size"]) + " at " + str(
@@ -1413,7 +1434,7 @@ Tried to use a valid directory of %s but it couldn't be accessed."""
             # If received fn in this time, then exists, so stop countdown
             #if not self.senders.has_key(u["nick"]):
             #        return False    # some other error
-            if u.has_key("fn"):
+            if u.has_key("filename"):
                 return    # Success: don't break - otherwise will timeout.
             if u.has_key("handshake_error"):
                 self.clear_server(u)

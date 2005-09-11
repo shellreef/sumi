@@ -28,9 +28,10 @@ import base64
 import sha
 import zlib
 import types
+import os
 from itertools import izip, chain
 
-SUMI_VER = "0.8.13"
+SUMI_VER = "0.8.14"
 
 SUMIHDRSZ = 11#bytes
 UDPHDRSZ = 8#bytes
@@ -41,6 +42,8 @@ PKT_TIMEOUT = 3#seconds
 # Time to sleep between interlock protocol exchanges
 INTERLOCK_DELAY = 1#second
 
+# Size of chunk when reading files from _disk_ into memory (not used online)
+READ_CHUNK_SIZE = 1024 * 1024#bytes
 def log(msg):
     print "(libsumi) %s" % msg
 
@@ -727,6 +730,27 @@ def human_readable_size(size):
         return "%d" % (coef,) + suffix
     else:               # smaller ones can because there's room, more info=good
         return "%.1f" % (coef,) + suffix
+
+def hash_file(fn, callback=None):
+    """Return the SHA-1 hash of a file, optionally calling
+    callback(bytes_hashed) every chunk, if callback is not None."""
+
+    size = os.path.getsize(fn)
+    f = file(fn, "rb")
+    hash_obj = sha.new()
+
+    log("Hashing file %s..." % fn)
+    n = 0
+    while True:
+        chunk = f.read(READ_CHUNK_SIZE)
+        if len(chunk) == 0: break
+        if callback: 
+            callback(n)
+            n += len(chunk)
+        hash_obj.update(chunk)
+
+       
+    return hash_obj.digest()
 
 if __name__ == "__main__":
     random_init()

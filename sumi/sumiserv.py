@@ -462,8 +462,11 @@ def handle_send(u, msg):
     file_info += u["prefix"]
 
     file_info += chr(u["mcast"])
+
     if u.has_key("preauth"):
         file_info += hash160(u["nonce"])
+
+    file_info += cfg["filedb"][u["file"]]["hash"] 
 
     # Null-terminated filename
     file_info += os.path.basename(cfg["filedb"][u["file"]]["fn"] + "\0")
@@ -1646,19 +1649,6 @@ def sendmsg_error(u, msg):
     clear_client(u)
     return False
 
-def hash_file(fn):
-    """Return the SHA-1 hash of a file."""
-    f = file(fn, "rb")
-    hash_obj = sha.new()
-
-    log("Hashing file %s..." % fn)
-    while True:
-        chunk = f.read(1024 * 1024)
-        if len(chunk) == 0:
-            break
-        hash_obj.update(chunk)
-       
-    return hash_obj.digest()
 
 def setup_config():
     """Load file database and configuration."""
@@ -1674,7 +1664,7 @@ def setup_config():
         offer["size"] = size
         offer["hsize"] = human_readable_size(size)
 
-        # Note: won't update hash if file changed since hash was calculated
+        # Note: won't update hash if file changed after hash was calculated
         if not "hash" in offer: offer["hash"] = hash_file(fn)
     if cfg["crypto"]: random_init()
 
