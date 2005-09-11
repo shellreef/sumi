@@ -78,7 +78,7 @@ def load_cfg():
     global root, cfg, config_file
     config_file = root + "sumiserv.cfg"
 
-    log("Using config file: " + config_file)
+    log("Using config file: %s" % config_file)
     #eval(compile(open(config_file).read(), "", "exec"))
 
     cfg = eval("".join(open(config_file, "rU").read()))
@@ -1646,19 +1646,19 @@ def sendmsg_error(u, msg):
     clear_client(u)
     return False
 
-def human_readable_size(size):
-    """Convert a byte count to a human-readable size. From
-       http://mail.python.org/pipermail/python-list/1999-December/018406.html
-       and modified to suit the program's needs."""
+def hash_file(fn):
+    """Return the SHA-1 hash of a file."""
+    f = file(fn, "rb")
+    hash_obj = sha.new()
 
-    for factor, suffix in _abbrevs:
-        if size >= factor:   # >= to repr "1024*1024" as "1M"
+    log("Hashing file %s..." % fn)
+    while True:
+        chunk = f.read(1024 * 1024)
+        if len(chunk) == 0:
             break
-    coef = (size/(factor * 1.0))
-    if (coef >= 10):    # larger coefficients can't have a pt, not enough room
-        return "%d" % (coef,) + suffix
-    else:               # smaller ones can because there's room, more info=good
-        return "%.1f" % (coef,) + suffix
+        hash_obj.update(chunk)
+       
+    return hash_obj.digest()
 
 def setup_config():
     """Load file database and configuration."""
@@ -1669,21 +1669,14 @@ def setup_config():
         if not "desc" in offer: offer["desc"] = fn
         try:
             size = os.path.getsize(fn)
-        except OSError:
-            fatal(21, ("Exception occured while reading size of %s" % fn) +
-                "\nPlease check that the file exists and is readable.")
+        except OSError, e:
+            fatal(21, "Couldn't read %s: %s" % (fn, e))
         offer["size"] = size
-        offer["hsize"] = human_readable_size(size)   
-    if cfg["crypto"]: random_init()
+        offer["hsize"] = human_readable_size(size)
 
-_abbrevs = [
-    (1 << 50L, "P"),
-    (1 << 40L, "T"),
-    (1 << 30L, "G"),
-    (1 << 20L, "M"),
-    (1 << 10L, "k"),
-    (1, "")
-    ]
+        # Note: won't update hash if file changed since hash was calculated
+        if not "hash" in offer: offer["hash"] = hash_file(fn)
+    if cfg["crypto"]: random_init()
 
 def sigusr2(a, b):
     # Doesn't work--can't reload __main__
