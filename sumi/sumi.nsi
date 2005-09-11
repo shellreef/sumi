@@ -81,7 +81,7 @@ Section "SUMI (required)"
  CreateDirectory "$INSTDIR\incoming"
 
  ; This is for Windows uninstall
- WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\SUMI" "DisplayName" "SUMI 0.8.13 beta"
+ WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\SUMI" "DisplayName" "SUMI 0.8.14 beta"
  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\SUMI" "UninstallString" '"$INSTDIR\uninstall.exe"'
  WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\SUMI" "NoModify" 1
  WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\SUMI" "NoRepair" 1
@@ -187,10 +187,10 @@ SectionEnd
 
 Section "Start Menu Shortcuts"
  CreateDirectory "$SMPROGRAMS\SUMI"
- CreateShortCut "$SMPROGRAMS\SUMI\SUMI Client.lnk" "$INSTDIR\sumigetw.exe" "" "$INSTDIR\sumigetw.exe" 0
+ CreateShortCut "$SMPROGRAMS\SUMI\Configure SUMI.lnk" "$INSTDIR\sumigetw.exe" "" "$INSTDIR\sumigetw.exe" 0
  CreateShortCut "$SMPROGRAMS\SUMI\SUMI Server.lnk" "$INSTDIR\sumiserv.exe" "" "$INSTDIR\sumiserv.exe" 0
  CreateShortCut "$SMPROGRAMS\SUMI\Uninstall.lnk" "$INSTDIR\uninstall.exe" "" "$INSTDIR\uninstall.exe" 0
- CreateShortCut "$SMPROGRAMS\SUMI\SUMI Home.lnk" "$INSTDIR\SUMI Home.url"
+ CreateShortCut "$SMPROGRAMS\SUMI\SUMI Home - Download files here.lnk" "$INSTDIR\SUMI Home.url"
 ;XXX: Windows behaves oddly--asked what program to open the directory with?!
 ; CreateShortCut "$SMPROGRAMS\SUMI\Downloaded Files.lnk" "$INSTDIR\incoming"
 SectionEnd
