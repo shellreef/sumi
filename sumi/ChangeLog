@@ -2,6 +2,14 @@ SUMI ChangeLog
 $Id$
 vi: noexpandtab:
 
+2005-09-11 Jeff Connelly <jeffconnelly@users.sourceforge.net>
+	* r242 Whole-file SHA-1 hash for verifying integrity
+
+2005-09-10 Jeff Connelly <jeffconnelly@users.sourceforge.net>
+	* r234 CRC32 check in every packet
+	* r233 32-bit seqno, allowing files up to ~5TB depending on MTU
+	* Note: r### in this ChangeLog will refer to Subversion revision
+
 2005-09-07 Jeff Connelly <jeffconnelly@users.sourceforge.net>
 	* Add another Win32 distribution without an installer (win32noinst
 	  target), released as 0.8.13b with all changes below.
