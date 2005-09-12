@@ -1270,7 +1270,7 @@ tab of sumigetw.""" % (self.myip, self.config["myip"])
         if len(self.config.get("dl_dir", "")) == 0 or not \
                 os.access(self.config["dl_dir"], os.W_OK | os.X_OK | os.R_OK):
             new_dir = base_path + "incoming"
-            log("Notice: dl_dir %s inaccessible, using %s instead" %
+            log("Note: dl_dir %s inaccessible, trying %s instead" %
                     (self.config["dl_dir"], new_dir))
            
             if not os.access(new_dir, os.W_OK | os.X_OK | os.R_OK):

@@ -84,6 +84,9 @@ class MainNotebook(wx.Notebook):
 
         self.app = app
 
+        # Validate config before config panel is created (may change conf)
+        self.ValidateConfig()
+
         self.xfpanel = TransferPanel(self, app)
         self.cfgc = CConfigPanel(self, app)
         self.cfgs = SConfigPanel(self, app)
@@ -110,10 +113,10 @@ class MainNotebook(wx.Notebook):
 
         wx.EVT_NOTEBOOK_PAGE_CHANGING(self, self.GetId(), self.OnPageChanged)
         self.Show()
-        self.ValidateConfig()
 
     def ValidateConfig(self):
         err = self.app.client.validate_config()
+        # TODO: after config is validated, update config widgets!
         if err:
             # This is quite annoying, could it be placed somewhere else?
             dlg = wx.MessageDialog(self.app.frame, err,
@@ -274,6 +277,10 @@ class CConfigPanel(wx.Panel):
         self.app = app     
 
         # Layout here is all done manually without sizers
+        # XXX: TODO: two important things here:
+        # - use sizers, eschew absolute positioning
+        # - load config widget values on focus (what event?), so they
+        #   will reload after every validate_config()--it may change it
 
         # Bandwidth in bits per second
         # Load predefined values, sorted descending

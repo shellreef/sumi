@@ -1,7 +1,8 @@
 # Client configuration file
 # Saved by $Id$
 # Please note - ALL COMMENTS IN THIS FILE WILL BE DESTROYED
-{'allow_local': True,
+{'2dl_dir': 'C:/Program Files/SUMI/incoming',
+ 'allow_local': True,
  'allow_no_req': True,
  'bandwidth': 56623104,
  'bandwidth1': 1500000,
@@ -9,7 +10,7 @@
  'crypt': True,
  'data_chan_type': 'u',
  'dchanmode': 'socket',
- 'dl_dir': 'C:/Program Files/SUMI/incoming',
+ 'dl_dir': 'X:\\p2p\\sumi\\incoming',
  'interface': '\\Device\\NPF_{FDA97C53-F88D-486E-82B6-FBBD969F0F59}',
  'interface2': 'ndis0',
  'interface3': '\\Device\\NPF_{3530F223-8959-4928-88A5-1672C094D6A8}',
@@ -20,7 +21,6 @@
  'myip2': '10.0.0.64',
  'myip3': '10.0.0.64',
  'myport': 3490,
- 'passwd': '11111111111111111111111111111111',
  'rcsid': '$Id',
  'rwinsz': 5,
  'save_interval': 1,
