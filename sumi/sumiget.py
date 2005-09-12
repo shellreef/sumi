@@ -1444,7 +1444,7 @@ Tried to use a valid directory of %s but it couldn't be accessed."""
             # If received fn in this time, then exists, so stop countdown
             #if not self.senders.has_key(u["nick"]):
             #        return False    # some other error
-            if u.has_key("filename"):
+            if u.has_key("got_first"):
                 return    # Success: don't break - otherwise will timeout.
             if u.has_key("handshake_error"):
                 self.clear_server(u)
