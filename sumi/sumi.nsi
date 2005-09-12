@@ -287,6 +287,7 @@ Section "Uninstall"
  RMDir /R "$INSTDIR"
 SectionEnd
 
+; Fixes: http://developer.berlios.de/bugs/?func=detailbug&bug_id=4985&group_id=4611
 Section "un.mIRC script for /sumi" un.mIRC
  DetailPrint "Attempting to uninstall mIRC script"
  ; Detect where mIRC was installed again
