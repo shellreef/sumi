@@ -47,7 +47,7 @@ uninst_old:
     ;components page, make sure all sections are uninstalled.
   no_remove_uninstaller:
     MessageBox MB_ICONEXCLAMATION \
-        "There was an error uninstalling the old version.\n\nPlease close SUMI and uninstall it manually."
+        "There was an error uninstalling the old version.$\n$\nPlease close SUMI and uninstall it manually."
         Abort
   ok_remove_uninstaller:
   
@@ -55,6 +55,7 @@ done:
  
 FunctionEnd
 
+Page license
 Page components
 Page directory
 Page instfiles
@@ -63,6 +64,7 @@ LicenseText "SUMI is distributed under the GNU General Public License."
 LicenseData "LICENSE"
 
 UninstPage uninstConfirm
+UninstPage components
 UninstPage instfiles
 
 Section "SUMI (required)"
@@ -144,7 +146,8 @@ mIRC_exists:
 repeat:
  ; Check for reading ";sumi-mirc X
  FileRead $4 $1                  ; read line into $1
- IfErrors install_it             ; EOF and didn't find it
+ IfErrors install_mirc_script    ; EOF and didn't find it
+ StrCmp $1 "$\r$\n" repeat       ; Skip blank lines
  StrCpy $3 $1 2 1            ; get XX of nXX=(lineno), assuming its >9 and <99
  Push $1                         ; search within this...
  Push ";sumi-mirc"               ; for this...
@@ -155,20 +158,25 @@ repeat:
  StrCmp $2 ";sumi-mirc$\r$\n" mIRC_end repeat ; found/keep searching
  ; TODO: replace old sumi-mIRCs? ver #? very complicated, remove+install..ugh
 
-install_it:
- MessageBox MB_OK "Installing SUMI to mIRC: <$3>"
+install_mirc_script:
+ DetailPrint "Installing SUMI to mIRC aliases.ini at line $3"
  ; SUMI-mIRC not installed! Better install it.
  FileClose $4 
  FileOpen $4 $mirc_path a
  FileSeek $4 0 END
- IntOp $3 $3 + 1       ; at last line (n)
- FileWrite $4 "$\r$3\n$3=;sumi-mirc$\r$\n"
+ ; Ideally, we would write the markers with n##= prefixes,
+ ; but then the uninstaller couldn't recognize them (yet)
+ ; because it recognizes the markers only if on a line by
+ ; themselves. TODO: write and recognize n##= for markers!
+ ;IntOp $3 $3 + 1       ; at last line (n)
+ ;FileWrite $4 "$\r$\nn$3=;sumi-mirc$\r$\n"
+ FileWrite $4 "$\r$\n;sumi-mirc$\r$\n"
  IntOp $3 $3 + 1
  FileWrite $4 "n$3=/sumi {$\r$\n"
  IntOp $3 $3 + 1
  FileWrite $4 "n$3=  if ($$1 != get) {$\r$\n"
  IntOp $3 $3 + 1
- FileWrite $4 "n$3=   //echo SUMI: No such command $$1$\r$\n"
+ FileWrite $4 "n$3=   //echo SUMI: No such command, try /sumi get nick filename$$1$\r$\n"
  IntOp $3 $3 + 1
  FileWrite $4 "n$3=   return$\r$\n"
  IntOp $3 $3 + 1
@@ -179,11 +187,81 @@ install_it:
  FileWrite $4 'n$3= run "$INSTDIR\sumigetw" mirc $$2 $$3$\r$\n'
  IntOp $3 $3 + 1
  FileWrite $4 "n$3=}$\r$\n"
+ IntOp $3 $3 + 1
+ ;FileWrite $4 "n$3=;sumi-end$\r$\n"
+ FileWrite $4 ";sumi-end$\r$\n"
  FileClose $4
+ goto mIRC_end
 
 
 mIRC_end:
 SectionEnd
+
+; From http://nsis.sourceforge.net/wiki/Delete_lines_from_one_line_to_another_line_inclusive
+Function un.RemoveAfterLine
+ Exch $1 ;end string
+ Exch
+ Exch $2 ;begin string
+ Exch 2
+ Exch $3 ;file
+ Exch 2
+ Push $R0
+ Push $R1
+ Push $R2
+ Push $R3
+ Push $R4
+  GetTempFileName $R2
+DetailPrint "Temp file: $R2"
+  FileOpen $R1 $R2 w        ; $R1 = temporary file
+  FileOpen $R0 $3 r         ; $R0 = original file
+DetailPrint "Original file: $3"
+  ClearErrors
+  FileRead $R0 $R3
+DetailPrint "Read line: $R3"
+  IfErrors Done
+
+  StrCmp $R3 $2 +3         ; begin string
+  ; Search for lines ending in the begin line
+  ; XXX: infinite loop!
+  ;Push $R3
+  ;Push $2
+  ;Call un.StrStr
+  ;Pop $R4                   ; matching part
+  ;StrCmp $R4 $2 +3
+
+  FileWrite $R1 $R3
+  Goto -5
+  ClearErrors
+  FileRead $R0 $R3
+  IfErrors Done
+  StrCmp $R3 $1 +4 -3      ; end string
+  ;Push $R3
+  ;Push $1 
+  ;Call un.StrStr
+  ;Pop $R4
+  ;StrCmp $R4 $1 +4 -7
+
+  FileRead $R0 $R3
+  IfErrors Done
+  FileWrite $R1 $R3
+  ClearErrors
+  Goto -4
+Done:
+   FileClose $R0
+   FileClose $R1
+   SetDetailsPrint none
+   Delete $3
+   Rename $R2 $3
+   SetDetailsPrint both
+ Pop $R4
+ Pop $R3
+ Pop $R2
+ Pop $R1
+ Pop $R0
+ Pop $3
+ Pop $2
+ Pop $1
+FunctionEnd
 
 Section "Start Menu Shortcuts"
  CreateDirectory "$SMPROGRAMS\SUMI"
@@ -209,8 +287,33 @@ Section "Uninstall"
  RMDir /R "$INSTDIR"
 SectionEnd
 
+Section "un.mIRC script for /sumi" un.mIRC
+ DetailPrint "Attempting to uninstall mIRC script"
+ ; Detect where mIRC was installed again
+ ReadRegStr $mirc_path HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\mIRC" "UninstallString"
+ Call un.StripPath
+
+ ; Check if aliases.ini exists
+ StrCpy $mirc_path "$mirc_path\aliases.ini"
+ IfFileExists $mirc_path mIRC_exists mIRC_gone
+
+mIRC_exists:
+ DetailPrint "Found mIRC"
+ Push $mirc_path
+ ; TODO: Search for markers *within* line, not as the 
+ ; lines themselves. See comment where the markers are written.
+ Push ";sumi-mirc$\r$\n"
+ Push ";sumi-end$\r$\n"
+ Call un.RemoveAfterLine
+ goto end
+
+mIRC_gone:
+ DetailPrint "mIRC wasn't found, not uninstalling"
+end:
+SectionEnd
+
 ; From ethereal.nsi
-Section /o "Un.WinPcap" un.SecWinPcap
+Section /o "un.WinPcap (may be used by other programs!)" un.SecWinPcap
  ;-------------------------------------------
  SectionIn 2
  ReadRegStr $1 HKEY_LOCAL_MACHINE "SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\WinPcapInst" "UninstallString"
@@ -265,9 +368,13 @@ SectionEnd
    Exch $R1
  FunctionEnd
 
+; XXX: Looking for un.StrStr?
+; It is identical to StrStr, just make a copy and paste it here:
+; It was removed because it not used until the mIRC script uninstaller
+; looks for the ;sumi-mirc/;sumi-end markers within the lines.
+
 ;StripPath function by Frank Nagel
 ;http://nsis.sourceforge.net/archive/nsisweb.php?page=379&instances=0,110
-;TODO use this to find IF MIRC IS INSTALLED!
 Function StripPath
   Push $1
   Push $2
@@ -303,3 +410,38 @@ Function StripPath
   Pop $1
 FunctionEnd
 
+; Identical copy for uninstaller
+Function un.StripPath
+  Push $1
+  Push $2
+  StrCmp $mirc_path "" fin
+
+    StrCpy $1 $mirc_path 1 0 ; get firstchar
+    StrCmp $1 '"' "" getparent 
+      ; if first char is ", let's remove "'s first.
+      StrCpy $mirc_path $mirc_path "" 1
+      StrCpy $1 0
+      rqloop:
+        StrCpy $2 $mirc_path 1 $1
+        StrCmp $2 '"' rqdone
+        StrCmp $2 "" rqdone
+        IntOp $1 $1 + 1
+        Goto rqloop
+      rqdone:
+      StrCpy $mirc_path $mirc_path $1
+    getparent:
+    ; the uninstall string goes to an EXE, let's get the directory.
+    StrCpy $1 -1
+    gploop:
+      StrCpy $2 $mirc_path 1 $1
+      StrCmp $2 "" gpexit
+      StrCmp $2 "\" gpexit
+      IntOp $1 $1 - 1
+      Goto gploop
+    gpexit:
+    StrCpy $mirc_path $mirc_path $1
+    
+  fin:
+  Pop $2
+  Pop $1
+FunctionEnd
