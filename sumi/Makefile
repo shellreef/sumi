@@ -50,6 +50,7 @@ backup-cvs::
 
 backup-wiki:
 	ssh jeffconnelly@shell.berlios.de ./dump > doc/wiki-`date +%Y%m%d`.sql
+	chmod 000 doc/wiki-*.sql
 
 test::
 	python sumigetw.py tor 5mg27ujynvojkdpq.onion \#1
