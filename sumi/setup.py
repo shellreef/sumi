@@ -31,9 +31,6 @@ def compile_transports():
     print "Compiling transports..."
     fs = glob.glob("transport/*.py")
     for f in fs:
-        # Skip obsolete transports
-        if "irclib" in f:  
-            continue
         mod_name = f.replace(os.path.sep, ".").replace(".py", "")
         if not os.access(f + "c", os.R_OK):
             __import__(mod_name, [], [], [])
