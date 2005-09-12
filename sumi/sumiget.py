@@ -1181,6 +1181,10 @@ DATA:UNKNOWN PREFIX! 414141 6 bytes from ()
 
            Return None if configurationi s valid, or an error message if
            not."""
+
+        # Errors
+        r = []
+
         if self.config.has_key("myip"):
             if self.config["myip"] != "":
                 self.myip = self.config["myip"]
@@ -1228,15 +1232,16 @@ DATA:UNKNOWN PREFIX! 414141 6 bytes from ()
             self.irc_name = self.irc_nick
 
         if self.config.has_key("mtu"):
-            self.mss = mtu2mss(self.config["mtu"], self.config["data_chan_type"])
+            self.mss = mtu2mss(self.config["mtu"], 
+                    self.config["data_chan_type"])
+            log("Maximum file size (over UDP): %sB" % human_readable_size(
+                (self.mss - IPHDRSZ - UDPHDRSZ - SUMIHDRSZ) * 0xffffffffL))
+
         else:
             try:
                 self.mss
             except:
-                return "MSS was not set, please set it in the Client tab."
-
-        log("Maximum file size (over UDP): %sB" % human_readable_size(
-            (self.mss - IPHDRSZ - UDPHDRSZ - SUMIHDRSZ) * 0xffffffffL))
+                r.append("MSS was not set, please set it in the Client tab.")
 
         if self.config.get("crypt"):
             random_init()
@@ -1247,21 +1252,21 @@ DATA:UNKNOWN PREFIX! 414141 6 bytes from ()
                                   #RWINSZ never changes here! TODO:if it does,
                                   # then rwinsz_old MUST be updated to reflect.
         else:
-            return "Please set rwinsz. Thank you."  
+            r.append("Please set rwinsz. Thank you.")
 
         if self.config.has_key("bandwidth"):
             self.bandwidth = self.config["bandwidth"]
         else:
-            return "Please set your bandwidth,"
+            r.append("Please set your bandwidth.")
             sys.exit(5)
 
         # More validation, prompted by SJ
         if not self.config.get("allow_local") and \
            is_nonroutable_ip(self.myip):
-               return """Your IP address, %s (%s) is nonroutable.
+               r.append("""Your IP address, %s (%s) is nonroutable.
 Please choose an Internet-accessible IP address. If you are not sure what 
 your IP is, go to http://whatismyip.com/. Your IP can be set in the Client 
-tab of sumigetw.""" % (self.myip, self.config["myip"])
+tab of sumigetw.""" % (self.myip, self.config["myip"]))
 
         # Force trailing slash?
         #if self.config["dl_dir"][:1] != "/" and \
@@ -1277,13 +1282,15 @@ tab of sumigetw.""" % (self.myip, self.config["myip"])
                 os.mkdir(new_dir)
             
             if not os.access(new_dir, os.W_OK | os.X_OK | os.R_OK):
-                return """An invalid download directory, %s, was specified.
-Tried to use a valid directory of %s but it couldn't be accessed."""
+                r.append("""An invalid download directory, %s, was specified.
+Tried to use a valid directory of %s but it couldn't be accessed.""")
 
             self.config["dl_dir"] = new_dir
 
-        # Passed all the tests
-        return None
+        if r == []:
+            return None     # Passed all tests
+        else:
+            return "\n\n".join(r)
 
     def sendmsg(self, u, msg):
         """Send a message over the covert channel using the loaded
