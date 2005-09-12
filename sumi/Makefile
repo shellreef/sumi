@@ -2,6 +2,9 @@ RLS="0.8.14"
 
 all:: rawproxd
 
+release: win32exe win32noinst
+	
+
 rawproxd:: rawproxd.c
 	#gcc -static rawproxd.c -o rawproxd
 	gcc -g hash/md5a.c rawproxd.c -o rawproxd_native
@@ -15,10 +18,10 @@ win32noinst:
 	cp sumiserv.cfg.default dist/sumiserv.cfg
 	cd dist && zip -r ../../sumi-win32-no_installer-${RLS}.zip *
 
-package:
+package: clean
 	cd /home/jeff/p2p/
 	echo -n "archiving " 
-	tar -hvcf sumi-${RLS}.tar --exclude sumi/build --exclude sumi/dist --exclude sumi/incoming --exclude sumi/share --exclude sumi/otp --exclude sumi/c++-obsolete/sender --exclude sumi/c++-obsolete/sumiserv --exclude sumi/hash/mddriver --exclude sumi/hash/test --exclude sumi/rawproxd --exclude sumi/\*.pyc --exclude sumi/build\* --exclude sumi/dist\* --exclude sumi/\*.exe --exclude \*CVS\* sumi/*
+	tar -hvcf sumi-${RLS}.tar --exclude sumi/build --exclude sumi/dist --exclude sumi/incoming --exclude sumi/share --exclude sumi/otp --exclude sumi/c++-obsolete/sender --exclude sumi/c++-obsolete/sumiserv --exclude sumi/hash/mddriver --exclude sumi/hash/test --exclude sumi/rawproxd --exclude sumi/\*.pyc --exclude sumi/build\* --exclude sumi/dist\* --exclude sumi/\*.exe --exclude .svn sumi/*
 
 	echo -n "compressing "
 	bzip2 -f sumi-${RLS}.tar
