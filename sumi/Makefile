@@ -48,8 +48,11 @@ cfastxor::
 	gcc -c cfastxor.c cfastxor_wrap.c -I/usr/local/include/python2.3
 	ld -shared cfastxor.o cfastxor_wrap.o -o _cfastxor.so
 
-backup-cvs::
-	fetch http://cvs.sourceforge.net/cvstarballs/sumi-cvsroot.tar.bz2
+#backup-cvs::
+#	fetch http://cvs.sourceforge.net/cvstarballs/sumi-cvsroot.tar.bz2
+
+backup-svn:
+	fetch http://svn.berlios.de/svndumps/sumi-repos.gz
 
 backup-wiki:
 	ssh jeffconnelly@shell.berlios.de ./dump > doc/wiki-`date +%Y%m%d`.sql
