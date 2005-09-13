@@ -1,5 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"> 
+<!-- XML Schema for SUMI Client Configuration -->
+<!-- Copyright (C) 2005 Jeff Connelly -->
+<!-- $Id -->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+ targetNamespace="http://sumi.jeff.tk" 
+ xmlns="http://sumi.jeff.tk"
+ elementFormDefault="qualified"> 
  <xs:element name="client-config">
   <xs:complexType>  
    <xs:all>
@@ -11,12 +17,19 @@
     </xs:element>
    </xs:all>
 
-   <xs:attribute name="interface" type="xs:string"/>
-   <xs:attribute name="mtu" default="1500">
+   <xs:attribute name="allow_local" type="xs:boolean" default="false"/>
+   <xs:attribute name="bandwidth" type="xs:positiveInteger"/>
+   <xs:attribute name="colwidths">
     <xs:simpleType>
-     <xs:restriction base="xs:positiveInteger">
-      <xs:minInclusive value="256"/>
-     </xs:restriction>
+     <xs:list itemType="xs:nonNegativeInteger"/>
+    </xs:simpleType>
+   </xs:attribute> 
+   <xs:attribute name="crypt" type="xs:boolean" default="true"/>
+   <xs:attribute name="data_chan_type">
+    <xs:simpleType> 
+     <xs:restriction base="xs:string">
+      <xs:pattern value="udp|icmp|echo"/>
+     </xs:restriction> 
     </xs:simpleType>
    </xs:attribute>
    <xs:attribute name="dchanmode">
@@ -26,6 +39,29 @@
      </xs:restriction>
     </xs:simpleType>
    </xs:attribute>
+   <xs:attribute name="dl_dir" type="xs:string"/>
+   <xs:attribute name="interface" type="xs:string"/>
+   <xs:attribute name="irc_nick" type="xs:string"/>
+   <xs:attribute name="maxwait" type="xs:positiveInteger"/>
+   <xs:attribute name="mtu" default="1500">
+    <xs:simpleType>
+     <xs:restriction base="xs:positiveInteger">
+      <xs:minInclusive value="256"/>
+     </xs:restriction>
+    </xs:simpleType>
+   </xs:attribute>
+   <xs:attribute name="myip" type="xs:string"/>
+   <!-- don't validate as an IP because DNS names are allowed, too
+    <xs:simpleType>
+     <xs:restriction base="xs:string">
+      <xs:pattern value="(\d+\.\d+\.\d+\.\d+)?"/>
+     </xs:restriction>
+    </xs:simpleType>
+   </xs:attribute>
+   -->
+   <xs:attribute name="myport" type="xs:unsignedShort"/>
+   <xs:attribute name="rwinsz" type="xs:positiveInteger"/>
+   <xs:attribute name="share" type="xs:boolean" default="false"/>
   </xs:complexType>
  </xs:element>
 </xs:schema>
