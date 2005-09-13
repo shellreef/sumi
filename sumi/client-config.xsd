@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"> 
+ <xs:element name="client-config">
+  <xs:complexType>  
+   <xs:all>
+    <xs:element name="winsize">
+     <xs:complexType>
+      <xs:attribute name="x" type="xs:positiveInteger" default="1091"/>
+      <xs:attribute name="y" type="xs:positiveInteger" default="185"/>
+     </xs:complexType>
+    </xs:element>
+   </xs:all>
+
+   <xs:attribute name="interface" type="xs:string"/>
+   <xs:attribute name="mtu" default="1500">
+    <xs:simpleType>
+     <xs:restriction base="xs:positiveInteger">
+      <xs:minInclusive value="256"/>
+     </xs:restriction>
+    </xs:simpleType>
+   </xs:attribute>
+   <xs:attribute name="dchanmode">
+    <xs:simpleType>
+     <xs:restriction base="xs:string">
+      <xs:pattern value="socket|pcap"/>
+     </xs:restriction>
+    </xs:simpleType>
+   </xs:attribute>
+  </xs:complexType>
+ </xs:element>
+</xs:schema>
+
