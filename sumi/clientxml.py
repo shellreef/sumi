@@ -191,7 +191,7 @@ class client_config:
         outfile.write('</%s>\n' % name_)
     def exportAttributes(self, outfile, level, name_='client-config'):
         if name_=="client-config":
-            outfile.write(""" xmlns="http://sumi.jeff.tk"%s'
+            outfile.write(""" xmlns="http://sumi.jeff.tk"
  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
  xsi:schemaLocation="http://sumi.jeff.tk client-config.xsd"
 """)
@@ -370,10 +370,9 @@ class winsize:
         showIndent(outfile, level)
         outfile.write('<%s' % (name_, ))
         self.exportAttributes(outfile, level, name_='winsize')
-        outfile.write('>\n')
+        outfile.write("/>\n")
         self.exportChildren(outfile, level + 1, name_)
         showIndent(outfile, level)
-        outfile.write('</%s>\n' % name_)
     def exportAttributes(self, outfile, level, name_='winsize'):
         if self.getY() is not None:
             outfile.write(' y="%s"' % (self.getY(), ))
@@ -584,7 +583,7 @@ def parse(inFileName):
     # Enable Python to collect the space used by the DOM.
     doc = None
     sys.stdout.write('<?xml version="1.0" ?>\n')
-    rootObj.export(sys.stdout, 0, name_="client_config")
+    rootObj.export(sys.stdout, 0, name_="client-config")
     return rootObj
 
 
@@ -596,7 +595,7 @@ def parseString(inString):
     # Enable Python to collect the space used by the DOM.
     doc = None
     sys.stdout.write('<?xml version="1.0" ?>\n')
-    rootObj.export(sys.stdout, 0, name_="client_config")
+    rootObj.export(sys.stdout, 0, name_="client-config")
     return rootObj
 
 
@@ -609,7 +608,7 @@ def parseLiteral(inFileName):
     doc = None
     sys.stdout.write('from clientxml import *\n\n')
     sys.stdout.write('rootObj = client_config(\n')
-    rootObj.exportLiteral(sys.stdout, 0, name_="client_config")
+    rootObj.exportLiteral(sys.stdout, 0, name_="client-config")
     sys.stdout.write(')\n')
     return rootObj
 
