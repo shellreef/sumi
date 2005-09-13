@@ -180,7 +180,8 @@ class client_config:
     def setAllow_local(self, allow_local): self.allow_local = allow_local
     def getShare(self): return self.share
     def setShare(self, share): self.share = share
-    def export(self, outfile, level, name_='client-config'):
+    def export(self, outfile, level=0, name_='client-config'):
+        outfile.write('<?xml version="1.0" encoding="UTF-8"?>%s' % "\n")
         showIndent(outfile, level)
         outfile.write('<%s' % (name_, ))
         self.exportAttributes(outfile, level, name_='client-config')
@@ -189,36 +190,43 @@ class client_config:
         showIndent(outfile, level)
         outfile.write('</%s>\n' % name_)
     def exportAttributes(self, outfile, level, name_='client-config'):
+        if name_=="client-config":
+            outfile.write(""" xmlns="http://sumi.jeff.tk"%s'
+ xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+ xsi:schemaLocation="http://sumi.jeff.tk client-config.xsd"
+""")
+
         if self.getMaxwait() is not None:
-            outfile.write(' maxwait="%s"' % (self.getMaxwait(), ))
+            outfile.write(' maxwait="%s"%s' % (self.getMaxwait(), "\n"))
         if self.getMyport() is not None:
-            outfile.write(' myport="%s"' % (self.getMyport(), ))
+            outfile.write(' myport="%s"%s' % (self.getMyport(), "\n"))
         if self.getData_chan_type() is not None:
-            outfile.write(' data_chan_type="%s"' % (self.getData_chan_type(), ))
+            outfile.write(' data_chan_type="%s"%s' %
+                    (self.getData_chan_type(), "\n"))
         if self.getCrypt() is not None:
-            outfile.write(' crypt="%s"' % (self.getCrypt(), ))
+            outfile.write(' crypt="%s"%s' % (self.getCrypt(), "\n"))
         if self.getIrc_nick() is not None:
-            outfile.write(' irc_nick="%s"' % (self.getIrc_nick(), ))
+            outfile.write(' irc_nick="%s"%s' % (self.getIrc_nick(), "\n"))
         if self.getColwidths() is not None:
-            outfile.write(' colwidths="%s"' % (self.getColwidths(), ))
+            outfile.write(' colwidths="%s"%s' % (self.getColwidths(), "\n"))
         if self.getDl_dir() is not None:
-            outfile.write(' dl_dir="%s"' % (self.getDl_dir(), ))
+            outfile.write(' dl_dir="%s"%s' % (self.getDl_dir(), "\n"))
         if self.getMtu() is not None:
-            outfile.write(' mtu="%s"' % (self.getMtu(), ))
+            outfile.write(' mtu="%s"%s' % (self.getMtu(), "\n"))
         if self.getDchanmode() is not None:
-            outfile.write(' dchanmode="%s"' % (self.getDchanmode(), ))
+            outfile.write(' dchanmode="%s"%s' % (self.getDchanmode(), "\n"))
         if self.getInterface() is not None:
-            outfile.write(' interface="%s"' % (self.getInterface(), ))
+            outfile.write(' interface="%s"%s' % (self.getInterface(), "\n"))
         if self.getBandwidth() is not None:
-            outfile.write(' bandwidth="%s"' % (self.getBandwidth(), ))
+            outfile.write(' bandwidth="%s"%s' % (self.getBandwidth(), "\n"))
         if self.getMyip() is not None:
-            outfile.write(' myip="%s"' % (self.getMyip(), ))
+            outfile.write(' myip="%s"%s' % (self.getMyip(), "\n"))
         if self.getRwinsz() is not None:
-            outfile.write(' rwinsz="%s"' % (self.getRwinsz(), ))
+            outfile.write(' rwinsz="%s"%s' % (self.getRwinsz(), "\n"))
         if self.getAllow_local() is not None:
-            outfile.write(' allow_local="%s"' % (self.getAllow_local(), ))
+            outfile.write(' allow_local="%s"%s' % (self.getAllow_local(), "\n"))
         if self.getShare() is not None:
-            outfile.write(' share="%s"' % (self.getShare(), ))
+            outfile.write(' share="%s"%s' % (self.getShare(), "\n"))
     def exportChildren(self, outfile, level, name_='client-config'):
         if self.winsize:
             self.winsize.export(outfile, level)
