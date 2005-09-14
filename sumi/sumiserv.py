@@ -125,12 +125,14 @@ if (not hasattr(socket, "IP_HDRINCL")):
 """Your Python is missing IP_HDRINCL in its socket library.
 Most likely, you are on Windows and need to use a patched _socket.pyd that 
 links with ws2_32.lib instead of wsock32.lib. Please open sumiserv.py in a 
-text editor and read the comments for more information.""")
+text editor and read the comments for more information.
+
+Alternatively, upgrade to Python 2.4.1.""")
     # 2.3.2 - no Winsock2
     # 2.3.4 - no Winsock2
     # 2.4a2 - has an IP_HDRINCL, but actually links to wsock32.lib...
     #  (see pcbuild\_socket.vcproj)
-    # 
+    # 2.4.1 - has Winsock2
 
 if sys.platform == 'win32':
     # Test if using patched _socket.pyd with Winsock2
