@@ -869,7 +869,8 @@ class DropTarget(wx.FileDropTarget):
 
 class SUMIApp(wx.App):
     """The SUMI GUI application."""
-    def __init__(self):
+    def __init__(self, argv):
+        self.argv = argv
         wx.App.__init__(self, 0)
 
     def OnInit(self):
@@ -924,10 +925,25 @@ class SUMIApp(wx.App):
         thread.start_new_thread(wrap_thread, (self.client.thread_timer, ()))
         thread.start_new_thread(wrap_thread, (self.client.recv_packets, ()))
    
-        print "Sys args=", sys.argv 
-        if len(sys.argv) != 1:
+        print "Args=", self.argv 
+        if "-e" in self.argv:
+            n = self.argv.index("-e") + 1
+            if n > len(self.argv):
+                log("-e requires filename")
+                raise SystemExit
+            eval_fn = self.argv[n]
+            if not os.access(eval_fn, os.R_OK):
+                log("-e can't access %s, not readable" % eval_fn)
+                raise SystemExit
+            self.argv.remove("-e")
+            self.argv.remove(eval_fn)
+            log("** Script: running %s in thread" % eval_fn)
+            thread.start_new_thread(wrap_thread,
+                    (self.ScriptThread, (eval_fn,)))
+
+        if len(self.argv) != 1:
             thread.start_new_thread(wrap_thread, 
-                    (self.ReqThread, [sys.argv[1:]]))
+                    (self.ReqThread, [self.argv[1:]]))
         else:
             log("No request specified! Starting up without.")
 
@@ -936,7 +952,7 @@ class SUMIApp(wx.App):
         self.frame.SetSize(self.client.config["winsize"])
 
         # If no arguments, show config, else show transfer panel
-        if len(sys.argv) == 1:
+        if len(self.argv) == 1:
             log("No arguments--showing config")
             self.nb.cfgc.SetFocus()
             self.nb.SetSelection(1)
@@ -945,6 +961,13 @@ class SUMIApp(wx.App):
 
         self.SetTopWindow(self.frame)
         return True
+
+    def ScriptThread(self, eval_fn):
+        """Run a file (used for -e to run custom scripts)"""
+        code_str = file(eval_fn, "r").read()
+        code_obj = compile(code_str, eval_fn, "exec")
+        eval(code_obj)
+        log("** Script returning: %s" % eval_fn)
 
     def SetupStartfile(self):
         """Initialize os.startfile if it is not available on this platform."""
@@ -971,7 +994,7 @@ class SUMIApp(wx.App):
             # This means we're already running. Send command to ourself.
             print "Sending command to existing instance"
             ss.connect((REQHOST, REQPORT))
-            ss.send("\t".join(sys.argv[1:]))
+            ss.send("\t".join(self.argv[1:]))
             ss.close()
             sys.exit(0)
             # If this code is ran (above) but another instance is not
@@ -1220,9 +1243,12 @@ def wrap_thread(f, args):
                 sys.exc_info()[2].tb_lineno)
         raise x
 
-def main():
+def main(argv=None):
+    if argv is None:
+        argv = sys.argv
+
     print "Loading app..."
-    app = SUMIApp()
+    app = SUMIApp(argv)
     print "Running main loop"
     app.MainLoop()
 
@@ -1313,7 +1339,7 @@ def getSmallDnArrowImage():
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
 
 
 
