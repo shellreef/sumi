@@ -86,7 +86,8 @@ sub new {
 }
 
 sub ProcessFile {
-    ($self, $txtfile, $dbfile, $verbose, $doctype, $articleclass, $nonet, $encoding) = @_;
+    ($self, $txtfile, $dbfile, $verbose, $doctype, $articleclass, $nonet,
+        $encoding, $encode_entities) = @_;
 
     # Read from STDIN if no input file given
     # 
@@ -172,7 +173,7 @@ sub ProcessLine {
     $line = $originalline;
     $linenumber++;
 
-    &trimline;
+    #&trimline;
 
     # blank lines
     unless ($line) {
@@ -191,8 +192,13 @@ sub ProcessLine {
     #
 #	while ($line =~ //) {
 #	}
-#	decode_entities($line);
-#	encode_entities($line);
+    if ($encode_entities)
+    {
+        # decoding first then encoding will correctly change
+        # & to &amp;, but not &amp; to &amp;amp;
+        decode_entities($line);
+        encode_entities($line);
+    }
         
     # inline docbook
     #
@@ -290,12 +296,19 @@ sub ProcessLine {
         }
     }
 
-    # emphasis
+    # bold emphasis
     #
     while ($line =~ /'''.*'''/) {
         $line =~ s/'''/<emphasis role='bold'>/;
         $line =~ s/'''/<\/emphasis>/;
     }
+   
+    # italics emphasis 
+    while ($line =~ /''.*''/) {
+        $line =~ s/''/<emphasis role='italics'>/;
+        $line =~ s/''/<\/emphasis>/;
+    }
+
 
     # this block defines DocBook structures that won't be broken up with 
     # paragraphs when we hit empty lines:
@@ -338,6 +351,8 @@ sub ProcessLine {
             }
         }
     }
+
+    &closeprogramlisting if $line !~ m/^ /;
 
     # count noparadepth
     #
@@ -387,6 +402,16 @@ sub ProcessLine {
         }
         $line = "$starttag$line$endtag";
 	chomp($line);
+    
+    # preformatted text (assume a programlisting, but could be a screen)
+    } elsif ($line =~ /^ (.*)/) {
+        $line = '';
+        if (!$programlisting)
+        {
+            $line = "<programlisting>\n";
+            $programlisting = 1;
+        }
+        $line .= $1;
 
     # sect3
     #
@@ -529,6 +554,18 @@ sub ProcessLine {
     } elsif ($line =~ /^\s*----\s*$/) {
         $line = '';
 
+    # glossentry
+    } elsif ($line =~ /^;\s*([^:]+) :\s*(.*)$/) {
+        $line = "<glossentry>\n";
+        $line .= " <glossterm>$1</glossterm>\n";
+        $line .= " <glossdef><para>$2</para></glossdef>\n";
+        $line .= "</glossentry>\n";
+
+    } elsif ($line =~ /^(:+)(.*)/) {
+        my $indent = length($1);
+        $line = $2;
+        $line = "<blockquote>" x $indent . $line .
+            "</blockquote>" x $indent;
     # para
     #
     } else {
@@ -585,8 +622,17 @@ sub close3 {
 
 sub closenonsect {
     &closepara;
+    &closeprogramlisting;
 #	&closeorderedlist;
 #	&closeitemizedlist;
+}
+
+sub closeprogramlisting {
+    if ($programlisting)
+    {
+        $buf .= "</programlisting>\n";
+        $programlisting = 0;
+    }
 }
 
 sub closelistitem {
