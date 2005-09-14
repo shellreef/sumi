@@ -891,6 +891,12 @@ DATA:UNKNOWN PREFIX! 414141 6 bytes from ()
         #print "UID=", os.getuid()
         sock = socket.socket(socket.AF_INET, socket.SOCK_RAW, 
                              socket.IPPROTO_ICMP)
+
+        # Allow reusing local addresses
+        ss.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        if hasattr(socket, "SO_REUSEPORT"):
+            ss.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+
         log("ICMP started.")   # At the moment, needs to be ran as root
         sock.bind((self.localaddr, 0))
         while 1:
@@ -902,7 +908,13 @@ DATA:UNKNOWN PREFIX! 414141 6 bytes from ()
         """Receive UDP packets."""
         log("UDP started (socket mode)")
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        while 1:
+
+        # Reuse addresses
+        ss.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        if hasattr(socket, "SO_REUSEPORT"):
+            ss.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+
+        while True:
             try:
                 sock.bind((self.localaddr, self.myport))
             except socket.error:
