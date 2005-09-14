@@ -15,6 +15,8 @@ from distutils.core import setup
 import py2exe
 import glob
 import os
+import compileall
+import py_compile
 
 def without_hidden(dir_name):
     """List a directory without hidden directories (most importantly .svn)."""
@@ -25,21 +27,11 @@ def without_hidden(dir_name):
             b.append(dir_name + os.path.sep + x)
     return b
 
-def compile_transports():
-    """Compile the transports for inclusion into the distribution. Avoids
-    the need for end users to have the transport source code."""
-    print "Compiling transports..."
-    fs = glob.glob("transport/*.py")
-    for f in fs:
-        mod_name = f.replace(os.path.sep, ".").replace(".py", "")
-        if not os.access(f + "c", os.R_OK):
-            __import__(mod_name, [], [], [])
+if not compileall.compile_dir("transport"):
+    print "Compiling transports failed!"
+    raise SystemExit
 
-        if not os.access(f + "c", os.R_OK):
-            print "Failed to compile transport %s" % f
-            raise SystemExit
-
-compile_transports()
+py_compile.compile("socks5.py", doraise=True)
 
 opts = {"py2exe": #{}
 # While it may seem like a good idea to include these WinPcap DLLs, it is not.
