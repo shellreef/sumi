@@ -1,0 +1,228 @@
+=head1 NAME
+
+B<wt2db> - converts WikiText documents into DocBook XML/SGML.
+
+
+=head1 SYNOPSIS
+
+B<wt2db> [I<OPTION>] [I<FILE>]
+
+
+=head1 DESCRIPTION
+
+B<wt2db> converts a text file in a special format similar to that used
+in WikiWikiWebs into DocBook XML/SGML.
+The DocBook it writes out by default is only
+a fragment, but it will write a complete document upon request.
+
+By default it reads from STDIN and writes to STDOUT. However, if given a
+filename, it will read that file, and an output filename can also be
+specified as a command-line option.
+
+
+=head1 OPTIONS
+
+B<-s>, B<--sgml> add SGML DOCTYPE and article tags.
+
+B<-x>, B<--xml> add XML DOCTYPE and article tags.
+
+B<-f>, B<--faq> make the article a FAQ.
+
+B<-e>, B<--encoding> specify the document encoding.
+
+B<-n>, B<--nonet> do not access the network.
+
+B<-o>, B<--output-to> I<filename> write to the specified file.
+
+B<-V>, B<--verbose> show diagnostic output.
+
+B<-v>, B<--version> show program version.
+
+B<-h>, B<--help> show a usage message.
+
+
+=head1 HISTORY
+
+B<wt2db> was originally developed to convert articles from the
+Wikipedia into DocBook for republishing at the LDP.
+As development proceeded, I realized that it could be used
+to provide an easier way to write DocBook documentation.
+
+
+=head1 NOTES
+
+WikiText is based on the form of text that is used in a
+WikiWikiWeb. It provides very simple and easy to remember
+tags so you can write a Wiki article without learning HTML.
+B<wt2db> was originally written to convert Wikipedia articles
+into DocBook.
+
+The Wiki format has been enhanced in several ways to make it
+more powerful for authors. Support has been added for Wiki tags
+that don't exist in any real Wiki, by giving common DocBook
+elements their own Wiki tags. Support has also been added
+for including DocBook elements right in the source file.
+
+This means WikiText is a merging of DocBook into a plain text file.
+In in its simplest form, it is plain text. A plain text
+document can be processed by B<wt2db> and converted into
+DocBook.
+Or, a complete and valid DocBook document can be processed,
+and will pass through the B<w2db> filters and come out
+unchanged.
+Virtually any combination of DocBook with plain text will work,
+with the additional Wiki style tags to make things even easier
+for authors.
+It put all of the semantic of DocBook
+at your disposal, while being as easy to write as a Wiki page.
+
+
+=head1 WIKITEXT
+
+These are the tags which are supported in this release of
+B<wt2db>. All DocBook tags are also supported. If you encounter
+any valid DocBook that is not handled correctly, please file
+a bug report.
+
+ Foo                    <para>Foo</para>
+
+ =Title=                <sect1>
+                            <title>Title</title>
+                        </sect1>
+
+ =Title|id=             <sect1 id='id'>
+                            <title>Title</title>
+                        </sect1>
+
+The id attribute, delimited with a pipe character,
+works for other sect levels as well, and many other
+tags. In some cases it is not an id value, but the
+title, depending on the semantics of the particular
+tag. Usage should be obvious in context.
+
+ ==Title==              <sect2>
+                            <title>Title</title>
+                        </sect2>
+
+ ===Title===            <sect3>
+                            <title>Title</title>
+                        </sect3>
+
+ #Foo                   <orderedlist>
+ #Bar                       <listitem>
+ #Baz                           <para>Foo</para>
+ /#                         </listitem>
+                            <listitem>
+                                <para>Bar</para>
+                            </listitem>
+                            <listitem>
+                                <para>Baz</para>
+                            </listitem>
+                        </orderedlist>
+
+ *Foo                   <simplelist>
+ *Bar                       <listitem>
+ *Baz                           <para>Foo</para>
+ /*                         </listitem>
+                            <listitem>
+                                <para>Bar</para>
+                            </listitem>
+                            <listitem>
+                                <para>Baz</para>
+                            </listitem>
+                        </simplelist>
+
+Both ordered and unordered lists can be nested by increasing the number
+of "#" or "*" indicators, and ordered and unordered lists can also be
+nested inside each other. B<wt2db> supports a depth of up to four
+itemized and/or four ordered lists. When nesting an itemized list
+inside another itemized list, or an ordered list inside an ordered list,
+repeat the "#" or "*" character to indicate the desired nesting level.
+When nesting an itemized list inside an ordered list or vice versa,
+it is not necessary to specify the depth, but it is recommended for clarity.
+
+ *Foo                   Nests one itemized list inside another.
+   **Bar
+   **Baz
+ *Quux
+
+ *Foo                   Nests an ordered list inside an itemized list.
+  #Bar
+  #Baz
+ *Quux
+
+ [[foo]]                <xref linkend='foo' linkterm='foo'/>
+ [[link:Foo]]
+
+ [[file:/etc/foo]]      <filename>/etc/foo</filename>
+
+ [[dir:/etc]]           <filename class="directory">/etc</filename>
+
+ [[dev:/dev/ttyS0]]     <filename class="devicefile">/dev/ttyS0</filename>
+
+ [[http://foo.org]]     <ulink url='http://foo.org'>
+                            <citetitle>http://foo.org</citetitle>
+                        </ulink>
+
+ [[http://foo.org Foo]] <ulink url='http://foo.org'>
+ [[http://foo.org|Foo]]     <citetitle>Foo</citetitle>
+                        </ulink>
+
+ [[ftp://foo.org]]      <ulink url='ftp://foo.org'>
+                            <citetitle>ftp://foo.org</citetitle>
+                        </ulink>
+
+ [[news://alt.foo.bar]] <ulink url='news://alt.foo.bar'>
+                            <citetitle>alt.foo.bar</citetitle>
+                        </ulink>
+
+ '''Foo'''              <emphasis>Foo</emphasis>
+
+A few DocBook structures will not have <para> tags wrapped around them. They
+are <para> itself, <sect?> and <programlisting>. If you insert anything
+using these tags, no <para> tags will be wrapped around it or inserted into it.
+So if you want fine control over your <para> tags, insert them yourself.
+
+The <screen> element will be wrapped with <para> tags, but no internal
+paragraph breaks will be generated.
+
+
+=head1 RESTRICTIONS
+
+Currently only a single form of WikiText is supported, which is very
+similar to that used by the Wikipedia. See http://www.wikipedia.com for
+more information on the Wikipedia.
+
+A future release will be configurable to support additional styles of
+WikiText.
+
+
+=head1 BUGS
+
+Bugs are tracked along with Lampadas bugs in the Gnome Bugzilla
+repository.
+If you report a bug in B<wt2db>, specify lampadas as the product
+and wt2db as the component, so it will be routed the appropriate person.
+You can do this quickly by visiting the following URL:
+
+http://bugzilla.gnome.org/enter_bug.cgi?product=lampadas&component=wt2db
+
+
+=head1 SEE ALSO
+
+See the home page of the Linux Documentation Project,
+http://www.tldp.org for updates and more information.
+Also see the WikiText Editing HOWTO published by the LDP at
+http://www.tldp.org/HOWTO/WikiText-HOWTO/.
+
+=head1 AUTHOR
+
+This man page was written by David C. Merrill, david -AT- lupercalia.net.
+
+Permission is granted to copy, distribute and/or modify this document under
+the terms of the GNU Free Documentation License, Version 1.1 or any later
+version published by the Free Software Foundation; with no Invariant Sections,
+no Front-Cover Texts and no Back-Cover Texts.
+
+=cut
+

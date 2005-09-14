@@ -1,0 +1,201 @@
+<sect2 id='welcome-to-the-sumi-wiki'><title id='welcome-to-the-sumi-wiki-title'>Welcome to the SUMI Wiki</title>
+<para>__NOTOC__
+I will be using this new Wiki for documenting SUMI. For those not familiar with Wikis, anyone can edit the pages to improve on them, ask questions, etc. Feel free to do so. 
+</para>
+<para>I've moved from [http://sourceforge.net/ SourceForge] to the excellent [http://developer.berlios.de/ BerliOS] host for this Wiki. There shouldn't be many noticeable changes, except: it should be faster (MySQL on SF is very overloaded and slow), and the "Mail me a new password" link now works. Special thanks to BerliOS for allowing SUMI to be hosted here. Enjoy the Wiki! --<filename>Shellreef</filename> 01:30, 31 Aug 2005 (BST)
+</para>
+</sect2>
+<sect2 id='sample-files'><title id='sample-files-title'>Sample Files</title>
+<para>Want to quickly test out SUMI? Click this file below, opening it with SUMI if prompted:
+:[http://sumi.sf.net/test1.sumi test1.sumi - over Tor transport] 
+:[http://sumi.sf.net/test2.sumi test2.sumi - over irclib transport] 
+</para>
+</sect2>
+<sect2 id='sumi:-a-fast-anonymous-file-transfer-program'><title id='sumi:-a-fast-anonymous-file-transfer-program-title'>SUMI: A Fast Anonymous File Transfer Program</title>
+<para>[http://sf.net/projects/sumi SUMI] is a new file sharing program that aims for total anonymity for the uploader. It is a work in progress; although anonymous file transfer works there are some rough edges. SUMI is the first P2P program to use IP spoofing with proxied acknowledgement.
+</para>
+<sect3 id='features'><title id='features-title'>Features</title>
+<itemizedlist>
+<listitem>
+<para>Anonymous serving with adjustable source addresses
+</para>
+</listitem>
+<listitem>
+<para>No proxies needed = no slow down
+</para>
+</listitem>
+<listitem>
+<para>Resuming
+</para>
+</listitem>
+<listitem>
+<para>Cross-platform client GUI
+</para>
+</listitem>
+<listitem>
+<para>Open source
+</para>
+</listitem>
+<listitem>
+<para>UDP, ICMP direct, ICMP echo modes (use any pingable host as a proxy)
+</para>
+</listitem>
+<listitem>
+<para>Integrate with mIRC, xchat, AIM, or Tor
+</para>
+</listitem>
+<listitem>
+<para>XDCC-like server file listing
+</para>
+</listitem>
+<listitem>
+<para>Optional raw socket proxy and raw socket priviledge seperation program for better security
+</para>
+</listitem>
+<listitem>
+<para>Cryptography
+</para>
+</listitem>
+<listitem>
+<para>Torrent-like .sumi files (in 0.8.13 or newer)
+</para>
+</listitem>
+</itemizedlist>
+</sect3>
+<sect3 id='news'><title id='news-title'>News</title>
+<para>2005-09-01: 0.8.13 released notably featuring:
+<itemizedlist>
+<listitem>
+<para>Many bugfixes
+</para>
+</listitem>
+<listitem>
+<para>Torrent-like .sumi files--see sample files above
+</para>
+</listitem>
+<listitem>
+<para>WinPcap is included with installer to simplify installation
+</para>
+</listitem>
+<listitem>
+<para>modirclib is back, with full crypt_req support
+</para>
+</listitem>
+<listitem>
+<para>Drag-and-drop support (can drop a .sumi file onto the sumigetw window to open it)
+</para>
+</listitem>
+<listitem>
+<para>GUI enhancements: upgraded to wxPython 2.6.1.0, add context-menu options to resume and abort
+Additionally, the Tor and irclib sample SUMI servers are back up. 
+</para>
+2005-08-30: Moved SUMI Wiki to BerliOS. Let's hope it is faster... 
+</para>
+<para>2005-08-27: Created this Wiki, powered by MediaWiki, hosted on SourceForge
+</para>
+<para>2005-08-25: Temporarily shutdown the sample server due to MTU/MSS incompatibilities introduced in CVS. Will be restored with next release.
+</para>
+<para>2005-08-21: 0.8.12 released! Featuring full file data encryption, and the ability to use [http://tor.eff.org/ Tor] as a transport. A sample server should be up soon.
+</para>
+<para>2005-07-31: 0.8.11 is now out, with sharing integrated within the GUI and optional request encryption
+</para>
+<para>2005-07-02: 0.8.10 released, featuring Windows 95/98/Me sumiserv compatibility, UDP checksums, optional Ethernet address spoofing, a better transport plugin mechanism for sumiserv, and AIM support in sumiserv.
+</para>
+<para>2005-06-20: development resumed
+</para>
+<para>2005-06-15: #sumi moved to irc.xtc-dreams.com and after many months, the sample SUMI server sumi-00 is back up.
+</para>
+<para><filename>Frequently Asked Questions#Can I use SUMI with a NAT Cable.2FDSL Router.3F|Using a NAT?</filename> As of v0.8.5, a new program, rawproxd is included to run on NATs (particularly the WRT54GS) to enable SUMI serving.
+</para>
+</listitem>
+</itemizedlist>
+</sect3>
+<sect3 id='resources'><title id='resources-title'>Resources</title>
+<itemizedlist>
+<listitem>
+<para>[http://sourceforge.net/project/showfiles.php?group_id=113628 Download releases] - If you're on Windows all you need is the sumiinst file (the installer).
+</para>
+</listitem>
+<listitem>
+<para>[http://cvs.sourceforge.net/viewcvs.py/sumi/sumi/ View CVS] - the latest source code is always available in CVS
+</para>
+</listitem>
+<listitem>
+<para>[http://sumi.sourceforge.net/ss.html Screenshots]
+</para>
+</listitem>
+<listitem>
+<para><filename>Frequently Asked Questions</filename> (updated 2005-08-27)
+</para>
+</listitem>
+<listitem>
+<para><filename>Configuration</filename> - what to put in config.py and sumiserv.cfg
+</para>
+</listitem>
+<listitem>
+<para><filename>SUMI Tor How-To</filename>
+</para>
+</listitem>
+<listitem>
+<para><filename>SUMI IRC How-To</filename>
+</para>
+</listitem>
+<listitem>
+<para><filename>UDP For Anonymity</filename> - the first paper describing the idea for SUMI
+</para>
+</listitem>
+</itemizedlist>
+</sect3>
+</sect2>
+<sect2 id='other-projects-of-interest'><title id='other-projects-of-interest-title'>Other Projects of Interest</title>
+<itemizedlist>
+<listitem>
+<para>[http://tor.eff.org/ Tor] - interesting onion-router network sponsored by EFF
+</para>
+</listitem>
+<listitem>
+<para>[http://larytet.sourceforge.net/btRat.shtml Rodi] - Java program with encryption, content-search and optional IP spoofing
+</para>
+</listitem>
+<listitem>
+<para>[http://anonet.fshell.org/ AnoNet: Cooperative Chaos] - a virtual IP network, uses OpenVPN and OSFP
+</para>
+</listitem>
+<listitem>
+<para>[http://antsp2p.sourceforge.net/ ANts P2P] - Java program with encryption, IRC-based peer discovery, routing
+</para>
+</listitem>
+<listitem>
+<para>[http://mute-net.sourceforge.net/ MUTE] - avoids direct connections
+</para>
+</listitem>
+</itemizedlist>
+</sect2>
+<sect2 id='authors'><title id='authors-title'>Authors</title>
+<itemizedlist>
+<listitem>
+<para><filename>Jeff Connelly</filename> - lead developer
+</para>
+</listitem>
+<listitem>
+<para><filename>James Ruckdaschel</filename> - Lead Beta Tester and Supervisor
+</para>
+</listitem>
+<listitem>
+<para><filename>Chirag Patel</filename> - Website Logo Design
+</para>
+</listitem>
+<listitem>
+<para>Keith Oakely - original SUMI icon design
+</para>
+</listitem>
+<listitem>
+<para>Dan Weber - helped with some documentation
+</para>
+</listitem>
+<listitem>
+<para>Scott Johnston - beta tester
+</para>
+</listitem>
+</itemizedlist>
+</sect2>
