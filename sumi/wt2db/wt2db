@@ -20,7 +20,8 @@
 # 
 $VERSION = '1.0';
 
-use Wt2Db;
+#use Wt2Db;
+require "lib/Wt2Db.pm";
 $WT2DB = new Wt2Db;
 
 my $txtfile = '';
@@ -48,6 +49,9 @@ while (1) {
         shift(@ARGV);
         $encoding = $ARGV[0];
         shift(@ARGV);
+    } elsif ($ARGV[0] eq "-d" or $ARGV[0] eq "--no-docbook") {
+        $encode_entities = 1;
+        shift(@ARGV);
     } elsif($ARGV[0] eq "-n" or $ARGV[0] eq "--nonet") {
         $nonet = 1;
         shift(@ARGV);
@@ -74,7 +78,7 @@ while (1) {
 }
 
 $WT2DB->ProcessFile($txtfile, $dbfile, $verbose, $doctype, $articleclass,
-$nonet, $encoding);
+$nonet, $encoding, $encode_entities);
 
 sub version {
     print "wt2db version $VERSION\n";
@@ -99,6 +103,7 @@ sub usage {
     print "-x, --xml          add SGML DOCTYPE and article tags.\n";
     print "-f, --faq          make the article a faq.\n";
     print "-e, --encoding     specify character encoding.\n";
+    print "-d, --no-docbook   escape tags/entities, don't pass them.\n";
     print "-n, --nonet        do not look up documents on the net.\n";
     print "-o, --output-to    write to the specified file.\n";
     print "-V, --verbose      show diagnostic output.\n";
