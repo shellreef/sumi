@@ -37,6 +37,12 @@ def recvmsg(callback=default_cb):
 
     print "Starting local server on %s" % PORT
     ss = socket.socket()
+
+    # Allow reusing local addresses and ports so don't have to wait to timeout
+    ss.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    if hasattr(socket, "SO_REUSEPORT"):
+        ss.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+
     ss.bind(("localhost", PORT))
     ss.listen(5)
 
