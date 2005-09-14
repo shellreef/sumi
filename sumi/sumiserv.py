@@ -1347,9 +1347,16 @@ on your system. Sorry, you cannot use 'launch'. Consider using 'rawproxd'.""")
         if cfg["broadcast"]:
             log("Enabling broadcast support")
             err = raw_socket.setsockopt(socket.SOL_SOCKET, 
-                                        socket.SO_BROADCAST, 1)
+                    socket.SO_BROADCAST, 1)
             if err:
                 fatal(16, "setsockopt SO_BROADCAST: %s" % err)
+
+        if not cfg["multicast_ttl"] is None:
+            log("Enabling multicast with TTL %s" % cfg["multicast_ttl"])
+            err = raw_socket.setsockopt(socket.IPPROTO_IP,
+                    socket.IP_MULTICAST_TTL, cfg["multicast_ttl"])
+            if err:
+                fatal(26, "setsockopt IP_MULTICAST_TTL: %s" % err)
 
     #print "Binding to address:", cfg["bind_address"]
     # XXX: why IPPROTO_UDP? and why even bind? Seems to work without it.
