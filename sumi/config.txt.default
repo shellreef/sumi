@@ -94,4 +94,9 @@
 #  If transport is insecure, will encrypt requests (interlock, etc.)
 #  Encrypt the data stream
 "crypt": True,
+
+# List of (multicast_group_ip_address, interface_ip_address) tuples to join.
+# This probably belongs in the .sumi files, per-transfer, but hasn't received
+# enough testing yet (causes an exception here) so it is placed here.
+"multicast_groups": [],
 }

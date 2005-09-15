@@ -16,6 +16,8 @@
  'irc_nick': 'sumigex',
  'maxwait': 7,
  'mtu': 1500,
+ 'multicast_groups': [],
+ 'multicast_groups2': [('224.51.105.104', None)],
  'myip': '',
  'myip2': '10.0.0.64',
  'myip3': '10.0.0.64',

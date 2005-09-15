@@ -36,12 +36,17 @@ import sys
 import os
 import time
 import libsumi
+import pprint
 
 from libsumi import *
 from nonroutable import is_nonroutable_ip
 
 def log(msg):
     print msg
+
+def fatal(msg):
+    log("FATAL ERROR: %s" % msg)
+    os._exit(-1)
 
 # Modules used by transports. Imported here so they compile in.
 if sys.platform == 'win32':
@@ -139,6 +144,8 @@ class Client(object):
         # Now performed manually in sumigetw
         #self.validate_config()
         self.senders = {}
+
+        self.mcast_sockets = []
 
         self.set_callback(self.default_cb)   # override me please
 
@@ -883,6 +890,43 @@ DATA:UNKNOWN PREFIX! 414141 6 bytes from ()
             log("*** dchanmode invalid, set to socket or pcap")
             sys.exit(-4)
 
+    
+    def setup_socket(self, s):
+        """Set socket options on s."""
+        # Allow reusing local addresses
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        if hasattr(socket, "SO_REUSEPORT"):
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+
+        self.mcast_op(s, socket.IP_ADD_MEMBERSHIP)
+
+    def mcast_op(self, s, op):
+        """Add or drop all the multicast groups in the config file.
+        op is socket.IP_(ADD/DROP)_MEMBERSHIP."""
+        assert op in [socket.IP_ADD_MEMBERSHIP, socket.IP_DROP_MEMBERSHIP], \
+                "mcast_op: %s isn't add or drop" % op
+
+        word = {socket.IP_ADD_MEMBERSHIP:  "Joining",
+                socket.IP_DROP_MEMBERSHIP: "Leaving"}[op]
+
+        for (group, iface) in self.config["multicast_groups"]:
+            if iface is None:
+                iface = "0.0.0.0"
+
+            log("%s multicast %s on %s" % (word, group, iface))
+
+            try:
+                s.setsockopt(socket.SOL_IP, socket.IP_ADD_MEMBERSHIP,
+                        socket.inet_aton(group) + socket.inet_aton(iface))
+            except socket.error, e:
+                if op == socket.IP_ADD_MEMBERSHIP:
+                    #fatal("Couldn't join mcast group: %s" % e)
+                    pass
+                else:
+                    raise
+
+        self.mcast_sockets.append(s)
+
     def server_icmp(self):
         """Receive ICMP packets. Requires raw sockets."""
 
@@ -892,10 +936,7 @@ DATA:UNKNOWN PREFIX! 414141 6 bytes from ()
         sock = socket.socket(socket.AF_INET, socket.SOCK_RAW, 
                              socket.IPPROTO_ICMP)
 
-        # Allow reusing local addresses
-        ss.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        if hasattr(socket, "SO_REUSEPORT"):
-            ss.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+        self.setup_socket(sock)
 
         log("ICMP started.")   # At the moment, needs to be ran as root
         sock.bind((self.localaddr, 0))
@@ -909,10 +950,7 @@ DATA:UNKNOWN PREFIX! 414141 6 bytes from ()
         log("UDP started (socket mode)")
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
-        # Reuse addresses
-        ss.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        if hasattr(socket, "SO_REUSEPORT"):
-            ss.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+        self.setup_socket(sock)
 
         while True:
             try:
@@ -1587,8 +1625,16 @@ Tried to use a valid directory of %s but it couldn't be accessed.""")
     def on_exit(self): 
         """Called by GUI upon exiting."""
         log("Cleaning up...")
-        import pprint
 
+        log("Dropping multicast groups")
+        for s in self.mcast_sockets:
+            # s.makefile().closed is apparently not meaningful (always True)
+            try:
+                self.mcast_op(s, socket.IP_DROP_MEMBERSHIP)
+            except socket.error, e:
+                log("couldn't drop from socket, giving up: %s" % e)
+            #else:
+            #    log("dropped all memberships to %s" % s)
         try:
             savefile = open(config_file, "w")
 
