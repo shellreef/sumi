@@ -1358,6 +1358,14 @@ on your system. Sorry, you cannot use 'launch'. Consider using 'rawproxd'.""")
             if err:
                 fatal(26, "setsockopt IP_MULTICAST_TTL: %s" % err)
 
+        if not cfg["multicast_iface"] is None:
+            log("Sending multicast from %s" % cfg["multicast_iface"])
+            err = raw_socket.setsockopt(socket.IPPROTO_IP,
+                    socket.IP_MULTICAST_IF,
+                    socket.inet_aton(cfg["multicast_iface"]))
+            if err:
+                fatal(27, "setsockopt IP_MULTICAST_IF: %s" % err)
+
     #print "Binding to address:", cfg["bind_address"]
     # XXX: why IPPROTO_UDP? and why even bind? Seems to work without it.
     #raw_socket.bind( (cfg["bind_address"], socket.IPPROTO_UDP) )
