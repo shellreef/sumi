@@ -38,7 +38,6 @@ SUMIHDRSZ = 11#bytes
 UDPHDRSZ = 8#bytes
 IPHDRSZ = 20#bytes
 SUMIAUTHHDRSZ = 4#bytes
-PKT_TIMEOUT = 3#seconds
 
 # Time to sleep between interlock protocol exchanges
 INTERLOCK_DELAY = 1#second
