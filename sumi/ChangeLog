@@ -2,11 +2,18 @@ SUMI ChangeLog
 $Id$
 vi: noexpandtab:
 
+2005-09-15 Jeff Connelly <jeffconnelly@users.sourcefore.net>
+	* Add "-e filename" flag to sumigetw for running arbitrary Python scripts
+	* Turn on SO_REUSEADDR and (if available) SO_REUSEPORT
+	* Client can join multicast groups
+	* Server can choose which interface to multicast on
+
 2005-09-12 Jeff Connelly <jeffconnelly@users.sourceforge.net> - 0.8.14
 	* r257 Installer shows license, uninstaller works better,
 	  it can uninstall WinPcap and mIRC transport script
 	* The source code release is much smaller since it mostly only
 	  contains what is in Subversion - none of the extra cruft
+	* Open config if no args, remove allow_no_req
 
 2005-09-11 Jeff Connelly <jeffconnelly@users.sourceforge.net>
 	* r242 Whole-file SHA-1 hash for verifying integrity
