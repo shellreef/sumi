@@ -59,6 +59,14 @@
 # need it. Useful if you want to allow multiple users to get the same file.
 "broadcast": False,
 
+# Time-to-live for multicast, or None to disable. Ranges from 0-255 depending
+# on how far you want the multicast to go. >128 is on the Internet at large.
+"multicast_ttl": None,
+
+# IP address of interface to send multicast packets from. None means let the
+# OS choose what interface to send from. Note that this is an IP address.
+"multicast_iface": None,
+
 # Network interface to use with pcap. "" to list all interfaces and quit,
 # or choose the first interface if there is only one.
 "interface": "",
