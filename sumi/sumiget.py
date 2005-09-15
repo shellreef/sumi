@@ -145,7 +145,7 @@ class Client(object):
         #self.validate_config()
         self.senders = {}
 
-        self.mcast_sockets = []
+        self.sockets = []
 
         self.set_callback(self.default_cb)   # override me please
 
@@ -203,15 +203,21 @@ Not saving resuming file for someone
 
         # Conditionally save these keys
         export = ["irc_server", "irc_port", "irc_channel",
-            "irc_channel_password"]
+            "irc_channel_password", "multicast_group"]
         for k in export:
             if u.has_key(k):
                 d[k] = u[k]
 
+        # TODO: better file format
         fs.write(pack_dict(d))
         fs.flush()
 
         if finished:
+            # Leave group associated with transfer
+            if u.has_key("multicast_group"):
+                for s in self.sockets:
+                    self.mcast_op(s, socket.IP_DROP_MEMBERSHIP,
+                        u["multicast_group"])
             fs.close()
 
     def prefix2user(self, prefix):
@@ -248,7 +254,8 @@ True
         
         # Allow only certain fields for security
         allow = ["transport", "nick", "filename", "irc_server",
-            "irc_port", "irc_channel", "irc_channel_password"]
+            "irc_port", "irc_channel", "irc_channel_password",
+            "multicast_group"]
         d = {}
         for k in d_all.keys():
             if k in allow:
@@ -898,10 +905,10 @@ DATA:UNKNOWN PREFIX! 414141 6 bytes from ()
         if hasattr(socket, "SO_REUSEPORT"):
             s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
 
-        self.mcast_op(s, socket.IP_ADD_MEMBERSHIP)
+        self.sockets.append(s)
 
-    def mcast_op(self, s, op):
-        """Add or drop all the multicast groups in the config file.
+    def mcast_op(self, s, op, group):
+        """Add or drop a multicast group on s.
         op is socket.IP_(ADD/DROP)_MEMBERSHIP."""
         assert op in [socket.IP_ADD_MEMBERSHIP, socket.IP_DROP_MEMBERSHIP], \
                 "mcast_op: %s isn't add or drop" % op
@@ -909,23 +916,18 @@ DATA:UNKNOWN PREFIX! 414141 6 bytes from ()
         word = {socket.IP_ADD_MEMBERSHIP:  "Joining",
                 socket.IP_DROP_MEMBERSHIP: "Leaving"}[op]
 
-        for (group, iface) in self.config["multicast_groups"]:
-            if iface is None:
-                iface = "0.0.0.0"
+        iface = self.config["mcast_iface"]
 
-            log("%s multicast %s on %s" % (word, group, iface))
+        log("%s multicast %s on %s" % (word, group, iface))
 
-            try:
-                s.setsockopt(socket.SOL_IP, socket.IP_ADD_MEMBERSHIP,
-                        socket.inet_aton(group) + socket.inet_aton(iface))
-            except socket.error, e:
-                if op == socket.IP_ADD_MEMBERSHIP:
-                    #fatal("Couldn't join mcast group: %s" % e)
-                    pass
-                else:
-                    raise
-
-        self.mcast_sockets.append(s)
+        try:
+            s.setsockopt(socket.SOL_IP, socket.IP_ADD_MEMBERSHIP,
+                    socket.inet_aton(group) + socket.inet_aton(iface))
+        except socket.error, e:
+            if op == socket.IP_ADD_MEMBERSHIP:
+                fatal("Couldn't join mcast group %s: %s" % (group, e))
+            else:
+                log("Warning: couldn't leave mcast %s: %s" % (group, e))
 
     def server_icmp(self):
         """Receive ICMP packets. Requires raw sockets."""
@@ -1400,9 +1402,24 @@ Tried to use a valid directory of %s but it couldn't be accessed.""")
         else:
             data_key = data_iv = ""
 
+        # If multicast_group is specified, use that
+        if u.has_key("multicast_group"):
+            ip = u["multicast_group"]
+            if not is_multicast(ip):
+                # An attacker could claim that an address is multicast, when
+                # it is really an innocent victim. At most they'll get a
+                # spurious auth packet but don't allow even that.
+                fatal("Address %s is not a multicast address!" % ip)
+            if not self.config["allow_multicast"]:
+                fatal("Attempted to download file from multicast group %s" %
+                        ip + ", but allow_multicast is not enabled.")
+                
+        else:
+            ip = self.myip
+
         msg = "sumi send " + pack_args({"f":file,
             #"o":offset,  # offset moved to sumi auth (know file size)
-            "i":self.myip, "n":self.myport, "m":self.mss,
+            "i":ip, "n":self.myport, "m":self.mss,
             "p":b64(prefix),
             "b":self.bandwidth,
             "w":self.rwinsz, 
@@ -1416,6 +1433,16 @@ Tried to use a valid directory of %s but it couldn't be accessed.""")
         u.clear()
         u["nick"] = nick
         return u
+
+    def setup_mcast(self, u):
+        """Join a multicast group for u, if any. Should be called
+        after make_request() since the multicast address validation
+        is performed there."""
+        if u.has_key("multicast_group"):
+            for s in self.sockets:
+                # TODO: callback
+                self.mcast_op(s, socket.IP_ADD_MEMBERSHIP, u["multicast_group"])
+
 
     def request(self, args):
         """Request a file from a server. args are
@@ -1479,11 +1506,13 @@ Tried to use a valid directory of %s but it couldn't be accessed.""")
                 return
             # Store request since its sent in halves
             u["request_clear"] = self.make_request(u, filename)
+            self.setup_mcast(u)
             self.setup_transport_crypto(u)
         else:
             # Even if crypt is enabled, with a secure transport don't encrypt
             # the request.
             msg = self.make_request(u, filename)
+            self.setup_mcast(u)
             self.sendmsg(u, msg) 
 
         log("Sent")
@@ -1626,15 +1655,6 @@ Tried to use a valid directory of %s but it couldn't be accessed.""")
         """Called by GUI upon exiting."""
         log("Cleaning up...")
 
-        log("Dropping multicast groups")
-        for s in self.mcast_sockets:
-            # s.makefile().closed is apparently not meaningful (always True)
-            try:
-                self.mcast_op(s, socket.IP_DROP_MEMBERSHIP)
-            except socket.error, e:
-                log("couldn't drop from socket, giving up: %s" % e)
-            #else:
-            #    log("dropped all memberships to %s" % s)
         try:
             savefile = open(config_file, "w")
 

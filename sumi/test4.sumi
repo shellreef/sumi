@@ -1,0 +1,8 @@
+transport=irclib
+nick=sumi-00
+filename=#3
+irc_server=irc.xtc-dreams.com
+irc_port=6667
+irc_channel=#sumi
+irc_channel_password=anon
+multicast_group=224.0.0.1

@@ -3,6 +3,7 @@
 # Please note - ALL COMMENTS IN THIS FILE WILL BE DESTROYED
 {'2dl_dir': 'C:/Program Files/SUMI/incoming',
  'allow_local': True,
+ 'allow_multicast': True,
  'bandwidth': 56623104,
  'bandwidth1': 1500000,
  'colwidths': [160, 107, 56, 55, 115, 69, 76, 99, 71, 52, 71, 39],
@@ -15,6 +16,7 @@
  'interface3': '\\Device\\NPF_{3530F223-8959-4928-88A5-1672C094D6A8}',
  'irc_nick': 'sumigex',
  'maxwait': 7,
+ 'mcast_iface': '0.0.0.0',
  'mtu': 1500,
  'multicast_groups': [],
  'multicast_groups2': [('224.51.105.104', None)],

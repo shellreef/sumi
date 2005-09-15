@@ -99,4 +99,10 @@
 # This probably belongs in the .sumi files, per-transfer, but hasn't received
 # enough testing yet (causes an exception here) so it is placed here.
 "multicast_groups": [],
+
+# Allow .sumi-file-specified multicast address downloads?
+"allow_multicast": False,
+
+# IP address to join multicast groups on
+"mcast_iface": "0.0.0.0",
 }
