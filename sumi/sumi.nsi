@@ -18,8 +18,25 @@
 SetCompressor /SOLID lzma
 
 Name "SUMI"
-OutFile "sumiinst.exe"
+
+; Note: version needs to be changed in 4 places, be sure to get them all
+
+OutFile "sumiinst-win32-0.8.15.exe"
 InstallDir "$PROGRAMFILES\SUMI"
+
+VIProductVersion "0.8.15.0"
+VIAddVersionKey "InternalName" "SUMI"
+VIAddVersionKey "FileDescription" "Spoofed UDP with Mediator of IRC"
+VIAddVersionKey "ProductName" "SUMI Anonymous P2P"
+VIAddVersionKey "Comments" "http://sumi.berlios.de/"
+; Note: comment-out this when releasing a new version
+VIAddVersionKey "PrivateBuild" "Beta tester build"
+
+; Uncomment if used -OO with py2exe, as described at:
+;  http://starship.python.net/crew/theller/moin.cgi/OptimizedBytecode
+;VIAddVersionKey "SpecialBuild" "Optimized Python"
+VIAddVersionKey "LegalCopyright" "© 2003-2005 Jeff Connelly. License: GPL"
+VIAddVersionKey "FileVersion" "$Id"
 
 ; http://nsis.sourceforge.net/wiki/Auto-uninstall_old_before_installing_new
 Function .onInit
@@ -33,7 +50,7 @@ Function .onInit
   previous version or 'Cancel' to cancel this upgrade." \
   IDOK uninst_old
   Abort
-  
+
 ;Run the uninstaller
 uninst_old:
   ClearErrors
@@ -54,6 +71,7 @@ uninst_old:
 done:
  
 FunctionEnd
+
 
 Page license
 Page components
