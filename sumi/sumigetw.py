@@ -169,7 +169,16 @@ class CLogPanel(wx.Panel):
         def log(msg):
             print msg
             self.Write("%s\n" % msg)
+
+        def fatal(msg):
+            dlg = wx.MessageDialog(self.app.frame, 
+                    "A fatal error occured: %s\n\nClosing now." % msg,
+                    "Fatal error", wx.OK | wx.ICON_ERROR)
+            dlg.ShowModal()
+            os._exit(-1)
+
         sumiget.log = log
+        sumiget.fatal = fatal
 
     def Write(self, msg):
         self.clogfile.write(msg)
