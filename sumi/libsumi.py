@@ -29,6 +29,7 @@ import sha
 import zlib
 import types
 import os
+import socket
 from itertools import izip, chain
 
 SUMI_VER = "0.8.14"
@@ -675,10 +676,10 @@ def check_crc(pkt):
     >>> check_crc(pkt)
     True
     >>> check_crc(pkt[0:11])          # Detect truncation
-    (libsumi) CRC32 FAILURE: -2dca16cd vs 0e97bd2c
+    (libsumi) ** CRC32 Failure from ['foo'] in 1482184792: -2dca16cd vs 0e97bd2c
     False
     >>> check_crc('g' + pkt[1:])      # Detect modification
-    (libsumi) CRC32 FAILURE: -2dca16cd vs 55932270
+    (libsumi) ** CRC32 Failure from ['goo'] in 1482184792: -2dca16cd vs 55932270
     False
     '''
 
@@ -751,6 +752,31 @@ def hash_file(fn, callback=None):
 
        
     return hash_obj.digest()
+
+def is_multicast(addr):
+    """Return whether addr is a multicast (Class D) IPv4 addresss.
+
+    Example usage:
+        >>> is_multicast("224.0.0.0")
+        True
+        >>> is_multicast("239.53.23.3")
+        True
+        >>> is_multicast("240.255.255.255")
+        True
+        >>> is_multicast("127.0.0.1")
+        False
+        >>> is_multicast("255.255.255.255")
+        False
+    """
+
+    # inet_aton can't handle
+    if addr == "255.255.255.255":
+        return False
+
+    # Multicast addresses have upper octets beginning with bits 1110
+    log("Checking if %s is class d" % addr)
+    n = ord(socket.inet_aton(addr)[0])
+    return n >= 224 and n <= 240
 
 if __name__ == "__main__":
     random_init()
