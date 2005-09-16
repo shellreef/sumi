@@ -46,7 +46,9 @@ opts = {"py2exe": #{}
         # So much for *dynamic* DLLs; having pcapy requires wpcap even if
         # pcapy isn't imported or used yet. Excluding it doesn't help
       #"excludes": ["pcapy"],
-    }
+    "compressed": 1,
+    "excludes": ["codecs", "encodings"],
+    },
 }
 
 setup(options=opts, console=["sumiget.py"])
