@@ -124,7 +124,15 @@ def capture(decoder, filter, callback):
     import pcapy
     print "Receiving messages on %s" % cfg["interface"]
     # 1500 bytes, promiscuous mode.
-    p = pcapy.open_live(cfg["interface"], 1500, 1, 0)
+    try:
+        p = pcapy.open_live(cfg["interface"], 1500, 1, 0)
+    except pcapy.PcapError, e:
+        log("Couldn't open %s: %s" % (cfg["interface"], e))
+        cfg["interface"] = select_if()[0]
+        log("Trying with %s" % cfg["interface"])
+
+        p = pcapy.open_live(cfg["interface"], 1500, 1, 0)
+
     if filter:
         p.setfilter(filter)
     while 1:
@@ -554,19 +562,23 @@ def select_if():
         "#", "IP Address", "Netmask", "MTU?", "Device"))
     i = 0
     for dev in pcapy.findalldevs():
+    # Try opening it..
+    #p = pcapy.open_live(interface, 1500, 1, 0)
         try:
+            log("select_if: trying %s" % dev)
             p = pcapy.open_live(dev, 0, 0, 0)
         except pcapy.PcapError, e:
-            log("error opening %s: %s" % (dev, e))
+            log("select_if: error opening %s: %s" % (dev, e))
             continue
         # Pcapy doesn't provide MAC addr, or the real MTU, so we use
         # the datalink field to guestimate the MTU.
         mtu = datalink2mtu(p.datalink()) 
         ip = p.getnet()
-        # Don't list interfaces without IP addresses--probably means
+        # Don't list or try interfaces without IP addresses--probably means
         # they are down.
         if ip == "0.0.0.0": 
             continue            # skip for brevity
+
         mask = p.getmask()
         log("%s. %-16s %-16s %5s\n\t%s\n" % (i, ip, mask, mtu, dev))
         ifaces.append({"ip": ip, 

@@ -46,6 +46,7 @@
 # Network interface to use for packet capturing. Varies, so there is no
 # default. If needed, sumiserv will list possible interfaces. aim transport.
 #"interface": "\\Device\\NPF_{3530F223-8959-4928-88A5-1672C094D6A8}",
+"interface": "",
 
 # Data channel mode: (currently only affects UDP 'u' data channel type)
 #  debug  Use ordinary unspoofed socket() calls, DO NOT USE IN PRODUCTION

@@ -95,6 +95,9 @@
 #  Encrypt the data stream
 "crypt": True,
 
+# Network interface to use
+"interface": "",
+
 # List of (multicast_group_ip_address, interface_ip_address) tuples to join.
 # This probably belongs in the .sumi files, per-transfer, but hasn't received
 # enough testing yet (causes an exception here) so it is placed here.
