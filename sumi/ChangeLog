@@ -2,6 +2,16 @@ SUMI ChangeLog
 $Id$
 vi: noexpandtab:
 
+2005-09-16 Jeff Connelly <jeffconnelly@users.sourceforge.net> - 0.8.15
+	* r290 Move to Python 2.4, see [[Python 2.4 migration]] for details
+	* r289 Fix transports that rely on capture()
+	* r288 Improve interface selection
+	* r285 library.zip is now compressed
+	* Win32 no-installer distribution is a smaller self-extracting 7z archive
+	  (created manually)
+	* Development of SUMI will slow down due to school, but I still plan to
+	  work on it when I have time. Anyone want to help?
+
 2005-09-15 Jeff Connelly <jeffconnelly@users.sourcefore.net>
 	* Add "-e filename" flag to sumigetw for running arbitrary Python scripts
 	* Turn on SO_REUSEADDR and (if available) SO_REUSEPORT
