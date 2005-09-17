@@ -884,7 +884,8 @@ def xfer_thread(u):
 
         if u["seqno"]:
             blocklen = datapkt(u, u["seqno"])
-
+        else:
+            blocklen = 0
 
         # * If peer doesn't send NAK within 2*RWINSZ, pause transfer (allocate_lock?)
         # * If above, and peer sends a NAK again, release the lock allowing to resume
