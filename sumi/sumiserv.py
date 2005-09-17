@@ -617,7 +617,10 @@ def encrypt(u, msg):
 
 def decrypt(u, msg):
     """Decrypt msg from a user."""
-    return decrypt_msg(msg, u["sesskey"], u["sessiv"])
+    try:
+        return decrypt_msg(msg, u["sesskey"], u["sessiv"])
+    except Exception, e:
+        log("Couldn't decrypt |%s|: %s" % (msg, e))
 
 def generate_nonce(u):
     """Generate and encrypt a random nonce (number used only once) for nick.
