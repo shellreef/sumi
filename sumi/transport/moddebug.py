@@ -25,6 +25,9 @@ def sendmsg_1(nick, msg):
 def recvmsg(callback):
     log("Debug recvmsg() started - type messages on console")
     log("In the format: username<space>message of any length, or empty to end.")
+
+    callback("(transport_ready)", "debug")
+
     while True:
         nick, msg = sys.stdin.readline().strip().split(" ", 1)
         if nick == "":

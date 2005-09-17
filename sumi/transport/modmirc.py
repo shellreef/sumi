@@ -29,12 +29,14 @@ def transport_init():
     log("Located mIRC, running...")
 
     # Our transport_init is called after all these calls were imported
-    import capture_irc
-    recvmsg = capture_irc.recvmsg
     capture_irc.capture = capture
     capture_irc.cfg = cfg
     capture_irc.get_tcp_data = get_tcp_data
 
+import capture_irc
+
+def recvmsg(callback):
+    return capture_irc.recvmsg(callback, "mirc")
 
 def sendmsg(nick, msg):
     #sendmsg_1(nick, msg)

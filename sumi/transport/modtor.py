@@ -46,6 +46,8 @@ def recvmsg(callback=default_cb):
     ss.bind(("localhost", PORT))
     ss.listen(5)
 
+    callback("(transport_ready)", "tor")
+
     while True:
         accept_client(ss, callback)
 

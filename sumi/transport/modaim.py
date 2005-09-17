@@ -163,6 +163,7 @@ def recvmsg(callback):
     filter = ("tcp and (tcp[12] & 0xf0) <= 0x50 " +   # TCP & no options
              "and tcp[20:2] = 0x2a02 " +    # OSCAR magic & channel 2
              "and tcp[26:4] = 0x00040007") # Family 4,subtype 7=incoming IM
+    callback("(transport_ready)", "aim")
     # pcapy capture - never returns
     capture(decoder, filter, callback)
 

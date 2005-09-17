@@ -6,7 +6,7 @@
 # Currently used by mirc and xchat transports, but any IRC transport could
 # use this.
 
-def recvmsg(callback):
+def recvmsg(callback, transport_name):
     """Capture receiving messages using pcap. Won't work with encrypted IRC, 
     or ports outside 6000-8000."""
     def decoder(pkt_data):
@@ -24,6 +24,8 @@ def recvmsg(callback):
     for i in range(6660, 6669):
         filter += "port %s or " % i
     filter += "port 7000)"
+
+    callback("(transport_ready)", transport_name)
     # Never returns
     capture(decoder, filter, callback)
 
