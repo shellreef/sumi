@@ -1058,7 +1058,11 @@ DATA:UNKNOWN PREFIX! 414141 6 bytes from ()
 
     def handle_server_message(self, nick, msg):
         """Handle a message received from the server on the transport.
-        Used for crypto."""
+        Used for crypto.
+        
+        Returns False if the message couldn't be processed, True if it 
+        could. This is the callback for libsumi's capture() function, so
+        note that returning a string will stop packet capturing."""
       
         if nick == "(transport_ready)":
             log("Releasing transport lock: %s" % msg)
@@ -1073,7 +1077,7 @@ DATA:UNKNOWN PREFIX! 414141 6 bytes from ()
             error_msg = msg[len("error: "):]
             log("*** Error: %s: %s" % (nick, error_msg))
             self.callback(u["nick"], "error", error_msg)
-            return None
+            return False
 
         # Always base64'd
         try:

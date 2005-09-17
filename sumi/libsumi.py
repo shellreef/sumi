@@ -119,7 +119,7 @@ def unpack_keys(raw):
 def capture(decoder, filter, callback):
     """Generic function to capture packets using pcapy, available to
     transports. Useful to receive incoming messages without proxying. Returns
-    if callback returns a true value."""
+    if the callback returns a string."""
 
     import pcapy
     print "Receiving messages on %s" % cfg["interface"]
@@ -142,10 +142,13 @@ def capture(decoder, filter, callback):
         (user, msg) = decoder(pkt_data)
         #(sn, msg) = decode_aim(get_tcp_data(pkt_data))
         if user:
-            #print "<%s> %s" % (sn, msg)
+            print "<%s> %s" % (user, msg)
             ret = callback(user, msg)
-            if ret:
+            if type(ret) == types.StringType:
+                log("CALLBACK RETURNS: %s" % ret)
                 return ret
+        else:
+            print [pkt_data]
     return 1
 
 def get_tcp_data(pkt_data):
