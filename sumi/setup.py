@@ -47,7 +47,6 @@ opts = {"py2exe": #{}
         # pcapy isn't imported or used yet. Excluding it doesn't help
       #"excludes": ["pcapy"],
     "compressed": 1,
-    "excludes": ["codecs", "encodings"],
     },
 }
 
