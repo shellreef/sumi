@@ -58,6 +58,10 @@ Verizon
   as well as spoofing outside the network (tried to Comcast), the 768/128
   and 1500/128 are equally spoofable but the former gets about 14.5KB/s,
   while the later gets around 16.5KB/s. /22
+4.x.x.x connections (used to?) allow full spoofing, even of unrouteable IPs
+(10.0.0.0) within the network as well as spoofing outside the network (to
+Comcast); the 768/128 and 1500/128 are equally spoofable. /22. However, 3Mbps
+connections (71.x.x.x) seem to prevent all spoofing!
 
 MSN Dialup (*.rasserver.net aka ICGCom(?))
 - allows spoofing (tried 1.2.3.4)
