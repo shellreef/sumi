@@ -1519,7 +1519,7 @@ def send_packet_UDP_PCAP(src, dst, payload):
     #src_mac = 0x112233445566
 
     totlen = IPHDRSZ + UDPHDRSZ + len(payload)
-    pkt = build_iphdr(totlen, src[0], dst[0], 17)
+    pkt = build_iphdr(totlen, src[0], dst[0], 17, True)
 
     pkt += build_udphdr(src, dst, payload)
 
