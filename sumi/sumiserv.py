@@ -1447,14 +1447,15 @@ def build_udphdr(src, dst, payload):
     return hdr   # hdr + payload
 
 # TODO: Look into using dpkt http://monkey.org/~dugsong/dpkt/ !
-def build_iphdr(totlen, src_ip, dst_ip, type, network_order_totlen=False):
+def build_iphdr(totlen, src_ip, dst_ip, type, is_datalink=False):
     """Return an IP header with given parameters."""
     global cfg
 
     # A major source of confusion. The IP length field has to be in
     # host byte order for FreeBSD & Windows, network byte order for Linux.
-    # ** However, data-link sockets will always use network order!
-    if not cfg["IP_TOTLEN_HOST_ORDER"] or network_order_totlen:
+    # ** However, data-link sockets (at least WinPcap) use host order!
+    # TODO: get pcap mode working with libpcap and see if its the same
+    if not cfg["IP_TOTLEN_HOST_ORDER"] and not is_datalink:
         totlen = socket.htons(totlen)
   
     hdr = struct.pack("!BBHHHBBHII",
@@ -1519,7 +1520,7 @@ def send_packet_UDP_PCAP(src, dst, payload):
     #src_mac = 0x112233445566
 
     totlen = IPHDRSZ + UDPHDRSZ + len(payload)
-    pkt = build_iphdr(totlen, src[0], dst[0], 17, True)
+    pkt = build_iphdr(totlen, src[0], dst[0], 17, is_datalink=True)
 
     pkt += build_udphdr(src, dst, payload)
 
