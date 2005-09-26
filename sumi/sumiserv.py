@@ -1433,7 +1433,7 @@ def build_udphdr(src, dst, payload):
         src[1],                              # Source port
         dst[1],                              # Destination port
         UDPHDRSZ + len(payload),
-        0,     # Checksum - must set by fixULPChecksum after this call
+        0,     # Checksum - will be filled below
        )
     if len(hdr) != UDPHDRSZ:
         fatal(17, "internal error: build_udphdr is broken, %d %d" %
@@ -1441,21 +1441,20 @@ def build_udphdr(src, dst, payload):
 
     hdr += payload  #  Checksum data as well
     # Fill in UDP checksum. This is actually optional (it can be 0), but
-    # highly recommended. SUMI has no other way to ensure no corruption.
+    # highly recommended. SUMI uses a CRC32 on a higher level however.
     cksum = int(in_cksum(pseudo + hdr))
     hdr = hdr[:6] + struct.pack("<H",  cksum) + hdr[8:]
     return hdr   # hdr + payload
 
-    return hdr
-
 # TODO: Look into using dpkt http://monkey.org/~dugsong/dpkt/ !
-def build_iphdr(totlen, src_ip, dst_ip, type):
+def build_iphdr(totlen, src_ip, dst_ip, type, network_order_totlen=False):
     """Return an IP header with given parameters."""
     global cfg
 
     # A major source of confusion. The IP length field has to be in
     # host byte order for FreeBSD & Windows, network byte order for Linux.
-    if (not cfg["IP_TOTLEN_HOST_ORDER"]):
+    # ** However, data-link sockets will always use network order!
+    if not cfg["IP_TOTLEN_HOST_ORDER"] or network_order_totlen:
         totlen = socket.htons(totlen)
   
     hdr = struct.pack("!BBHHHBBHII",
