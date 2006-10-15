@@ -22,6 +22,8 @@ setup(name="ecc",
 		package_dir = { "ecc":"src" },
 		ext_modules = [Extension("ellipticc",
 						sources=SOURCES,
-						include_dirs=[get_python_inc(plat_specific=1)] )]
+						include_dirs=[get_python_inc(plat_specific=1)],
+                        extra_compile_args=['-Werror',
+                        '-Wno-strict-prototypes'])]
 
 )

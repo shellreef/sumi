@@ -170,7 +170,6 @@ SIGNATURE *signature;
 	BIGINT			x_value, k_value, sig_value;
 	BIGINT			temp, quotient;
 	BIGINT			key_value, point_order;
-	INDEX			i, count;
 
 /*  compute hash of input message  */
 
@@ -234,7 +233,7 @@ SIGNATURE		*signature;
 	BIGINT			x_value, c_value;
 	BIGINT			temp, quotient;
 	BIGINT			check_value, point_order;
-	INDEX			i, count;
+	INDEX			i;
 
 /*  find hidden point from public data  */
 
@@ -277,7 +276,6 @@ SIGNATURE		*signature;
 /* Generate the base curve and point */
 void makeBaseCurve(EC_PARAMETER* Base){
 	BIGINT	prime_order,b1;
-	POINT temp;
 
 /*  compute curve order from Koblitz data  */
     ascii_to_bigint(&publicCurve, &prime_order);
@@ -338,7 +336,6 @@ void DH_recv(EC_PARAMETER *Base, EC_KEYPAIR *myKP, POINT* pub_pt, FIELD2N* secre
 safeString *field2bin(FIELD2N* in) {
 	safeString *ret;
 	INDEX i;
-	FIELD2N* start=in;
 
 	// Manual memory allocation of return string required for Python.
  	// This memory will be deallocated in the wrapper.

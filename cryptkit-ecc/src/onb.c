@@ -179,7 +179,7 @@ void genlambda()
 
 void genlambda2()
 {
-	INDEX	i, logof[4], n, index, j, k, twoexp;
+	INDEX	i, logof[4], n, j, k, twoexp;
 
 /*  build log table first.  For the case where 2 generates the quadradic
 	residues instead of the field, duplicate all the entries to ensure 
@@ -299,8 +299,7 @@ void opt_mul(a, b, c)
 FIELD2N *a, *b, *c;
 {
 	INDEX i, j;
-	INDEX 	k, zero_index, one_index;
-	ELEMENT bit, temp;
+	INDEX 	zero_index, one_index;
 	FIELD2N	amatrix[NUMBITS], copyb;
 	
 /*  clear result and copy b to protect original  */

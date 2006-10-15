@@ -24,6 +24,7 @@
  * this copyright message remains intact.
  ************************************************************************/
 
+#include "Python.h"
 #include <string.h>
 
 #if defined(_WIN32) || defined(__WIN32__)
@@ -173,7 +174,6 @@ SWIG_TypeQuery(const char *name) {
  ************************************************************************/
 
 #include <stdlib.h>
-#include "Python.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -358,10 +358,16 @@ SWIG_ConvertPtr(PyObject *obj, void **ptr, swig_type_info *ty, int flags) {
   if (*c != '_') {
     *ptr = (void *) 0;
     if (strcmp(c,"NULL") == 0) {
-      if (newref) Py_DECREF(obj);
+      if (newref) 
+      {
+          Py_DECREF(obj);
+      }
       return 0;
     } else {
-      if (newref) Py_DECREF(obj);
+      if (newref) 
+      {
+          Py_DECREF(obj);
+      }
       goto type_error;
     }
   }
@@ -377,7 +383,10 @@ SWIG_ConvertPtr(PyObject *obj, void **ptr, swig_type_info *ty, int flags) {
     c++;
   }
   *ptr = (void *) p;
-  if (newref) Py_DECREF(obj);
+  if (newref) 
+  {
+      Py_DECREF(obj);
+  }
 #endif
 
 #ifdef SWIG_COBJECT_TYPES
@@ -538,7 +547,6 @@ static swig_type_info *SWIG_POINTER_char_pp = 0;
 
 static PyObject *ptrvalue(PyObject *_PTRVALUE, int index, char *type) {
   void     *ptr;
-  char     *s;
   PyObject *obj;
 
   if (SWIG_ConvertPtr(_PTRVALUE,&ptr,0,0)) {
@@ -607,7 +615,6 @@ static PyObject *ptrcreate(char *type, PyObject *_PYVALUE, int numelements) {
   PyObject *obj;
   int       sz;
   swig_type_info *cast;
-  char      temp[40];
 
   /* Check the type string against a variety of possibilities */
 
@@ -719,7 +726,6 @@ static PyObject *ptrcreate(char *type, PyObject *_PYVALUE, int numelements) {
 
 static PyObject *ptrset(PyObject *_PTRVALUE, PyObject *_PYVALUE, int index, char *type) {
   void     *ptr;
-  PyObject *obj;
 
   if (SWIG_ConvertPtr(_PTRVALUE,&ptr,0,0)) {
     PyErr_SetString(PyExc_TypeError,"Type error in ptrset. Argument is not a valid pointer value.");
@@ -793,8 +799,7 @@ static PyObject *ptrset(PyObject *_PTRVALUE, PyObject *_PYVALUE, int index, char
 
 static PyObject *ptradd(PyObject *_PTRVALUE, int offset) {
 
-  char *r;
-  void *ptr,*junk;
+  void *ptr;
   PyObject *obj;
   swig_type_info *type;
 

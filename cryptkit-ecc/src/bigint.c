@@ -280,14 +280,13 @@ BIGINT *outhex;
 {
 	ELEMENT	ch;
 	BIGINT	ten, digit, temp;
-	INDEX	i=0;
 	
 	int_null( &ten);		/* create decimal multiplier */
 	ten.hw[INTMAX] = 0xA;
 	int_null( &digit);
 	int_null( outhex);
 	
-	while (ch = *instring++)
+	while ((ch = *instring++))
 	{
 		digit.hw[INTMAX] = ch & 0xF;
 		int_mul( outhex, &ten, &temp);

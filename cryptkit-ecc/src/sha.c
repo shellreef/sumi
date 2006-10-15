@@ -177,7 +177,7 @@ union longbyte
     char B[320];                /* But read them as bytes for counting */
 };
 
-sha_file(filename, buffer)      /* Hash a file */
+int sha_file(filename, buffer)      /* Hash a file */
 char *filename;
 unsigned long *buffer;
 {

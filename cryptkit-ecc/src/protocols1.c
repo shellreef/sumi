@@ -145,7 +145,6 @@ POINT	*pnt;
 {
 	FIELD2N		f, y[2];
 	INDEX		inc = incrmt;
-	INDEX		i;
 	
 	if ( (inc < 0) || (inc > NUMWORD) ) inc = 0;
 	copy( data, &pnt->x);
