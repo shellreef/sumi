@@ -1,0 +1,447 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
+          "http://www.w3.org/TR/html40/loose.dtd">
+
+<html>
+         
+  <head>
+    <title>Class: ecc</title>
+  </head>
+
+  <body bgcolor="#ffffff">
+
+        <p><i><a href="../index.html">Table of Contents</a></i></p>
+        
+        <table border="0" cellpadding="5" cellspacing="0" width="100%">
+        <tr bgcolor="#88bbee">
+            <th rowspan="2"
+                valign="top"
+                align="left"
+                width="10%"><font color="#000000">Class: ecc</font>
+            </th>
+            <th align="right"><font color="#000000">src/ecc.py</font></th>
+        </tr>
+        <tr>
+        <td>
+        
+<p>This is the Elliptic Curve Cryptography base class.
+        Used for generating and receiving Diffie-Hellman
+        values, along with Nyberg-Rueppel signature and
+        verification.<p>        <strong>Sample usage</strong>:
+<pre>
+                &gt;&gt;&gt; from ecc.ecc import ecc
+                &gt;&gt;&gt; e,f=ecc(1),ecc(2)
+                &gt;&gt;&gt; e_pub_key, f_pub_key = e.publicKey(), f.publicKey()
+
+                &gt;&gt;&gt; # Key Exchange
+                &gt;&gt;&gt; secret1 = e.DH_recv(f_pub_key)
+                &gt;&gt;&gt; secret2 = f.DH_recv(e_pub_key)
+                &gt;&gt;&gt; secret1 == secret2
+                1
+
+                &gt;&gt;&gt; # Signing / Verification
+                &gt;&gt;&gt; msg = "Hello World!"
+                &gt;&gt;&gt; sig = e.sign(msg)
+                &gt;&gt;&gt; f.verify(msg,e_pub_key,sig)
+                1
+
+                &gt;&gt;&gt; # Tamper with the message
+                &gt;&gt;&gt; msg += 'a'
+                &gt;&gt;&gt; f.verify(msg,e_pub_key,sig)
+                0
+</pre>
+</p>
+<p>        This class implements Public Key algorithms whose security
+        draws from the intractability of the Elliptic Curve Discrete
+        Logarithm Problem (ECDLP).  This particular implementation
+        uses a 113 bit curve of type II with an optimal normal basis
+        and the form:
+<pre>
+                E: y^2 + xy = x^3 + x^2 + 1
+</pre>
+</p>
+<p>        This module, concepts, and underlying C code relies heavily
+        on the work of Michael Rosing, and his book, <em>Implementing
+        Elliptic Curve Cryptography</em>.</p>
+</p>
+<table border="0" cellpadding="5" cellspacing="0" width="100%">
+
+        <tr>
+            <th bgcolor="#99ccff"
+                rowspan="2"
+                valign="top"
+                align="left"
+                width="20%"
+                >
+                <font color="#000000">
+                  <a name="Methods">Methods</a>&nbsp;
+                </font>
+            </th>
+            <th bgcolor="#99ccff"
+                valign="top"
+                align="left"
+                >
+                <font color="#000000">&nbsp;</font>
+            </th>
+        </tr>
+        <tr>
+        <td>
+        
+<a href="#DH_recv">DH_recv</a><br>
+<a href="#__init__">__init__</a><br>
+<a href="#makeKeypair">makeKeypair</a><br>
+<a href="#publicKey">publicKey</a><br>
+<a href="#sign">sign</a><br>
+<a href="#verify">verify</a><br>
+
+
+        <tr>
+            <th bgcolor="#99ccff"
+                rowspan="2"
+                valign="top"
+                align="left"
+                width="20%"
+                >
+                <font color="#000000">
+                  <a name="DH_recv"></a>&nbsp;
+                </font>
+            </th>
+            <th bgcolor="#99ccff"
+                valign="top"
+                align="left"
+                >
+                <font color="#000000">DH_recv&nbsp;</font>
+            </th>
+        </tr>
+        <tr>
+        <td>
+        <font color="#000088"><pre>
+DH_recv ( self,  inVal )
+
+</pre></font>
+
+<p>Returns the mutually shared secret when provided with
+                <em>inVal</em>, the other party's two-element tuple containing
+                the binary representation of their public key. The key
+                derivation scheme is Diffie-Hellman.</p>
+<table border="0" cellpadding="5" cellspacing="0" width="100%">
+
+        <tr>
+            <th bgcolor="#99ccff"
+                rowspan="2"
+                valign="top"
+                align="left"
+                width="20%"
+                >
+                <font color="#000000">
+                  <a name="Exceptions">Exceptions</a>&nbsp;
+                </font>
+            </th>
+            <th bgcolor="#99ccff"
+                valign="top"
+                align="left"
+                >
+                <font color="#000000">&nbsp;</font>
+            </th>
+        </tr>
+        <tr>
+        <td>
+        
+RuntimeError( "Cannot call DH_recv on a non-DH keypair" )<br>
+TypeError( "inVal is not a tuple of size 2" )<br>
+
+</td></tr>
+</table>
+
+        <tr>
+            <th bgcolor="#99ccff"
+                rowspan="2"
+                valign="top"
+                align="left"
+                width="20%"
+                >
+                <font color="#000000">
+                  <a name="__init__"></a>&nbsp;
+                </font>
+            </th>
+            <th bgcolor="#99ccff"
+                valign="top"
+                align="left"
+                >
+                <font color="#000000">__init__&nbsp;</font>
+            </th>
+        </tr>
+        <tr>
+        <td>
+        <font color="#000088"><pre>
+__init__ (
+        self,
+        entropy=None,
+        mode='DH',
+        )
+
+</pre></font>
+
+<p>Constructor. Provide an arbitrary integer of cryptographically
+                secure <em>entropy</em> to be used in generating a random secret
+                key. Examples of good sources include CSPRNGs and /dev/random.
+                <em>mode</em> determines how the public key is generated. Possible
+                values are <code>DH</code> for Diffie-Hellman and <code>ECKGP</code> for the Elliptic
+                Curve Key Generation Protocol.  <code>ECKGP</code> mode cannot be used
+                for any of the Diffie-Hellman routines.</p>
+
+        <tr>
+            <th bgcolor="#99ccff"
+                rowspan="2"
+                valign="top"
+                align="left"
+                width="20%"
+                >
+                <font color="#000000">
+                  <a name="makeKeypair"></a>&nbsp;
+                </font>
+            </th>
+            <th bgcolor="#99ccff"
+                valign="top"
+                align="left"
+                >
+                <font color="#000000">makeKeypair&nbsp;</font>
+            </th>
+        </tr>
+        <tr>
+        <td>
+        <font color="#000088"><pre>
+makeKeypair (
+        self,
+        entropy,
+        mode='DH',
+        )
+
+</pre></font>
+
+<p>Makes a keypair for use as descibed for the constructor.</p>
+<table border="0" cellpadding="5" cellspacing="0" width="100%">
+
+        <tr>
+            <th bgcolor="#99ccff"
+                rowspan="2"
+                valign="top"
+                align="left"
+                width="20%"
+                >
+                <font color="#000000">
+                  <a name="Exceptions">Exceptions</a>&nbsp;
+                </font>
+            </th>
+            <th bgcolor="#99ccff"
+                valign="top"
+                align="left"
+                >
+                <font color="#000000">&nbsp;</font>
+            </th>
+        </tr>
+        <tr>
+        <td>
+        
+TypeError( "entropy must be an integer" )<br>
+TypeError( "mode must be either DH or ECKGP" )<br>
+
+</td></tr>
+</table>
+
+        <tr>
+            <th bgcolor="#99ccff"
+                rowspan="2"
+                valign="top"
+                align="left"
+                width="20%"
+                >
+                <font color="#000000">
+                  <a name="publicKey"></a>&nbsp;
+                </font>
+            </th>
+            <th bgcolor="#99ccff"
+                valign="top"
+                align="left"
+                >
+                <font color="#000000">publicKey&nbsp;</font>
+            </th>
+        </tr>
+        <tr>
+        <td>
+        <font color="#000088"><pre>
+publicKey ( self )
+
+</pre></font>
+
+<p>Returns a two element tuple containing the values to be
+                exchanged during the Diffie-Hellman Key Agreement protocol or
+                used in verification. Essentially this is a small binary
+                representation of your public key, which constitutes a
+                given point (x,y) on the public curve.</p>
+<table border="0" cellpadding="5" cellspacing="0" width="100%">
+
+        <tr>
+            <th bgcolor="#99ccff"
+                rowspan="2"
+                valign="top"
+                align="left"
+                width="20%"
+                >
+                <font color="#000000">
+                  <a name="Exceptions">Exceptions</a>&nbsp;
+                </font>
+            </th>
+            <th bgcolor="#99ccff"
+                valign="top"
+                align="left"
+                >
+                <font color="#000000">&nbsp;</font>
+            </th>
+        </tr>
+        <tr>
+        <td>
+        
+RuntimeError( "No keypair has yet been created." )<br>
+
+</td></tr>
+</table>
+
+        <tr>
+            <th bgcolor="#99ccff"
+                rowspan="2"
+                valign="top"
+                align="left"
+                width="20%"
+                >
+                <font color="#000000">
+                  <a name="sign"></a>&nbsp;
+                </font>
+            </th>
+            <th bgcolor="#99ccff"
+                valign="top"
+                align="left"
+                >
+                <font color="#000000">sign&nbsp;</font>
+            </th>
+        </tr>
+        <tr>
+        <td>
+        <font color="#000088"><pre>
+sign ( self,  message )
+
+</pre></font>
+
+<p>This method will cryptographically sign the string <em>message</em>
+                to prevent it from being tampered with. Signing scheme
+                is Nyberg-Rueppel.  The method returns a two element
+                tuple of binary values representing the signature.</p>
+<table border="0" cellpadding="5" cellspacing="0" width="100%">
+
+        <tr>
+            <th bgcolor="#99ccff"
+                rowspan="2"
+                valign="top"
+                align="left"
+                width="20%"
+                >
+                <font color="#000000">
+                  <a name="Exceptions">Exceptions</a>&nbsp;
+                </font>
+            </th>
+            <th bgcolor="#99ccff"
+                valign="top"
+                align="left"
+                >
+                <font color="#000000">&nbsp;</font>
+            </th>
+        </tr>
+        <tr>
+        <td>
+        
+TypeError( "message must be a non-zero length string" )<br>
+
+</td></tr>
+</table>
+
+        <tr>
+            <th bgcolor="#99ccff"
+                rowspan="2"
+                valign="top"
+                align="left"
+                width="20%"
+                >
+                <font color="#000000">
+                  <a name="verify"></a>&nbsp;
+                </font>
+            </th>
+            <th bgcolor="#99ccff"
+                valign="top"
+                align="left"
+                >
+                <font color="#000000">verify&nbsp;</font>
+            </th>
+        </tr>
+        <tr>
+        <td>
+        <font color="#000088"><pre>
+verify (
+        self,
+        message,
+        public_key,
+        signature,
+        )
+
+</pre></font>
+
+<p>This method will verify that the string <em>message</em> has not been
+                tampered with. Returns true or false. <em>signature</em> is
+                the tuple produced by the original signing of <em>message</em>.</p>
+<table border="0" cellpadding="5" cellspacing="0" width="100%">
+
+        <tr>
+            <th bgcolor="#99ccff"
+                rowspan="2"
+                valign="top"
+                align="left"
+                width="20%"
+                >
+                <font color="#000000">
+                  <a name="Exceptions">Exceptions</a>&nbsp;
+                </font>
+            </th>
+            <th bgcolor="#99ccff"
+                valign="top"
+                align="left"
+                >
+                <font color="#000000">&nbsp;</font>
+            </th>
+        </tr>
+        <tr>
+        <td>
+        
+TypeError( "message must be a non-zero length string" )<br>
+TypeError( "public_key is not a tuple" )<br>
+TypeError( "signature is not a tuple" )<br>
+
+</td></tr>
+</table>
+</td></tr>
+</td></tr>
+</table>
+
+        </td>
+        </tr>
+        </table>
+
+        <hr>
+
+        <p><i><a href="../index.html">Table of Contents</a></i></p>
+
+        <font size="-2"><i>This document was automatically generated
+        on Thu Nov 29 10:42:16 2001 by
+        <a href="http://happydoc.sourceforge.net">HappyDoc</a> version
+        r1_6_1</i></font>
+        
+        </body>
+        </html>
+        

@@ -1,0 +1,27 @@
+Elliptic Curve Crypto Python Module.
+====================================
+
+Install instructions:
+
+# python setup.py build_ext install
+
+
+Usage and specifications:
+
+Consult the HTML documentation in doc/
+
+
+Testing ( Recommended ):
+
+# python test/ECCtest.py
+
+
+
+TODO:
+=====
+
+- Determine a way to permit user-selected curves and
+  public points, currently hard-coded into the elliptic
+  c module.
+
+- Experiment with other long integer libraries. Weigh speed/size
