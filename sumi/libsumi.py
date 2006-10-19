@@ -659,6 +659,13 @@ def unpack_dict(s):
         d[k] = v
     return d
 
+def my_crc32(s):
+    """Return the CRC-32 of a message from zlib. Always returns a positive
+    long integer. Needed because zlib.crc32() can return negative values on
+    32-bit platforms, but positive values for the same message on 64-bit.
+    This function forces the behavior to be that of 64-bit."""
+    return zlib.crc32(s) & 0xFFFFFFFFL
+
 # set_crc() and check_crc() aren't both called in the same program, but its
 # useful to keep them together here in case one changes.
 
@@ -677,7 +684,7 @@ True
     # Make sure the CRC hasn't been filled in yet
     assert pkt[7:11] == "\0\0\0\0", "calc_crc() on pkt without CRC=0!"
 
-    crc = struct.pack("!i", zlib.crc32(pkt))
+    crc = struct.pack("!I", my_crc32(pkt))
 
     return pkt[:7] + crc + pkt[11:]
 
@@ -690,18 +697,18 @@ def check_crc(pkt):
     >>> check_crc(pkt)
     True
     >>> check_crc(pkt[0:11])          # Detect truncation
-    (libsumi) ** CRC32 Failure from ['foo'] in 1482184792: -2dca16cd vs 0e97bd2c
+    (libsumi) ** CRC32 Failure from ['foo'] in 1482184792: d235e933 vs 0e97bd2c
     False
     >>> check_crc('g' + pkt[1:])      # Detect modification
-    (libsumi) ** CRC32 Failure from ['goo'] in 1482184792: -2dca16cd vs 55932270
+    (libsumi) ** CRC32 Failure from ['goo'] in 1482184792: d235e933 vs 55932270
     False
     '''
 
     assert len(pkt) >= 11, "check_crc() on incomplete packet: %s" % len(pkt)
 
     # Use lowercase i since zlib's CRC is signed
-    crc_pkt, = struct.unpack("!i", pkt[7:11])
-    crc_calc = zlib.crc32(pkt[:7] + "\0\0\0\0" + pkt[11:])
+    crc_pkt, = struct.unpack("!I", pkt[7:11])
+    crc_calc = my_crc32(pkt[:7] + "\0\0\0\0" + pkt[11:]) & 0xFFFFFFFFL
 
     if crc_pkt != crc_calc:
         prefix = pkt[0:3]
@@ -788,7 +795,7 @@ def is_multicast(addr):
         return False
 
     # Multicast addresses have upper octets beginning with bits 1110
-    log("Checking if %s is class d" % addr)
+    #log("Checking if %s is class d" % addr)
     n = ord(socket.inet_aton(addr)[0])
     return n >= 224 and n <= 240
 

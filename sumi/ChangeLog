@@ -2,6 +2,9 @@ SUMI ChangeLog
 $Id$
 vi: noexpandtab:
 
+2006-10-18 Jeff Connelly <jeffconnelly@users.sourceforge.net>
+	* r309 Wrap zlib.crc32() in my_crc32(), consistent across 32- and 64-bit
+
 2006-10-16 Jeff Connelly <jeffconnelly@users.sourceforge.net>
 	* r305 Configuration changes to use server on amd64 laptop
 

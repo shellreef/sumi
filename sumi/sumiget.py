@@ -678,7 +678,7 @@ DATA:UNKNOWN PREFIX! 414141 6 bytes from ()
 
         prefix = data[:3] 
         seqno, = struct.unpack("!I", data[3:7])  # 4-bytes
-        crc32 = data[7:11]
+        checksum = data[7:11]
 
         if not check_crc(data):
             if seqno == 0:
