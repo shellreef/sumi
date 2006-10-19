@@ -8,7 +8,7 @@
 # SUMI downloader, invoke: sumiget.py <transport> <server> <filename>
 # See also: sumigetw.py
 
-# Copyright (C) 2003-2005  Jeff Connelly <jeffconnelly@users.sourceforge.net>
+# Copyright (C) 2003-2006  Jeff Connelly <jeffconnelly@users.sourceforge.net>
 
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU General Public License
@@ -61,7 +61,7 @@ input_lock = thread.allocate_lock()
 #global transport   
 #transport = "mirc"
 
-log("SUMI Client %s, Copyright (C) 2003-2005 Jeff Connelly" % SUMI_VER)
+log("SUMI Client %s, Copyright (C) 2003-2006 Jeff Connelly" % SUMI_VER)
 log("SUMI comes with ABSOLUTELY NO WARRANTY; for details see LICENSE")
 log("This is free software, and you are welcome to redistribute it")
 log("under certain conditions; see LICENSE for details.")

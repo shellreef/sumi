@@ -5,7 +5,7 @@
 # $Id$
 
 # Python library for common SUMI functions, shared between client and server
-# Copyright (C) 2003-2005  Jeff Connelly <jeffconnelly@users.sourceforge.net>
+# Copyright (C) 2003-2006  Jeff Connelly <jeffconnelly@users.sourceforge.net>
 
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU General Public License
@@ -32,7 +32,7 @@ import os
 import socket
 from itertools import izip, chain
 
-SUMI_VER = "0.8.14"
+SUMI_VER = "0.8.16-pre"
 
 SUMIHDRSZ = 11#bytes
 UDPHDRSZ = 8#bytes

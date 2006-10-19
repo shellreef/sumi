@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- XML Schema for SUMI Client Configuration -->
-<!-- Copyright (C) 2005 Jeff Connelly -->
+<!-- Copyright (C) 2005-2006 Jeff Connelly -->
 <!-- $Id -->
 <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
  targetNamespace="http://sumi.jeff.tk" 

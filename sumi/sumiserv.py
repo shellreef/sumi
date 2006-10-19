@@ -85,7 +85,7 @@ def load_cfg():
     libsumi.cfg = cfg
     libsumi.log = log
 
-log("SUMI Server %s, Copyright (C) 2003-2005 Jeff Connelly" % SUMI_VER)
+log("SUMI Server %s, Copyright (C) 2003-2006 Jeff Connelly" % SUMI_VER)
 log("SUMI comes with ABSOLUTELY NO WARRANTY; for details see LICENSE")
 log("This is free software, and you are welcome to redistribute it")
 log("under certain conditions; see LICENSE for details.")

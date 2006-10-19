@@ -5,7 +5,7 @@
 # $Id$
 
 # wxWidgets GUI interface to sumiget
-# Copyright (C) 2004-2005  Jeff Connelly
+# Copyright (C) 2004-2006  Jeff Connelly
 
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU General Public License

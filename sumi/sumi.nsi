@@ -35,7 +35,7 @@ VIAddVersionKey "PrivateBuild" "Beta tester build"
 ; Uncomment if used -OO with py2exe, as described at:
 ;  http://starship.python.net/crew/theller/moin.cgi/OptimizedBytecode
 ;VIAddVersionKey "SpecialBuild" "Optimized Python"
-VIAddVersionKey "LegalCopyright" "© 2003-2005 Jeff Connelly. License: GPL"
+VIAddVersionKey "LegalCopyright" "© 2003-2006 Jeff Connelly. License: GPL"
 VIAddVersionKey "FileVersion" "$Id"
 
 ; http://nsis.sourceforge.net/wiki/Auto-uninstall_old_before_installing_new
