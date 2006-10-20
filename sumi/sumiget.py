@@ -1540,6 +1540,9 @@ Tried to use a valid directory of %s but it couldn't be accessed.""")
                 self.clear_server(u)
                 u["handshake_error"] = True
                 return    # Error set by callback already, get out
+            if not u.has_key("handshake_status"):
+                # user was deleted, probably finished
+                return
             u["handshake_count"] = x 
             self.callback(u["nick"], "req_count", x,
                     u["handshake_status"])

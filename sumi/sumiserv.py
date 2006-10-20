@@ -179,7 +179,7 @@ def recv_multipart(u, msg):
     we allow splitting up the message by beginning all parts except
     the last with >. For example, >foo\n>bar\nbaz = foobarbaz."""
 
-    if msg[0] == ">":
+    if len(msg) > 0 and msg[0] == ">":
         if not u.has_key("msg"):
             u["msg"] = msg[1:]
         else:
