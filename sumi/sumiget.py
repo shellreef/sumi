@@ -649,7 +649,7 @@ True
             self.callback(u["nick"], "lost", ())
 
     def handle_packet(self, data, addr):
-        """Handle received packets.
+        r"""Handle received packets.
 
         Packets less than SUMIHDRSZ bytes are discarded and return False:
 
@@ -660,8 +660,8 @@ False
         Users are looked up by their prefix for packets of sufficient size.
         Unrecognized prefixes return None and are discarded:
 
->>> c.handle_packet("A"*6,())
-DATA:UNKNOWN PREFIX! 414141 6 bytes from ()
+>>> c.handle_packet("AAA\x00\x00\x00\x01\xdc\xeb\xa0\x89hello",())
+DATA:UNKNOWN PREFIX! 414141 16 bytes from ()
 >>>
 
         Data from aborted transfers is discarded and returns False. 
@@ -1292,6 +1292,7 @@ DATA:UNKNOWN PREFIX! 414141 6 bytes from ()
                     self.config["data_chan_type"])
             log("Maximum file size (over UDP): %sB" % human_readable_size(
                 (self.mss - IPHDRSZ - UDPHDRSZ - SUMIHDRSZ) * 0xffffffffL))
+            log("Using MSS = %s" % self.mss)
 
         else:
             try:
