@@ -22,7 +22,7 @@ def sendmsg(nick, msg):
 def sendmsg_1(nick, msg):
     log("(debug) <%s>%s" % (nick, msg))
 
-def recvmsg(callback):
+def recvmsg(callback, server=True):
     log("Debug recvmsg() started - type messages on console")
     log("In the format: username<space>message of any length, or empty to end.")
 

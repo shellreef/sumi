@@ -154,7 +154,7 @@ def sendmsg_1(nick, msg):
 # 
 # Should be called with a callback function taking transport,sn,msg arguments.
 # Never returns.
-def recvmsg(callback):
+def recvmsg(callback, server=True):
     def decoder(pkt_data):
         return decode_aim(get_tcp_data(pkt_data))
     # Capture only incoming OSCAR IM's. Exclude packets with options

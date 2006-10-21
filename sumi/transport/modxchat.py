@@ -11,8 +11,8 @@ import sys
 
 import capture_irc
 
-def recvmsg(callback):
-    return capture_irc.recvmsg(callback, "xchat")
+def recvmsg(callback, server=True):
+    return capture_irc.generic_irc_recvmsg(callback, "xchat")
 
 XCHAT_FILE = "/tmp/xchat"
 

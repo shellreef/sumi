@@ -199,7 +199,7 @@ def transport_init():
     # Inside recvmsg() instead
     #thread.start_new_thread(irc_thread, ())
 
-def recvmsg(callback):
+def recvmsg(callback, server=True):
     irc_lock.acquire()
     # Since sendmsg() starts its own irc_thread() when first called, cannot
     # call recvmsg() after it or will end up with TWO irc_thread()s!

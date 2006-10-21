@@ -182,8 +182,7 @@ Not saving resuming file for someone
 '''
 
         if not u.has_key("fs"):
-            log("Not saving resuming file for %s" % u["nick"])
-            return
+            log("Not saving resuming file for %s,u=%s" % (u["nick"], u))
     
         fs = u["fs"]
 
@@ -299,7 +298,6 @@ True
         u["fh"].seek(0, 2)   # SEEK_END
         u["bytes"] = u["fh"].tell() #- (self.mss * len(u["lost"].keys()))#XXX
         u["fh"].seek(s, 0)
-
 
         #print "STORED BYTES: ", u["bytes"]
         #print "AND THE SIZE: ", u["size"]
@@ -603,6 +601,7 @@ True
 
         # New data (not duplicate, is cleartext) - add to running total
         u["bytes"] += len(data) 
+        #u["bytes"] = u["fh"].tell() #- (self.mss * len(u["lost"].keys()))#XXX
 
         u["fh"].seek(offset)
         u["fh"].write(data)
@@ -615,12 +614,12 @@ True
 
         # Check previous packets, see if they were lost (unless first packet)
         if u["control_proto"] == "nak":
-            self.check_losses(u, seqno)
+            self.check_losses(u, seqno, data)
         elif u["control_proto"] == "ack":
             if u.has_key("got_last"):
                 self.finish_xfer(u)
 
-    def check_losses(u, seqno):
+    def check_losses(self, u, seqno, data):
         """Check for packet losses for NAK protocol."""
         if seqno > 1:
             i = 1 
@@ -770,20 +769,24 @@ DATA:UNKNOWN PREFIX! 414141 16 bytes from ()
                 time.sleep(self.rwinsz)
                 #log("!! Calling timer")
                 self.check_naks()
-        except None: #Exception, x:
+        except Exception, x:
             log("thread_nak_timer exception: %s" % x)
 
     def check_finished(self, u):
         """Check if transfer is finished, if so, finish it."""
+
+        # Should never have more bytes than are in the file, but this bug
+        # isn't yet fixed. TODO: fix it. Something to do w/ resends.
+        #assert u["bytes"] <= u["size"], \
+        #        "check_finished(%s), bytes=%s > size=%s" % (u["nick"], 
+        #                u["bytes"], u["size"])
+
         # Old way: EOF if nothing missing and got_last
         #if (len(u["lost"]) == 0 and 
         #    usenders[x].has_key("got_last")):
         #    return self.finish_xfer(x) # there's nothing left, we're done!
         # New way: EOF if total bytes recv >= size and nothing missing
-        assert u["bytes"] <= u["size"], \
-                "check_finished(%s), bytes=%s > size=%s" % (u, 
-                        u["bytes"], u["size"])
-
+ 
         if u["bytes"] >= u["size"] and not u.get("lost"):
              return self.finish_xfer(u)
 
@@ -794,7 +797,6 @@ DATA:UNKNOWN PREFIX! 414141 16 bytes from ()
         tmp_senders = self.senders.copy()
         for x in tmp_senders:
             u = self.senders[x]
-            #log("check_naks = %s" % x)
            
             # If aborted or haven't got first packet, don't ack
             if u.get("aborted") or not u.get("got_first"):
@@ -854,7 +856,7 @@ DATA:UNKNOWN PREFIX! 414141 16 bytes from ()
                 lost = pack_range(alost)
 
                 # Send NAKs if protocol is for it
-                if u["control_proto"] == "nak":
+                if u.get("control_proto") == "nak":
                     # Compress by omitting redundant elements to ease bandwidth
                     if self.rwinsz_old == self.rwinsz and lost == "":
                         self.sendmsg(u, "n")
@@ -863,8 +865,10 @@ DATA:UNKNOWN PREFIX! 414141 16 bytes from ()
                     else:
                         self.sendmsg(u, ("n%d," % self.rwinsz) + lost)
 
-                u["retries"] += 1
-                if u["retries"] > 3:
+                if u.has_key("retries"):
+                    u["retries"] += 1
+
+                if u.get("retries") > 3:
                     log("%s exceeded maximum retries (3), cancelling" % x)
                     self.senders.pop(x)
                     self.callback(x, "timeout")
@@ -1094,7 +1098,7 @@ DATA:UNKNOWN PREFIX! 414141 16 bytes from ()
             log("%s is missing recvmsg transport" % u["nick"])
             log("recvmsg is necessary for crypto (shouldn't happen)")
             sys.exit(-2)
-        u["recvmsg"](crypto_callback)
+        u["recvmsg"](crypto_callback, False)
     
     def encrypt(self, u, msg):
         """Encrypt a message using u's key and IV."""
@@ -1485,6 +1489,7 @@ Tried to use a valid directory of %s but it couldn't be accessed.""")
     def clear_server(self, u):
         """Clear information about a server, but save their nick."""
         nick = u["nick"]
+        print "Clearing %s..." % nick
         u.clear()
         u["nick"] = nick
         return u

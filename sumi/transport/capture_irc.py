@@ -6,7 +6,7 @@
 # Currently used by mirc and xchat transports, but any IRC transport could
 # use this.
 
-def recvmsg(callback, transport_name):
+def generic_irc_recvmsg(callback, transport_name, server=True):
     """Capture receiving messages using pcap. Won't work with encrypted IRC, 
     or ports outside 6000-8000."""
     def decoder(pkt_data):

@@ -35,8 +35,8 @@ def transport_init():
 
 import capture_irc
 
-def recvmsg(callback):
-    return capture_irc.recvmsg(callback, "mirc")
+def recvmsg(callback, server=True):
+    return capture_irc.generic_irc_recvmsg(callback, "mirc", server)
 
 def sendmsg(nick, msg):
     #sendmsg_1(nick, msg)

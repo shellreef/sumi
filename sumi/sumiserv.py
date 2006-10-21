@@ -863,7 +863,7 @@ Please specify a valid 'transport' in sumiserv.cfg""" % (transport, e))
     # We only use one transport; they aren't per-user as in sumiget
     t.transport_init()
     sendmsg_real = t.sendmsg
-    t.recvmsg(recvmsg)
+    t.recvmsg(recvmsg, True)
 
 def xfer_thread_loop(u):
     """Transfer the file, possibly in a loop for multicast."""
@@ -1100,9 +1100,8 @@ def datapkt(u, seqno, is_resend=False):
 
     log("Sending to %s #%s %s" % (u["nick"], seqno, u["mss"]))
 
-    #if (u["mss"] * (seqno - 1)) > u["size"]:
-    #    print nick,"tried to seek past end-of-file"
-    #    return
+    if (u["mss"] * (seqno - 1)) > u["size"]:
+        return sendmsg_error(u, "tried to seek past end-of-file")
 
     # Many OS's allow seeking past the end of file. Preallocate like BT?
     file_pos = u["mss"] * (seqno - 1)

@@ -22,8 +22,6 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, 
 # USA, or online at http://www.gnu.org/copyleft/gpl.txt .
 
-
-
 import sumiget
 import thread
 import os
@@ -1117,8 +1115,7 @@ class SUMIApp(wx.App):
             self.SetColor(nick, wx.Colour(32, 128, 32))
         elif (cmd == "hash_fail"):
             self.SetInfo(nick, COL_STATUS, "Hash failed")
-            self.SetInfo(nick, wx.RED)
-
+            self.SetColor(nick, wx.RED)
         elif (cmd == "t_import_fail"): # transport failed to load
             self.SetInfo(nick, COL_STATUS, "Bad transport: %s" % args[0])
             self.SetColor(nick, wx.RED)
