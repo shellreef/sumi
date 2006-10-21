@@ -83,11 +83,11 @@ def user_init(nick):
     # is supported natively; there is no need to Torify, and there is no
     # DNS leakage because the hostname is sent as is (not resolved here).
     # Note: this may raise a socks5.Error
-    s = socks5.connect_via((nick, PORT), ("localhost", TOR_PORT))
+    #s = socks5.connect_via((nick, PORT), ("localhost", TOR_PORT))
 
-    # For testing without SOCKS
-    #s = socket.socket()
-    #s.connect(("localhost", PORT))
+    # For testing without SOCKS XXX XXX
+    s = socket.socket()
+    s.connect(("localhost", PORT))
     
     connections[nick] = s
     return True

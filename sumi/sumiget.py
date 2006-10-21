@@ -498,7 +498,10 @@ True
             auth = "sumi auth " + auth
         self.sendmsg(u, auth)
 
-        self.on_timer()    # instant update
+        if u["control_proto"] == "nak":
+            self.check_naks()    # instant update
+        else:
+            self.check_finished(u)
 
         return
 
@@ -539,18 +542,23 @@ True
 
         # All file data is received here
 
+        u["seqno"] = seqno
         u["last_msg"] = time.time()
         offset = (seqno - 1) * self.mss
 
-        # Mark down each packet in our receive window
-        if u["rwin"].has_key(seqno):
-            u["rwin"][seqno] += 1
-        else:
-            u["rwin"][seqno] = 1    # create
+        # Mark down each packet in our receive window if NAK
+        if u["control_proto"] == "nak":
+            if u["rwin"].has_key(seqno):
+                u["rwin"][seqno] += 1
+            else:
+                u["rwin"][seqno] = 1    # create
 
-        if u["rwin"][seqno] >= 2:
-            log("(DUPLICATE PACKET %d, IGNORED)" % seqno)
-            return
+            if u["rwin"][seqno] >= 2:
+                log("(DUPLICATE PACKET %d, IGNORED)" % seqno)
+                return
+        elif u["control_proto"] == "ack":
+            # If ACK protocol is used (stop-and-wait), request next immediately
+            self.sendmsg(u, "k%d" % (seqno + 1))
 
         #print "THIS IS RWIN: ", u["rwin"]
 
@@ -564,7 +572,7 @@ True
             u["ctr"] = (calc_blockno(seqno, self.mss) + u["data_iv"])
             #log("CTR:pkt %s -> %s" % (seqno, u["ctr"]))
             data = u["crypto_obj"].decrypt(data)
-        
+
         # XXX: broken
         if False and u.has_key("crypto_state"):
             # With crypto (AONT), last packet goes OVER the end of the file,
@@ -603,10 +611,17 @@ True
             self.undigest_file(u)
 
         # Note: callback called every packet; might be too excessive
-        self.callback(u["nick"], "write", offset, u["bytes"],
-            u["size"], addr)
+        self.callback(u["nick"], "write", u["bytes"], u["size"], addr)
 
         # Check previous packets, see if they were lost (unless first packet)
+        if u["control_proto"] == "nak":
+            self.check_losses(u, seqno)
+        elif u["control_proto"] == "ack":
+            if u.has_key("got_last"):
+                self.finish_xfer(u)
+
+    def check_losses(u, seqno):
+        """Check for packet losses for NAK protocol."""
         if seqno > 1:
             i = 1 
             # Nice little algorithm. Work backwards, searching for gaps.
@@ -632,12 +647,15 @@ True
                 u["rexmits"] += 1
                 log("(rexmits = %s" % u["rexmits"])
                 self.callback(u["nick"], "rexmits", u["rexmits"])
-                #on_timer()   # Maybe its all we need
+                #check_naks()   # Maybe its all we need
             if u.has_key("got_last"):
                 log("LAST PACKET: %d =? %d" % (len(data), self.mss))
                 # File size is now sent in auth packet so no need to calc it
                 #u["size"] = u["fh"].tell()
-                self.on_timer()     # have it check if finished
+                # We got to the end of the file, but with the NAK control
+                # protocol (which continously sends packets) may have left
+                # gaps in the file. Check it.
+                self.check_naks()
 
         if u:
             self.save_lost(u)  # for resuming
@@ -682,7 +700,7 @@ DATA:UNKNOWN PREFIX! 414141 16 bytes from ()
 
         if not check_crc(data):
             if seqno == 0:
-                # TODO: Re-request lost packet automatically. Currently, bail.
+                # TODO: Re-request auth packet automatically. Currently, bail.
                 u = self.prefix2user(prefix)
                 if u:
                     self.callback(u["nick"], "auth_crc_fail")
@@ -713,7 +731,7 @@ DATA:UNKNOWN PREFIX! 414141 16 bytes from ()
         # Last most recently received packet, for resuming
         u["at"] = seqno 
 
-        log("PACKET: %s" % seqno)
+        log("PACKET: %s (%s)" % (seqno, len(data)))
 
         # Sequence number is 3 bytes in the SUMI header in network order
         # (so a null can easily be prepended for conversion to a long),
@@ -725,22 +743,58 @@ DATA:UNKNOWN PREFIX! 414141 16 bytes from ()
         else:
             return self.handle_data(u, prefix, addr, seqno, data)
 
-    def thread_timer(self):
+    def thread_ack_timer(self):
+        """Every ACK_PKT_TIMEOUT seconds, check if need to re-request packet."""
+
+        if self.config["control_protocol"] != "ack":
+            return   # no-op
+
+        while True:
+            time.sleep(ACK_PKT_TIMEOUT)
+
+            for x in self.senders:
+                u = self.senders[x]
+                # If times out, send NAK. Server doesn't handle timeouts, we do
+                if u.has_key("seqno") and \
+                        time.time() - u["last_msg"] >= ACK_PKT_TIMEOUT:
+                    self.sendmsg(u, "k%d" % (u["seqno"] + 1))
+
+
+    def thread_nak_timer(self):
         """Every RWINSZ seconds, send a nak of missing pkts up to that point."""
+        if self.config["control_protocol"] != "nak":
+            return   # no-op
+
         try:
-            while 1:
+            while True:
                 time.sleep(self.rwinsz)
                 #log("!! Calling timer")
-                self.on_timer()
+                self.check_naks()
         except None: #Exception, x:
-            log("thread_timer exception: %s" % x)
+            log("thread_nak_timer exception: %s" % x)
 
-    def on_timer(self):
-        """Acknowledge to all senders and update bytes/second."""
+    def check_finished(self, u):
+        """Check if transfer is finished, if so, finish it."""
+        # Old way: EOF if nothing missing and got_last
+        #if (len(u["lost"]) == 0 and 
+        #    usenders[x].has_key("got_last")):
+        #    return self.finish_xfer(x) # there's nothing left, we're done!
+        # New way: EOF if total bytes recv >= size and nothing missing
+        assert u["bytes"] <= u["size"], \
+                "check_finished(%s), bytes=%s > size=%s" % (u, 
+                        u["bytes"], u["size"])
+
+        if u["bytes"] >= u["size"] and not u.get("lost"):
+             return self.finish_xfer(u)
+
+
+    def check_naks(self):
+        """Acknowledge to all senders and update bytes/second.
+        Called every RWINSZ seconds by thread_nak_timer()."""
         tmp_senders = self.senders.copy()
         for x in tmp_senders:
             u = self.senders[x]
-            #log("on_timer = %s" % x)
+            #log("check_naks = %s" % x)
            
             # If aborted or haven't got first packet, don't ack
             if u.get("aborted") or not u.get("got_first"):
@@ -760,7 +814,7 @@ DATA:UNKNOWN PREFIX! 414141 16 bytes from ()
                     rate = float(bytes_per_rwinsz) / float(self.rwinsz) 
                     # rate = delta_bytes / delta_time   (bytes arrived)
                     # eta = delta_bytes * rate          (bytes not arrived)
-                    if (rate != 0):
+                    if rate != 0:
                         eta = (u["size"] - u["bytes"]) / rate
                     else:
                         eta = 0
@@ -770,14 +824,7 @@ DATA:UNKNOWN PREFIX! 414141 16 bytes from ()
                 else:
                     u["last_bytes"] = u["bytes"]
 
-            # Old way: EOF if nothing missing and got_last
-            #if (len(u["lost"]) == 0 and 
-            #    usenders[x].has_key("got_last")):
-            #    return self.finish_xfer(x) # there's nothing left, we're done!
-            # New way: EOF if total bytes recv >= size and nothing missing
-            if u["bytes"] >= u["size"] and not u.get("lost"):
-                 return self.finish_xfer(u)
-
+            self.check_finished(u)
             try:
                 # Some missing packets, finish it up
     
@@ -803,16 +850,18 @@ DATA:UNKNOWN PREFIX! 414141 16 bytes from ()
 
                 log("ALOST2 (ss=%s): %s" % (ss, len(alost)))
                 #lost = ",".join(map(str, alost))
-                # XXX: Compressed NAKs
+                # Compressed NAKs
                 lost = pack_range(alost)
 
-                # Compress by omitting redundant elements to ease bandwidth
-                if self.rwinsz_old == self.rwinsz and lost == "":
-                    self.sendmsg(u, "n")
-                elif lost == "":
-                    self.sendmsg(u, "n%d" % self.rwinsz)
-                else:
-                    self.sendmsg(u, ("n%d," % self.rwinsz) + lost)
+                # Send NAKs if protocol is for it
+                if u["control_proto"] == "nak":
+                    # Compress by omitting redundant elements to ease bandwidth
+                    if self.rwinsz_old == self.rwinsz and lost == "":
+                        self.sendmsg(u, "n")
+                    elif lost == "":
+                        self.sendmsg(u, "n%d" % self.rwinsz)
+                    else:
+                        self.sendmsg(u, ("n%d," % self.rwinsz) + lost)
 
                 u["retries"] += 1
                 if u["retries"] > 3:
@@ -942,7 +991,7 @@ DATA:UNKNOWN PREFIX! 414141 16 bytes from ()
 
         log("ICMP started.")   # At the moment, needs to be ran as root
         sock.bind((self.localaddr, 0))
-        while 1:
+        while True:
             (data, addr) = sock.recvfrom(65535)
             data = data[20 + 8:]     # IPHDRSZ + ICMPHDRSZ, get to payload
             self.handle_packet(data, addr)
@@ -966,7 +1015,7 @@ DATA:UNKNOWN PREFIX! 414141 16 bytes from ()
                 if not failed: break
         log("Bound to %s" % self.myport)
  
-        while 1:
+        while True:
             # This is interrupted...?
             try:
                 (data, addr) = sock.recvfrom(65535)
@@ -1007,7 +1056,7 @@ DATA:UNKNOWN PREFIX! 414141 16 bytes from ()
         """Client user input (not used anymore), belongs in separate program."""
         input_lock.acquire()   # wait for messaging program to be connected
         log("Started user input thread... you may now type")
-        while 1:
+        while True:
             line = sys.stdin.readline()
             if line == "":    # EOF, exit
                 return
@@ -1428,6 +1477,7 @@ Tried to use a valid directory of %s but it couldn't be accessed.""")
             "p":b64(prefix),
             "b":self.bandwidth,
             "w":self.rwinsz, 
+            "c":u["control_proto"],
             "x":b64(data_key + data_iv),
             "d":self.config["data_chan_type"]})
         return msg
@@ -1502,8 +1552,9 @@ Tried to use a valid directory of %s but it couldn't be accessed.""")
 
         u["handshake_count"] = 0
         u["handshake_status"] = "Handshaking"
+        u["control_proto"] = self.config["control_protocol"]
 
-        if u["crypt_req"]:
+        if u.get("crypt_req", False):
             if not "recvmsg" in u:
                 log("Sorry, this transport lacks a recvmsg, so "
                         "transport encryption is not available.")
@@ -1527,7 +1578,7 @@ Tried to use a valid directory of %s but it couldn't be accessed.""")
         # senders, so the user isn't left hanging.
         maxwait = self.config["maxwait"]
 
-        if u["crypt_req"]:
+        if u.get("crypt_req", False):
             # Factor in time to interlock (2*T, plus another T for safety)
             maxwait += 3 * INTERLOCK_DELAY
 
@@ -1644,9 +1695,9 @@ Tried to use a valid directory of %s but it couldn't be accessed.""")
             log(e)
             raise SystemExit
 
-        #thread.start_new_thread(self.thread_timer, ())
-        #thread.start_new_thread(self.request, (transport, nick, filename))
-        thread.start_new_thread(self.wrap_thread, (self.thread_timer, ()))
+        thread.start_new_thread(self.wrap_thread, (self.thread_nak_timer, ()))
+        thread.start_new_thread(self.wrap_thread, (self.thread_ack_timer, ()))
+
         thread.start_new_thread(self.wrap_thread, (self.request, (args, )))
 
         # This thread will release() input_lock, letting thread_request to go

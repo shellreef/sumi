@@ -42,6 +42,9 @@ SUMIAUTHHDRSZ = 4#bytes
 # Time to sleep between interlock protocol exchanges
 INTERLOCK_DELAY = 1#second
 
+# Stop-and-wait (control_protocol=='ack') packet timeout
+ACK_PKT_TIMEOUT = 0.1#seconds
+
 # Size of chunk when reading files from _disk_ into memory (not used online)
 READ_CHUNK_SIZE = 1024 * 1024#bytes
 def log(msg):
@@ -765,10 +768,11 @@ def hash_file(fn, callback=None):
     n = 0
     while True:
         chunk = f.read(READ_CHUNK_SIZE)
-        if len(chunk) == 0: break
+        if len(chunk) == 0: 
+            break
         if callback: 
-            callback(n)
             n += len(chunk)
+            callback(n)
         hash_obj.update(chunk)
 
        

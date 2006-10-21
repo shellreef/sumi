@@ -931,7 +931,8 @@ class SUMIApp(wx.App):
 
         # Setup the SUMI 
         # Only really need one of these each per transfer
-        thread.start_new_thread(wrap_thread, (self.client.thread_timer, ()))
+        thread.start_new_thread(wrap_thread, (self.client.thread_nak_timer, ()))
+        thread.start_new_thread(wrap_thread, (self.client.thread_ack_timer, ()))
         thread.start_new_thread(wrap_thread, (self.client.recv_packets, ()))
    
         print "Args=", self.argv 
@@ -1185,13 +1186,14 @@ class SUMIApp(wx.App):
             #self.SetInfo(nick, COL_PROGRESS, "%.3f%%" % 
             #             (args[1] * 100. / args[3]))
 
-            # New write args: offset, n_received_bytes, total_size
-            (offset, bytes, size, addr) = args
+            # New write args: n_received_bytes, total_size
+            bytes, size, addr = args
             self.SetInfo(nick, COL_BYTES, str(bytes))
             percent = "%.1f%%" % (bytes * 100. / size)
             # When done, drop trailing floating point to accommodate the
             # length of '100' compared to anything less. Minor cosmetic.
-            if (percent == "100.0%"): percent = "100%"
+            if percent == "100.0%": 
+                percent = "100%"
 
             #self.SetInfo(nick, COL_PROGRESS, "%.1f%%" % 
             #    (bytes * 100. / size))

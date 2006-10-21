@@ -226,6 +226,7 @@ def handle_request(u, msg):
         rwinsz   = int(args["w"])
         dchantype= args["d"]
         data_key_and_iv = args["x"]        # Data encryption
+        control_proto = args.get("c", "nak")
     except KeyError:
         log("not enough fields/missing fields")
         return sendmsg_error(u, "not enough fields/missing fields")
@@ -277,6 +278,7 @@ def handle_request(u, msg):
     u["xfer_lock"] = thread.allocate_lock()  # lock to pause
     u["rwinsz"] = rwinsz 
     u["dchantype"] = dchantype
+    u["control_proto"] = control_proto
 
     if data_key_and_iv:
         all = base64.decodestring(data_key_and_iv)
@@ -288,6 +290,15 @@ def handle_request(u, msg):
         u["data_iv"] = unpack_num(data_iv)
         log("Using DATA CHANNEL encryption")
         log("key=%s, IV=%s" % ([data_key], [data_iv]))
+
+    # Control protocol determines how to ensure reliability of data channel
+    # Validate validity
+    if control_proto == "nak":
+        pass
+    elif control_proto == "ack":
+        pass
+    else:
+        return sendmsg_error(u, "invalid control protocol")
 
     # The data channel type determines how to send, and make src & dst addrs
     # of the sent packets
@@ -589,9 +600,7 @@ def handle_auth(u, msg):
         log("Unicast - starting transfer")
 
     # In a separate thread to allow multiple transfers
-    #thread.start_new_thread(xfer_thread, (u,))
     thread.start_new_thread(make_thread, (xfer_thread_loop, u))
-        #make_thread(xfer_thread, u)
 
     return True
 
@@ -860,17 +869,41 @@ def xfer_thread_loop(u):
     """Transfer the file, possibly in a loop for multicast."""
     if u["mcast"]: 
        i = 0
-       while True:
-           log("Multicast detected - loop #%d" % i)  # "data carousel"
-           i += 1
-           xfer_thread(u)
+       log("Multicast detected, but disabled")
+       xfer_thread(u)
+
+       #while True:
+       #    log("Multicast detected - loop #%d" % i)  # "data carousel"
+       #    i += 1
+       #    xfer_thread(u)
     else:
        xfer_thread(u)
+
+def xfer_thread_ack(u):
+    """Transfer thread for positive ACK control protocol (stop-and-wait)."""
+    # Send 1st data packet - client will ack and we'll send the next
+    # in handle_ack()
+    u["seqno"] = 1
+    datapkt(u, 1)
+
+    # TODO: Wait for timeouts, then resend
+
 
 # TODO: The following conditions need to be programmed in:
 # * If peer QUITs, kill transfer
 def xfer_thread(u):
     """File transfer thread, called for each file transfer."""
+    if u["control_proto"] == "nak":
+        xfer_thread_nak(u)
+    elif u["control_proto"] == "ack":
+        xfer_thread_ack(u)
+    else:
+        assert False, "user %s control protocol invalid=%s" % (u,
+                u["control_proto"])
+    
+def xfer_thread_nak(u):
+    """File transfer thread for windowed NAK control protocol.
+    Continously transmits."""
     log("u[seqno] exists? %s" % u.has_key("seqno"))
 
     # Not actually used here.
@@ -988,6 +1021,8 @@ def handle_nak(u, msg):
         n<win>,<resend-1>,<resend-2>,...,<resend-N>. We will
         resend the requested packets, as well as any normal
         non-lost packets."""
+
+    assert msg[0] == "n", "msg from %s=%s in handle_nak has no 'n'" % (u, msg)
     #resends = msg[1:].split(",")
     resends = unpack_range(msg[1:])   # Compressed naks
     resends.reverse()
@@ -1023,6 +1058,16 @@ def handle_nak(u, msg):
         log("Queueing resend of %d" % resend)
         resend_queue.put(resend)
 
+def handle_ack(u, msg):
+    """Handle a positive acknowledgement for the stop-and-wait control
+    protocol (TFTP-style). The ACK signals us to send the next packet."""
+    # TODO: look into FSP and TFTP again for ideas
+
+    # Usage: k#, where # is the NEXT packet to request. This implicitedly
+    # acknowledges #-1.
+    u["seqno"] = int(msg[1:])
+    datapkt(u, u["seqno"])
+
 def transfer_control(u, msg):
     """Handle an in-transfer control message.
     
@@ -1030,10 +1075,8 @@ def transfer_control(u, msg):
     global resend_queue
     log("(authd)%s: %s" % (u["nick"], msg))
     if msg[0] == "k":     
-        # TFTP-style transfer, no longer supported here (TODO)
-        # TODO: look into FSP and TFTP again, and implement it
-        pass 
-    elif msg[0] == "n":          
+        handle_ack(u, msg)
+    elif msg[0] == "n":
         handle_nak(u, msg)
     elif msg[0] == "!":        # abort transfer
         log("Aborting transfer to %s" % u["nick"])
@@ -1045,6 +1088,9 @@ def datapkt(u, seqno, is_resend=False):
        Returns the length of the data sent.
        
        Delegates actual sending to a send_packet_* function."""
+
+    assert seqno >= 1, "datapkt(%s,%s,%s) not called with seqno >= 1" % (
+            u, seqno, is_resend)
 
     # self.mss was payloadsz            
 
@@ -1060,7 +1106,11 @@ def datapkt(u, seqno, is_resend=False):
 
     # Many OS's allow seeking past the end of file. Preallocate like BT?
     file_pos = u["mss"] * (seqno - 1)
-    u["fh"].seek(file_pos)
+    try:
+        u["fh"].seek(file_pos)
+    except Exception, e:
+        print "Tried to seek to %s" % file_pos
+        raise e
 
     data = u["fh"].read(u["mss"])
 
