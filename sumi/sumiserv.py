@@ -803,7 +803,7 @@ def recvmsg(nick, msg):
         return None    # neither success or failure
 
     # If transfer in progress, allowed to use abbreviated protocol
-    if  u.has_key("authenticated") and u["authenticated"] == 2:
+    if u.has_key("authenticated") and u["authenticated"] == 2:
         transfer_control(u, msg)
 
     # Encrypted messages
@@ -863,7 +863,7 @@ Please specify a valid 'transport' in sumiserv.cfg""" % (transport, e))
     # We only use one transport; they aren't per-user as in sumiget
     t.transport_init()
     sendmsg_real = t.sendmsg
-    t.recvmsg(recvmsg, True)
+    t.recvmsg(recvmsg, server=True)
 
 def xfer_thread_loop(u):
     """Transfer the file, possibly in a loop for multicast."""

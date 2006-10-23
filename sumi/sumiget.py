@@ -1098,7 +1098,7 @@ DATA:UNKNOWN PREFIX! 414141 16 bytes from ()
             log("%s is missing recvmsg transport" % u["nick"])
             log("recvmsg is necessary for crypto (shouldn't happen)")
             sys.exit(-2)
-        u["recvmsg"](callback, False)
+        u["recvmsg"](callback, server=False)
     
     def encrypt(self, u, msg):
         """Encrypt a message using u's key and IV."""
@@ -1572,6 +1572,8 @@ Tried to use a valid directory of %s but it couldn't be accessed.""")
         # If transport can receive messages, set it up
         if "recvmsg" in u:
             self.setup_recvmsg(u)
+        else:
+            log("No recvmsg for this transport, server feedback not available")
 
         if u.get("crypt_req", False):
             if not "recvmsg" in u:
