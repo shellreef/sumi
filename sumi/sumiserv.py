@@ -120,7 +120,7 @@ def fatal(code, msg):
 # The old _socket.pyd should be 49KB, the new one 53KB
 
 # This is for Win32
-if (not hasattr(socket, "IP_HDRINCL")):
+if not hasattr(socket, "IP_HDRINCL"):
     fatal(1, 
 """Your Python is missing IP_HDRINCL in its socket library.
 Most likely, you are on Windows and need to use a patched _socket.pyd that 
@@ -923,13 +923,15 @@ def xfer_thread_nak(u):
         else:
             blocklen = 0
 
-        # * If peer doesn't send NAK within 2*RWINSZ, pause transfer (allocate_lock?)
-        # * If above, and peer sends a NAK again, release the lock allowing to resume
+        # * If peer doesn't send NAK within 2*RWINSZ, pause transfer
+        #   (allocate_lock?)
+        # * If above, and peer sends a NAK again, release the lock allowing 
+        #   to resume
         # Original idea was to pause if haven't received any messages in
         # RWINSZ*2, and then resume if we received a message within RWINSZ*5.
         # This may help SUMI withstand temporary congestion problems, but I
         # haven't been able to get it working well.
-        #if (float(d) >= float(u["rwnisz"] * 2)):
+        #if float(d) >= float(u["rwnisz"] * 2):
         #    print ("Since we haven't heard from %s in %f (> %d), PAUSING" % 
         #           (u["nick"], int(d), float(u["rwinsz"] * 2)))
         #     u["xfer_lock"].acquire()
@@ -1100,7 +1102,7 @@ def datapkt(u, seqno, is_resend=False):
 
     log("Sending to %s #%s %s" % (u["nick"], seqno, u["mss"]))
 
-    if (u["mss"] * (seqno - 1)) > u["size"]:
+    if u["mss"] * (seqno - 1) > u["size"]:
         return sendmsg_error(u, "tried to seek past end-of-file")
 
     # Many OS's allow seeking past the end of file. Preallocate like BT?
@@ -1379,8 +1381,8 @@ on your system. Sorry, you cannot use 'launch'. Consider using 'rawproxd'.""")
             raw_socket = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_UDP)
         except socket.error, e:
             log("Raw socket error: %s" % e[1])
-            if (e[0] == 1):
-                if (os.getuid() != 0):
+            if e[0] == 1:
+                if os.getuid() != 0:
                     log("Tip: run as root, not %s" % os.getuid())
                 else:
                     log("Running as root, but error...?")
@@ -1687,7 +1689,7 @@ def randip():
     raw_ip |= SRC_IP_ALLOW         # set where allow 1
     str_ip =".".join(map(str,struct.unpack("!BBBB", struct.pack("!I", raw_ip))))
     # TODO: generate another if nonroutable
-    #if (is_nonroutable_ip(str_ip)):
+    #if is_nonroutable_ip(str_ip):
     #    print "WARNING: Using non-routable IP"
     return (str_ip, random.randint(0, 65535))
 

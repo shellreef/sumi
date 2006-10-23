@@ -87,7 +87,8 @@ class unbuffered_stdout(object):
         real_stdout.write(s)
         # Check to see if hash flush attribute, because the Blcakhole object
         # (used when ran as a GUI app with no console) does not
-        if (hasattr(real_stdout, "flush")): real_stdout.flush()
+        if hasattr(real_stdout, "flush"): 
+            real_stdout.flush()
 sys.stdout = unbuffered_stdout()
 
 # Used by transports to segment messages
@@ -1012,7 +1013,7 @@ DATA:UNKNOWN PREFIX! 414141 16 bytes from ()
                 sock.bind((self.localaddr, self.myport))
             except socket.error:
                 failed = 0
-                if (sys.exc_info()[1].args[0] == 48):
+                if sys.exc_info()[1].args[0] == 48:
                     log("Port %s in use, trying next" % self.myport)
                     self.myport += 1
                     failed = 1
@@ -1068,7 +1069,7 @@ DATA:UNKNOWN PREFIX! 414141 16 bytes from ()
             if line == "":    # blank line (\n), ignore
                 continue
             args = line.split()
-            if (args[0] == "/get"):
+            if args[0] == "/get":
                 try:
                     self.request(args)
                 except IndexError:
@@ -1781,18 +1782,18 @@ def pre_main(invoke_req_handler):
     # =1 works in Unix using signals, but have to resize the frame.
     multiple_instances = 1
 
-    if (multiple_instances and os.access(base_path + "sumiget.pid", os.F_OK)):
+    if multiple_instances and os.access(base_path + "sumiget.pid", os.F_OK):
         # TODO: file locking so will be unlocked if crashes
         # PID file exists, program (should) be running
         # So signal it, pass control onto - it does work, not us
         master = open(base_path+"sumiget.pid","rb").read()
-        if (len(master) != 0):   # If empty, be master
+        if len(master) != 0:   # If empty, be master
             open(base_path + "run", "wb").write("\t".join(sys.argv[1:]))
             my_master = int(master)
             log("Passing to: %s" % my_master)
             failed = 0 
             try:
-                if (sys.platform == 'win32'):
+                if sys.platform == 'win32':
                     import win32gui
                     import win32con
                     try:

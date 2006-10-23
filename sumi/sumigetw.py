@@ -1061,7 +1061,7 @@ class SUMIApp(wx.App):
         # multiple transfers with same users is not yet supported. Could the
         # prefix be used to identify the columns instead? As of now, multiple
         # entries with same nick will always refer to the first with that nick.
-        if (cmd == "new_xfer"):
+        if cmd == "new_xfer":
             global nick2index, last_index
             transport, nick, filename = args
 
@@ -1090,59 +1090,59 @@ class SUMIApp(wx.App):
             self.SetInfo(nick, COL_PEER, nick)
             self.SetInfo(nick, COL_STATUS, "Requesting")
             #self.SizeCols()
-        elif (cmd == "t_wait"):   # waiting for transport
+        elif cmd == "t_wait":   # waiting for transport
             self.SetInfo(nick, COL_STATUS, "Transport loading")
-        elif (cmd == "1xferonly"):  # transfer already in progress
+        elif cmd == "1xferonly":  # transfer already in progress
             self.SetInfo(nick, COL_STATUS, "Another transfer in progress")
             self.SetColor(nick, wx.RED)  # Maybe queue it instead?
-        elif (cmd == "auth_crc_fail"):
+        elif cmd == "auth_crc_fail":
             # TODO: this should cause the pkt to be re-requested; it could
             # just be a transient network error
             self.SetInfo(nick, COL_STATUS, 
                 "Auth packet corrupted, please try again.")
             self.SetColor(nick, wx.RED)
-        elif (cmd == "bad_file"): 
+        elif cmd == "bad_file": 
             self.SetInfo(nick, COL_STATUS, "Couldn't resume from %s" %
                     args[0])
             self.SetColor(nick, wx.RED)
 
-        elif (cmd == "hash_start"):
+        elif cmd == "hash_start":
             self.SetInfo(nick, COL_STATUS, "Verifying...")
-        elif (cmd == "hashing"):
+        elif cmd == "hashing":
             self.SetInfo(nick, COL_BYTES, str(args[0]))
-        elif (cmd == "hash_ok"):
+        elif cmd == "hash_ok":
             self.SetInfo(nick, COL_STATUS, "Verified OK")
             self.SetColor(nick, wx.Colour(32, 128, 32))
-        elif (cmd == "hash_fail"):
+        elif cmd == "hash_fail":
             self.SetInfo(nick, COL_STATUS, "Hash failed")
             self.SetColor(nick, wx.RED)
-        elif (cmd == "t_import_fail"): # transport failed to load
+        elif cmd == "t_import_fail": # transport failed to load
             self.SetInfo(nick, COL_STATUS, "Bad transport: %s" % args[0])
             self.SetColor(nick, wx.RED)
-        elif (cmd == "t_no_recvmsg"):
+        elif cmd == "t_no_recvmsg":
             self.SetInfo(nick, COL_STATUS, 
                 "Can't use %s w/ crypt_req (no recvmsg)" % args[0])
             self.SetColor(nick, wx.RED)
-        elif (cmd == "t_user"):
+        elif cmd == "t_user":
             self.SetInfo(nick, COL_STATUS, "Connecting...")
-        elif (cmd == "t_user_fail"): 
+        elif cmd == "t_user_fail":
             self.SetInfo(nick, COL_STATUS, "User failure: %s" % args[0])
             self.SetColor(nick, wx.RED)
-        elif (cmd == "error"):
+        elif cmd == "error":
             self.SetInfo(nick, COL_STATUS, "Error: %s" % args[0])
             self.SetColor(nick, wx.RED)
-        elif (cmd == "req_sent"):  # request was sent
+        elif cmd == "req_sent":  # request was sent
             self.SetInfo(nick, COL_STATUS, "Handshaking")
-        elif (cmd == "req_count"): # request handshake countdown+status
+        elif cmd == "req_count": # request handshake countdown+status
             self.SetInfo(nick, COL_STATUS, "%s (%d)" % (args[1], args[0]))
-        elif (cmd == "rexmits"):   # retransmission
+        elif cmd == "rexmits":   # retransmission
             self.SetInfo(nick, COL_REXMITS, str(args[0]))
-        elif (cmd == "lost"):      # outstanding lost packets
+        elif cmd == "lost":      # outstanding lost packets
             self.SetInfo(nick, COL_MISSING, str(len(args[0])))
-        elif (cmd == "timeout"):   # timed out/no such nick
+        elif cmd == "timeout":   # timed out/no such nick
             self.SetInfo(nick, COL_STATUS, "Timeout")
             self.SetColor(nick, wx.RED)
-        elif (cmd == "info"):   # sent on reception of auth packet, ready
+        elif cmd == "info":   # sent on reception of auth packet, ready
             (size, prefix, filename, transport, dchantype) = args
             print "Info: ", args
 
@@ -1158,18 +1158,18 @@ class SUMIApp(wx.App):
             # do not show up, at any SetValue(), in Win32 only
             #self.gauge.SetRange(10000)  #args[0])
             self.filename = filename
-        elif (cmd == "rate"):   # update rate of transfer
+        elif cmd == "rate":   # update rate of transfer
             (rate, eta) = args
             self.SetInfo(nick, COL_RATE, "%.1fKB/s" % (rate / 1024))
             self.SetInfo(nick, COL_ETA, "%d min" % int(eta / 60))
-        elif (cmd == "recv_1st"):
+        elif cmd == "recv_1st":
             # One-time actions that take effect throughout the whole
             # transfer but have no need to be re-set every packet. Note this
             # message does not include any args; write will be called w/ args.
             # Like xchat's dcc, blue=transferring, green=done, & red=err
             self.SetColor(nick, wx.BLUE)
             self.SetInfo(nick, COL_STATUS, "Transferring...")
-        elif (cmd == "write"):
+        elif cmd == "write":
             #self.gauge.SetValue(int(args[1]))
             # XXX Is this correct? Lost packets? Will overestimate.
             #    % done = (total size of pcks recvd) / (file size) * 100
@@ -1199,14 +1199,14 @@ class SUMIApp(wx.App):
             #self.SetInfo(nick, COL_FROM, ":".join(map(str, addr)))
             # just IP - I like this one better
             self.SetInfo(nick, COL_FROM, addr[0])
-        elif (cmd == "xfer_fin"):       # Transfer finished
+        elif cmd == "xfer_fin":       # Transfer finished
             (duration, size, speed, all_lost) = args
             self.SetInfo(nick, COL_STATUS, "Complete")
             self.SetInfo(nick, COL_RATE, "%d" % speed)
             self.SetColor(nick, wx.Colour(32, 128, 32))   # a suitable green
             #self.info.SetLabel("Complete %d B @ %d kB/s: %s" % 
             #    (size, speed, all_lost))
-        elif (cmd == "aborted"):
+        elif cmd == "aborted":
             self.SetInfo(nick, COL_STATUS, "Aborted")
             self.SetColor(nick, wx.RED)
             # TODO: Stop request thread? It still sends acks...
@@ -1233,7 +1233,8 @@ class SUMIApp(wx.App):
         # Save size of *frame* (not xfpanel) before the frame closes
         # (Has to be done here, not in OnExit because already closed by then)
         self.client.config["winsize"] = self.frame.GetSizeTuple()
-        if (evt != 0): evt.Skip()
+        if evt != 0: 
+            evt.Skip()
 
     def OnDropFiles(self, filenames):
         #filenames = self.dropped_files.GetFilenames()
