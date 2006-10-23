@@ -40,14 +40,19 @@ def recvmsg_client(callback=default_cb):
                 [], [], 1)
         for s in readable:
             msg = s.recv(65535)
-            if len(msg) == 0:
-                # EOF, so find this connection, remove it 
-                for x in connections:
-                    if connections[x] == s:
-                        connections.pop(x)
-                        break
+            us = None
+            for x in connections:
+                if connections[x] == s:
+                    us = x
+                    connections.pop(x)
+                    break
+                us = x
 
-            callback("tor-%d" % s.getsockname()[1], msg)
+            if len(msg) == 0:   # EOF, so remove connection
+                connections.pop(us)
+    
+            #callback("tor-%d" % s.getsockname()[1], msg)
+            callback(us, msg)
 
 def recvmsg(callback=default_cb, server=True):
     if server:
@@ -100,7 +105,12 @@ def accept_client(ss, callback):
     connections[nick] = cs
 
     while True:
-        msg = cs.makefile().readline()
+        try:
+            msg = cs.makefile().readline()
+        except socket.error, e:
+            # TODO: better way to pass this error to application
+            callback(nick, "socket error: %s" % e)
+            break
         
         if len(msg) == 0:
             break

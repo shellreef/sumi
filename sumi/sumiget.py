@@ -182,10 +182,10 @@ Not saving resuming file for someone
     file should be closed.
 '''
 
-        if not u.has_key("fs"):
+        fs = u.get("fs", None)
+        if fs is None:
             log("Not saving resuming file for %s,u=%s" % (u["nick"], u))
-    
-        fs = u["fs"]
+            return
 
         fs.seek(0)    
         fs.truncate()    # Clear
@@ -920,7 +920,6 @@ DATA:UNKNOWN PREFIX! 414141 16 bytes from ()
         #print "All lost packets: ", u["all_lost"]
         #print str(u["size"]) + " at " + str(
         #     u["size"] / duration / 1024) + " KB/s"
-        self.clear_server(u)
         self.senders.pop(u["nick"])    # delete the server key
 
         # Don't raise SystemExit
@@ -1089,17 +1088,17 @@ DATA:UNKNOWN PREFIX! 414141 16 bytes from ()
         # sumi login can be implemented later; allowing remote admin.
         # TODO: Actually, why not simply extend sumi send to allow remote admn.
 
-    def crypto_thread(self, u):
-        """Thread to wait for messages from server to setup crypto.
+    def recvmsg_thread(self, u):
+        """Thread to wait for messages from server.
         Passes messages to handle_server_message."""
-        def crypto_callback(user_nick, msg):
+        def callback(user_nick, msg):
             return self.handle_server_message(user_nick, msg)
 
         if not u.has_key("recvmsg"):
             log("%s is missing recvmsg transport" % u["nick"])
             log("recvmsg is necessary for crypto (shouldn't happen)")
             sys.exit(-2)
-        u["recvmsg"](crypto_callback, False)
+        u["recvmsg"](callback, False)
     
     def encrypt(self, u, msg):
         """Encrypt a message using u's key and IV."""
@@ -1117,12 +1116,14 @@ DATA:UNKNOWN PREFIX! 414141 16 bytes from ()
         Returns False if the message couldn't be processed, True if it 
         could. This is the callback for libsumi's capture() function, so
         note that returning a string will stop packet capturing."""
-      
+
         if nick == "(transport_ready)":
             log("Releasing transport lock: %s" % msg)
             transports[msg].release()
 
         if not self.senders.has_key(nick):
+            print "UNRECOGNIZED <%s> %s" % (nick, msg)
+            print self.senders.keys()
             return False
 
         u = self.senders[nick]
@@ -1130,6 +1131,7 @@ DATA:UNKNOWN PREFIX! 414141 16 bytes from ()
         if msg.startswith("error: "):
             error_msg = msg[len("error: "):]
             log("*** Error: %s: %s" % (nick, error_msg))
+            u["server_error"] = error_msg
             self.callback(u["nick"], "error", error_msg)
             return False
 
@@ -1231,6 +1233,17 @@ DATA:UNKNOWN PREFIX! 414141 16 bytes from ()
             u["handshake_count"],
             u["handshake_status"])
 
+    def setup_recvmsg(self, u):
+        """Setup the receiving message thread."""
+        # Lock released when connected
+        transports[u["transport"]] = thread.allocate_lock()
+        transports[u["transport"]].acquire()
+        thread.start_new_thread(self.wrap_thread, 
+                (self.recvmsg_thread, (u, )))
+
+        # Use this line to wait until recvmsg is connected:
+        #transports[u["transport"]].acquire()
+
     def setup_transport_crypto(self, u):
         """Send sumi sec (secure) command, setting up an encrypted channel."""
         log("Setting up cryptography...")
@@ -1260,16 +1273,10 @@ DATA:UNKNOWN PREFIX! 414141 16 bytes from ()
         # because setting up crypto is the only time we receive transport
         # messages from the server.  N.B.: if recvmsg() is called, it must
         # be called BEFORE the first sendmsg() (see modirclib.py).
-        #thread.start_new_thread(self.crypto_thread, (u["nick"], ))
-
-        # Lock released when connected
-        transports[u["transport"]] = thread.allocate_lock()
-        transports[u["transport"]].acquire()
-        thread.start_new_thread(self.wrap_thread, 
-                (self.crypto_thread, (u, )))
+        #thread.start_new_thread(self.recvmsg_thread, (u["nick"], ))
 
         # Wait until connected before sending sendmsg!
-        log("Waiting for crypto_thread...")
+        log("Waiting for recvmsg_thread...")
         transports[u["transport"]].acquire()
 
         u["sent_sec"] = time.time()
@@ -1489,6 +1496,8 @@ Tried to use a valid directory of %s but it couldn't be accessed.""")
 
     def clear_server(self, u):
         """Clear information about a server, but save their nick."""
+
+        self.save_lost(u)
         nick = u["nick"]
         print "Clearing %s..." % nick
         u.clear()
@@ -1560,6 +1569,10 @@ Tried to use a valid directory of %s but it couldn't be accessed.""")
         u["handshake_status"] = "Handshaking"
         u["control_proto"] = self.config["control_protocol"]
 
+        # If transport can receive messages, set it up
+        if "recvmsg" in u:
+            self.setup_recvmsg(u)
+
         if u.get("crypt_req", False):
             if not "recvmsg" in u:
                 log("Sorry, this transport lacks a recvmsg, so "
@@ -1595,18 +1608,20 @@ Tried to use a valid directory of %s but it couldn't be accessed.""")
             if u.has_key("got_first"):
                 return    # Success: don't break - otherwise will timeout.
             if u.has_key("handshake_error"):
-                self.clear_server(u)
+                #self.clear_server(u)
                 u["handshake_error"] = True
                 return    # Error set by callback already, get out
+            if u.has_key("server_error"):
+                return
             if not u.has_key("handshake_status"):
                 # user was deleted, probably finished
                 return
             u["handshake_count"] = x 
-            self.callback(u["nick"], "req_count", x,
-                    u["handshake_status"])
+            self.callback(u["nick"], "req_count", x, u["handshake_status"])
             time.sleep(1)
 
         self.callback(u["nick"], "timeout")
+        print "TIMED OUT SO CLEARING"
         self.clear_server(u)
         self.senders.pop(u["nick"])
         return 
