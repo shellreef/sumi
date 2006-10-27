@@ -30,6 +30,7 @@ import zlib
 import types
 import os
 import socket
+import reedsolomon
 from itertools import izip, chain
 
 SUMI_VER = "0.8.16-pre"

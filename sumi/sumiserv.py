@@ -79,9 +79,9 @@ def load_cfg():
     config_file = root + "sumiserv.cfg"
 
     log("Using config file: %s" % config_file)
-    #eval(compile(open(config_file).read(), "", "exec"))
+    #eval(compile(file(config_file).read(), "", "exec"))
 
-    cfg = eval("".join(open(config_file, "rU").read()))
+    cfg = eval("".join(file(config_file, "rU").read()))
     libsumi.cfg = cfg
     libsumi.log = log
 
@@ -293,11 +293,7 @@ def handle_request(u, msg):
 
     # Control protocol determines how to ensure reliability of data channel
     # Validate validity
-    if control_proto == "nak":
-        pass
-    elif control_proto == "ack":
-        pass
-    else:
+    if control_proto not in ("nak", "ack", "fec"):
         return sendmsg_error(u, "invalid control protocol")
 
     # The data channel type determines how to send, and make src & dst addrs
@@ -570,7 +566,7 @@ def handle_auth(u, msg):
         return sendmsg_error(u, "hashcode: %s != %s" % 
                 (derived_hash, hashcode))
 
-    u["fh"] = open(cfg["filedb"][u["file"]]["fn"], "rb")
+    u["fh"] = file(cfg["filedb"][u["file"]]["fn"], "rb")
 
     # Find size...
     u["fh"].seek(0, 2)   # SEEK_END
@@ -883,8 +879,9 @@ def xfer_thread_ack(u):
     """Transfer thread for positive ACK control protocol (stop-and-wait)."""
     # Send 1st data packet - client will ack and we'll send the next
     # in handle_ack()
-    u["seqno"] = 1
-    datapkt(u, 1)
+    if not u.has_key("seqno"):
+        u["seqno"] = 1
+    datapkt(u, u["seqno"])
 
     # TODO: Wait for timeouts, then resend
 
@@ -897,10 +894,58 @@ def xfer_thread(u):
         xfer_thread_nak(u)
     elif u["control_proto"] == "ack":
         xfer_thread_ack(u)
+    elif u["control_proto"] == "fec":        
+        xfer_thread_fec(u)
     else:
         assert False, "user %s control protocol invalid=%s" % (u,
                 u["control_proto"])
-    
+  
+def xfer_thread_fec(u):
+    """File transfer thread for Reed-Solomon Forward Error Correction
+    with ARQ control protocol."""
+    log("Starting FEC transfer")
+
+    fec_encode_file(u)
+    # Send all packets...321 go
+    u["fec_fh"].seek(0)
+   
+    u["seqno"] = 1
+    while True:
+        datapkt(u, u["seqno"])
+        u["seqno"] += 1
+
+def fec_encode_file(u):
+    """Encode the file with Forward Error Correction by adding redundancy."""
+    redundancy = cfg.get("redundancy", 20.)
+
+    # Encode entire file first. While it is possible to encode on-the-fly,
+    # doing so would require more memory to hold each group of N*MSS in memory
+    # at once--which would have to be kept around in case of an ARQ, unless
+    # the server sends an ACK to confirm reception, which we're trying to avoid.
+    # So save to filename + .fec, then read packets from there as normal.
+    u["fh"].seek(0)
+    u["fec_fh"] = file(u["fn"] + ".fec", "wb")
+    n = 255
+    k = n * (1 - redundancy / 100.)
+    u["fec_n"] = n
+    u["fec_k"] = k
+    while True:
+        rs = reedsolomon.Codec(n, k)
+
+        # Read K packets
+        group = u["fh"].read(u["mss"] * k)
+        if len(group) == 0:
+            break
+        
+        pkts = struct.unpack(("%ss" % u["mss"]) * k, group)
+        assert len(pkts) == k, "xfer_thread_fec: %s != %s" % (len(pkts), k)
+
+        encoded = rs.encodechunks(pkts)
+        log("FEC encoded %s packets to %s codewords" % (len(pkts),len(encoded)))
+
+        u["fec_fh"].write("".join(encoded))
+    log("FEC finished encoding file")
+
 def xfer_thread_nak(u):
     """File transfer thread for windowed NAK control protocol.
     Continously transmits."""
@@ -1085,6 +1130,31 @@ def transfer_control(u, msg):
         u["xfer_stop"] = 1
         destroy_client(u)
 
+def read_data_block(u, seqno):
+    """Read data for packet #seqno for u. This data will be encapsulated in
+    a packet eventually, but this function only returns the raw data. If
+    FEC is enabled, the FEC encoded codeword will be returned."""
+
+    if u["mss"] * (seqno - 1) > u["size"]:
+        return sendmsg_error(u, "tried to seek past end-of-file")
+
+    if u.has_key("fec_fh"):
+        fh = u["fec_fh"]
+    else:
+        fh = u["fh"]
+
+    # Many OS's allow seeking past the end of file. Preallocate like BT?
+    file_pos = u["mss"] * (seqno - 1)
+    try:
+        fh.seek(file_pos)
+    except Exception, e:
+        log("Tried to seek to %s" % file_pos)
+        raise e
+
+    data = fh.read(u["mss"])
+
+    return data
+
 def datapkt(u, seqno, is_resend=False):
     """Send data packet number "seqno" to nick, for its associated file. 
        Returns the length of the data sent.
@@ -1094,26 +1164,13 @@ def datapkt(u, seqno, is_resend=False):
     assert seqno >= 1, "datapkt(%s,%s,%s) not called with seqno >= 1" % (
             u, seqno, is_resend)
 
-    # self.mss was payloadsz            
-
     if cfg["noise"] and random.randint(0, int(cfg["noise"])) == 0:
         # lose packet (for testing purposes)
         return u["mss"]
 
     log("Sending to %s #%s %s" % (u["nick"], seqno, u["mss"]))
 
-    if u["mss"] * (seqno - 1) > u["size"]:
-        return sendmsg_error(u, "tried to seek past end-of-file")
-
-    # Many OS's allow seeking past the end of file. Preallocate like BT?
-    file_pos = u["mss"] * (seqno - 1)
-    try:
-        u["fh"].seek(file_pos)
-    except Exception, e:
-        print "Tried to seek to %s" % file_pos
-        raise e
-
-    data = u["fh"].read(u["mss"])
+    data = read_data_block(u, seqno)
 
     # Crypto, anyone?
     # XXX: broken, no AONT for now
@@ -1784,7 +1841,7 @@ def on_exit():
 
     log("Cleaning up...")
     import pprint      # pretty print instead of ugly print repr
-    pprint.pprint(cfg, open(config_file, "w"))
+    pprint.pprint(cfg, file(config_file, "w"))
 
     #print "CFG=",cfg
     sys.exit()

@@ -568,6 +568,7 @@ True
         elif u["control_proto"] == "ack":
             # If ACK protocol is used (stop-and-wait), request next immediately
             self.sendmsg(u, "k%d" % (seqno + 1))
+            self.save_lost(u)
 
         #print "THIS IS RWIN: ", u["rwin"]
 
@@ -897,7 +898,7 @@ DATA:UNKNOWN PREFIX! 414141 16 bytes from ()
 
         # Nothing lost anymore, update. Saved as complete.
         log("DONE - UPDATING")
-        self.save_lost(u, True)
+        self.save_lost(u, finished=True)
 
         self.sendmsg(u, "sumi done")
 
