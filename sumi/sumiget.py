@@ -183,7 +183,7 @@ Not saving resuming file for someone
 '''
 
         fs = u.get("fs", None)
-        if fs is None:
+        if fs is None or fs.closed:
             log("Not saving resuming file for %s,u=%s" % (u["nick"], u))
             return
 
@@ -218,7 +218,7 @@ Not saving resuming file for someone
                 for s in self.sockets:
                     self.mcast_op(s, socket.IP_DROP_MEMBERSHIP,
                         u["multicast_group"])
-            fs.close()
+            #fs.close()
 
     def prefix2user(self, prefix):
         """Find user that is associated with the random prefix; which is the
