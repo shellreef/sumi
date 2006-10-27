@@ -267,7 +267,9 @@ True
         """Setup data structures to resume a file.
 
         lostdata is a packed range string of missing packets.
-        at is a string of the position to resume at in decimal."""
+        at is a string of the position to resume at in decimal.
+        
+        Return True if file is complete, False to begin transfer."""
 
         u["at"] = int(at)
 
@@ -298,15 +300,19 @@ True
         # Number of bytes received = (offset - lost packets) * segment size
         u["bytes"] = (u["at"] - len(u["lost"])) * self.mss
 
-        #print "STORED BYTES: ", u["bytes"]
-        #print "AND THE SIZE: ", u["size"]
+        if u["bytes"] >= u["size"]:
+            log("*** Loaded complete file")
+            # will be called back in request() countdown loop
+            return False
 
         # Files don't store statistics like these
         u["all_lost"] = []  # blah
         u["rexmits"] = 0
 
+        return True
+
     def setup_non_resuming(self, u):
-        """Setup data structures for a new file."""
+        """Setup data structures for a new file. Returns True to begin."""
         # Initialize
         u["at"] = 0
         u["rexmits"] = 0
@@ -322,8 +328,10 @@ True
         # for rationale and some other class implementations
         u["rwin"] = {}
 
+        return True
+
     def setup_file(self, u):
-        """Setup the file to save to."""
+        """Setup the file to save to. Return True to proceed."""
         fn = self.config["dl_dir"] + os.path.sep + u["filename"]
         log("Opening %s for %s..." % (fn, u["nick"]))
         u["start"] = time.time()
@@ -372,9 +380,9 @@ True
 
         # Setup lost packets
         if is_resuming:   # this works
-            self.setup_resuming(u, lostdata, at)
+            return self.setup_resuming(u, lostdata, at)
         else:
-            self.setup_non_resuming(u)
+            return self.setup_non_resuming(u)
 
     def handle_auth(self, u, prefix, addr, data):
         """Handle the authentication packet."""
@@ -479,7 +487,11 @@ True
 
         # Open the file and set it up
         if not u.has_key("fh"):  #  file not open yet
-            self.setup_file(u)
+            proceed = self.setup_file(u)
+            if not proceed:
+                # Not given the go, probably file was finished and no
+                # transfer needs to begin
+                return
 
         # Tell the sender to start sending, we're ok
         # Resume /after/ our current offset: at + 1.
@@ -1615,6 +1627,10 @@ Tried to use a valid directory of %s but it couldn't be accessed.""")
                 return
             if not u.has_key("handshake_status"):
                 # user was deleted, probably finished
+                return
+            if u["bytes"] >= u["size"]:
+                # file is complete
+                self.callback(u["nick"], "xfer_fin", 0, 0, 0, [])
                 return
             u["handshake_count"] = x 
             self.callback(u["nick"], "req_count", x, u["handshake_status"])
