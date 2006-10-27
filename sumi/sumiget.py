@@ -295,10 +295,8 @@ True
         # Total bytes received is file length minus lost packet sizes.
         # (Note: MTU may be inconsistant across users, so resuming files
         # cannot be shared across users with different MTUs.)
-        s = u["fh"].tell()
-        u["fh"].seek(0, 2)   # SEEK_END
-        u["bytes"] = u["fh"].tell() #- (self.mss * len(u["lost"].keys()))#XXX
-        u["fh"].seek(s, 0)
+        # Number of bytes received = (offset - lost packets) * segment size
+        u["bytes"] = (u["at"] - len(u["lost"])) * self.mss
 
         #print "STORED BYTES: ", u["bytes"]
         #print "AND THE SIZE: ", u["size"]

@@ -1200,7 +1200,7 @@ class SUMIApp(wx.App):
             # just IP - I like this one better
             self.SetInfo(nick, COL_FROM, addr[0])
         elif cmd == "xfer_fin":       # Transfer finished
-            (duration, size, speed, all_lost) = args
+            duration, size, speed, all_lost = args
             self.SetInfo(nick, COL_STATUS, "Complete")
             self.SetInfo(nick, COL_RATE, "%d" % speed)
             self.SetColor(nick, wx.Colour(32, 128, 32))   # a suitable green
