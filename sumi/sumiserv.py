@@ -1133,7 +1133,8 @@ def transfer_control(u, msg):
 def read_data_block(u, seqno):
     """Read data for packet #seqno for u. This data will be encapsulated in
     a packet eventually, but this function only returns the raw data. If
-    FEC is enabled, the FEC encoded codeword will be returned."""
+    FEC is enabled, the FEC encoded codeword will be returned. Returns False
+    if error."""
 
     if u["mss"] * (seqno - 1) > u["size"]:
         return sendmsg_error(u, "tried to seek past end-of-file")
@@ -1171,6 +1172,10 @@ def datapkt(u, seqno, is_resend=False):
     log("Sending to %s #%s %s" % (u["nick"], seqno, u["mss"]))
 
     data = read_data_block(u, seqno)
+
+    if not data:
+        log("Couldn't read_data_block for seqno %s" % seqno)
+        return False
 
     # Crypto, anyone?
     # XXX: broken, no AONT for now
@@ -1211,6 +1216,10 @@ def datapkt(u, seqno, is_resend=False):
         ciphertext = u["crypto_obj"].encrypt(data)
 
         data = ciphertext
+
+    if not u.has_key("prefix"):
+        print "No prefix!"
+        print "u=%s" % u
 
     pkt = u["prefix"]               # 3-byte prefix
     pkt += struct.pack("!I", seqno) # 4-byte seq no
@@ -1775,7 +1784,8 @@ def sendmsg_error(u, msg):
     if not cfg["quiet_mode"]:
         sendmsg(u, "error: %s" % msg)
 
-    clear_client(u)
+    # leave around
+    #clear_client(u)
     return False
 
 

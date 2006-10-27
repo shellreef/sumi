@@ -906,7 +906,7 @@ DATA:UNKNOWN PREFIX! 414141 16 bytes from ()
         u["fh"].close()
         self.callback(u["nick"], "xfer_fin", duration, u["size"], 
               u["size"] / duration / 1024, 
-              u["all_lost"])
+              u.get("all_lost", []))
 
         self.callback(u["nick"], "hash_start")
 
@@ -1629,9 +1629,10 @@ Tried to use a valid directory of %s but it couldn't be accessed.""")
             if not u.has_key("handshake_status"):
                 # user was deleted, probably finished
                 return
-            if u["bytes"] >= u["size"]:
+            if u.get("bytes", 0) >= u.get("size", -1):
                 # file is complete
-                self.callback(u["nick"], "xfer_fin", 0, 0, 0, [])
+                self.finish_xfer(u)
+                #self.callback(u["nick"], "xfer_fin", 0, 0, 0, [])
                 return
             u["handshake_count"] = x 
             self.callback(u["nick"], "req_count", x, u["handshake_status"])
