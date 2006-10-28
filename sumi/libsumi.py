@@ -31,6 +31,7 @@ import types
 import os
 import socket
 import reedsolomon
+import math
 from itertools import izip, chain
 
 SUMI_VER = "0.8.16-pre"
@@ -45,6 +46,9 @@ INTERLOCK_DELAY = 1#second
 
 # Stop-and-wait (control_protocol=='ack') packet timeout
 ACK_PKT_TIMEOUT = 0.1#seconds
+
+# "n" parameter for Reed-Solomon
+FEC_CODEWORD_COUNT = 255
 
 # Size of chunk when reading files from _disk_ into memory (not used online)
 READ_CHUNK_SIZE = 1024 * 1024#bytes
@@ -803,6 +807,22 @@ def is_multicast(addr):
     #log("Checking if %s is class d" % addr)
     n = ord(socket.inet_aton(addr)[0])
     return n >= 224 and n <= 240
+
+def redundancy_to_k(redundancy):
+    """Convert a redundancy percentage to the K parameter (# data packets)
+    for the FEC encoder/decoder. This is out of FEC_CODEWORD_COUNT. Usage:
+           
+       >>> redundancy_to_k(20)
+       204
+       >>> redundancy_to_k(100)
+       0
+       >>> redundancy_to_k(0)
+       255
+       >>> redundancy_to_k(20.5)
+       202
+
+    """
+    return int(math.floor(FEC_CODEWORD_COUNT * (1 - redundancy / 100.)))
 
 if __name__ == "__main__":
     random_init()

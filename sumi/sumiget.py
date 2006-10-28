@@ -127,7 +127,7 @@ class Client(object):
     def __init__(self):
         log("Loading config...")
         # Mode "U" for universal newlines, so \r\n is okay
-        self.config = eval("".join(open(config_file, "rU").read()))
+        self.config = eval("".join(file(config_file, "rU").read()))
         libsumi.cfg = self.config
         libsumi.log = log
         log("OK")
@@ -332,27 +332,40 @@ True
 
     def setup_file(self, u):
         """Setup the file to save to. Return True to proceed."""
+        u["start"] = time.time()
+
         fn = self.config["dl_dir"] + os.path.sep + u["filename"]
         log("Opening %s for %s..." % (fn, u["nick"]))
-        u["start"] = time.time()
+
+        u["final_fn"] = fn
+
+        # In FEC mode, save codewords to fn.fec then decode to fn
+        if u["control_proto"] == "fec":
+            u["wire_fn"] = fn + ".fec"
+        else:
+            u["wire_fn"] = fn
 
         # These try/except blocks try to open the file rb+, but if
         # it fails with 'no such file', create them with wb+ and
         # open with rb+. Good candidate for a function!
         try:
-            u["fh"] = open(fn, "rb+")
+            u["fh"] = file(u["wire_fn"], "rb+")
         except IOError:
-            open(fn, "wb+").close()
-            u["fh"] = open(fn, "rb+")
+            file(u["wire_fn"], "wb+").close()
+            u["fh"] = file(u["wire_fn"], "rb+")
         log("open")
+
+        # For FEC, codewords will be decoded to fn
+        if u["control_proto"] == "fec":
+            u["fh_final"] = file(u["final_fn"], "wb+")
 
         # Open a new resuming file (create if needed)
         try:
-            u["fs"] = open(fn + ".sumi", "rb+")
+            u["fs"] = file(fn + ".sumi", "rb+")
             is_resuming = 1  # unless proven otherwise
         except IOError:
-            open(fn + ".sumi", "wb+").close()
-            u["fs"] = open(fn + ".sumi", "rb+")
+            file(fn + ".sumi", "wb+").close()
+            u["fs"] = file(fn + ".sumi", "rb+")
             is_resuming = 0   # empty resume file, new download
 
         # Lost data format: lostpkt1,lostpkt2,...,current_pkt
@@ -428,6 +441,18 @@ True
 
         u["size"], = struct.unpack("!I", size_str)
         log("SIZE:%s" % u["size"])
+ 
+        if u["control_proto"] == "fec":
+            # Calculate last K (# of data packets) for FEC encoded group
+            log("FEC_K=%s" % u["fec_k"])
+            leftover = u["size"] % (u["fec_k"] * self.mss)
+            lastsize = leftover + (self.mss - leftover % self.mss)
+            u["fec_last_k"] = lastsize / self.mss
+            log("FEC_LAST_K:%s" % u["fec_last_k"])
+
+            # This applies to the last group
+            u["fec_last_group"] = int(math.ceil(u["size"] / (u["fec_k"] * self.mss * 1.0)))
+
         assert len(new_prefix) == 3, "Missing new_prefix in auth packet!"
         flags = ord(flags_str)
         log("FLAGS:%s" % flags)
@@ -538,6 +563,37 @@ True
                 log(":) No MITM detected")
         self.callback(u["nick"], "recv_1st")
 
+    def handle_data_aont(self):
+        """Handle all-or-nothing transform when data is received.
+        Currently broken."""
+
+        # With crypto (AONT), last packet goes OVER the end of the file,
+        # specifically, by one block--the last block, encoding K'.
+        if offset + payloadsz > u["size"]:
+            u["got_last"] = True
+
+        # Inner "crypto": ECB package mode, step 1 (gathering)
+
+        if u.has_key("got_last"):
+            # Pass last block to gather_last(), then can decrypt
+            last_block = data[-get_cipher().block_size:]
+            pseudotext = data[0:-get_cipher().block_size]
+
+            u["aon"].gather(pseudotext)
+            u["aon"].gather_last(last_block)
+
+            u["aon_last"] = last_block
+
+            log("Gathered last block!")
+            u["can_undigest"] = True
+        else:
+            u["aon"].gather(pseudotext, ctr)
+
+        # Save data in file and unpackage after finished
+        print "LEN:%s vs. %s" % (len(data), len(pseudotext))
+        #data = pseudotext
+
+
     def handle_data(self, u, prefix, addr, seqno, data):
         """Handle data packets."""
 
@@ -555,20 +611,94 @@ True
         u["last_msg"] = time.time()
         offset = (seqno - 1) * self.mss
 
-        # Mark down each packet in our receive window if NAK
-        if u["control_proto"] == "nak":
-            if u["rwin"].has_key(seqno):
-                u["rwin"][seqno] += 1
-            else:
-                u["rwin"][seqno] = 1    # create
+        if u["rwin"].get(seqno,0) >= 2:
+            log("(DUPLICATE PACKET %d, IGNORED)" % seqno)
+            return
 
-            if u["rwin"][seqno] >= 2:
-                log("(DUPLICATE PACKET %d, IGNORED)" % seqno)
-                return
-        elif u["control_proto"] == "ack":
+        if u["control_proto"] == "ack":
             # If ACK protocol is used (stop-and-wait), request next immediately
             self.sendmsg(u, "k%d" % (seqno + 1))
             self.save_lost(u)
+        if u["control_proto"] == "fec":
+            # Reassemble if can (erasures <= n-k <==> received >= k)
+            # Check each unreassembled set of FEC_CODEWORD_COUNT packets
+            group = seqno / FEC_CODEWORD_COUNT
+            idx = seqno % FEC_CODEWORD_COUNT
+
+            if u["fec_group"].get(group):
+                log("Redundant packet %s for %s received and ignored" % 
+                    (seqno, group))
+                return
+
+            # Start and end seqnos for this group. Note that we may have not
+            # yet received the ending seqno!
+            start = group * FEC_CODEWORD_COUNT
+            end = start + FEC_CODEWORD_COUNT 
+
+            # Number of data packets per n-packet group
+            if group == u["fec_last_group"]:
+                k = u["fec_last_k"]
+                log("Last group! K=%s" % k)
+            else:
+                k = u["fec_k"]
+
+            # Do we have enough packets to recover this group?
+            # This occurs if: erasures <= n-k
+            # which is equivalent to received_packets >= k
+            # First check if idx >= k because if fewer than k packets were
+            # received, then the group is definitely not recoverable. If more
+            # than k were received, count gaps (expensive operation) and see
+            # if there is enough
+            log("(#%s,n=%s,group=%s) idx=%s, k=%s, idx-gaps=%s, gaps=%s" % (
+                seqno,FEC_CODEWORD_COUNT,group,
+                idx,k,idx-len(self.find_gaps(u,start,seqno)),len(self.find_gaps(u,start,seqno))))
+            if idx >= k and \
+                    idx - len(self.find_gaps(u, start, seqno)) >= k:
+                print "OK - have enough packets to recover group %s!" % group
+                rs = reedsolomon.Codec(FEC_CODEWORD_COUNT, k)
+
+                # Gather packets and erasures for decoding
+                pkts = []
+                erasures = []
+                for check_seqno in xrange(start, end):
+                    # If received up to here and packet was received...
+                    if seqno < end and u["rwin"].has_key(check_seqno):
+                        u["fh"].seek((check_seqno - 1) * self.mss)
+                        p = u["fh"].read(self.mss)
+                        pkts.append(p)
+                        assert len(p) == self.mss, \
+                            "fec: for seqno=%s, read %s, not mss=%s" \
+                                % (check_seqno, len(p), self.mss)
+                    else:
+                        # Specify erasures because the FEC code can recover
+                        # more erasures than errors. Fill with zeroes up to
+                        # MSS by reedsolomon module requirement (all packets
+                        # must be same size), but it will be ignored otherwise.
+                        pkts.append("\0" * self.mss)
+                        erasures.append(check_seqno % FEC_CODEWORD_COUNT)
+
+                # Recover
+                log("erasures(%s,k=%s)=%s" % (len(erasures), k, erasures))
+                decoded, corrections = rs.decodechunks(pkts, erasures)
+                log("DECODED %s to %s (%s corrections)" % (
+                        len(pkts), len(decoded), len(corrections)))
+                u["fec_group"][group] = True
+
+                # Save
+                u["fh_final"].seek(group * FEC_CODEWORD_COUNT)
+                u["fh_final"].write("".join(decoded))
+
+                u["bytes"] += len("".join(decoded))
+
+                print "done yet? %s >=? %s" % (u["bytes"], u["size"])
+                if u["bytes"] >= u["size"]:
+                    self.finish_xfer(u)
+
+                # TODO: check if previous group was recovered; if not, ARQ
+
+            # TODO: ARQ end of group and can't reassemble
+            # TODO: nothing if not yet received packets
+            pass
 
         #print "THIS IS RWIN: ", u["rwin"]
 
@@ -578,6 +708,7 @@ True
                 u["got_last"] = True
 
         if u["crypt_data"]:
+            data = handle_data_crypto(u, seqno)
             # Outer crypto: CTR mode
             u["ctr"] = (calc_blockno(seqno, self.mss) + u["data_iv"])
             #log("CTR:pkt %s -> %s" % (seqno, u["ctr"]))
@@ -585,38 +716,21 @@ True
 
         # XXX: broken
         if False and u.has_key("crypto_state"):
-            # With crypto (AONT), last packet goes OVER the end of the file,
-            # specifically, by one block--the last block, encoding K'.
-            if offset + payloadsz > u["size"]:
-                u["got_last"] = True
-
-            # Inner "crypto": ECB package mode, step 1 (gathering)
-
-            if u.has_key("got_last"):
-                # Pass last block to gather_last(), then can decrypt
-                last_block = data[-get_cipher().block_size:]
-                pseudotext = data[0:-get_cipher().block_size]
-
-                u["aon"].gather(pseudotext)
-                u["aon"].gather_last(last_block)
-
-                u["aon_last"] = last_block
-
-                log("Gathered last block!")
-                u["can_undigest"] = True
-            else:
-                u["aon"].gather(pseudotext, ctr)
-
-            # Save data in file and unpackage after finished
-            print "LEN:%s vs. %s" % (len(data), len(pseudotext))
-            #data = pseudotext
+            handle_data_aont(u, seqno, offset, payloadsz, data)
 
         # New data (not duplicate, is cleartext) - add to running total
-        u["bytes"] += len(data) 
+        if u["control_proto"] != "fec":
+            u["bytes"] += len(data) 
         #u["bytes"] = u["fh"].tell() #- (self.mss * len(u["lost"].keys()))#XXX
 
         u["fh"].seek(offset)
         u["fh"].write(data)
+
+        # Mark down each packet in our receive window if NAK or FEC
+        # Do this only AFTER writing the file to disk, so it can be read later
+        if u["control_proto"] in ("nak", "fec"):
+            # Increment number of packets received from this seqno 
+            u["rwin"][seqno] = u["rwin"].get(seqno, 0) + 1
 
         if u.has_key("can_undigest"):
             self.undigest_file(u)
@@ -631,12 +745,21 @@ True
             if u.has_key("got_last"):
                 self.finish_xfer(u)
 
+    def find_gaps(self, u, start, end):
+        """Return list of missing packets from start to end in u."""
+        missing = []
+        for seqno in xrange(start, end):
+            if not u["rwin"].has_key(seqno):
+                missing.append(seqno)
+        return missing
+
     def check_losses(self, u, seqno, data):
         """Check for packet losses for NAK protocol."""
         if seqno > 1:
             i = 1 
-            # Nice little algorithm. Work backwards, searching for gaps.
-            #print "I'm at ",seqno
+            # Neat little algorithm. Work backwards, searching for gaps.
+            # check_losses() is called when each packet is received, so only
+            # up until the first received packet is checked.
             while seqno - i >= 0:
                 #print "?? ", seqno-i
                 if not u["rwin"].has_key(seqno - i):
@@ -644,8 +767,11 @@ True
                     u["all_lost"].append(str(seqno - i))
                     i += 1
                 else:
-                    #print "ITS THERE!"
                     break  # this one wasn't lost, so already checked
+
+
+           # Fill in u["lost"] and u["all_lost"] from seqno
+            self.find_gap(u, seqno)
 
             # Re-request packets even if using multicast
             #if u["mcast"]:
@@ -902,7 +1028,7 @@ DATA:UNKNOWN PREFIX! 414141 16 bytes from ()
 
         self.sendmsg(u, "sumi done")
 
-        duration = time.time() - u["start"]
+        duration = time.time() - u.get("start", time.time())
         u["fh"].close()
         self.callback(u["nick"], "xfer_fin", duration, u["size"], 
               u["size"] / duration / 1024, 
@@ -1139,6 +1265,7 @@ DATA:UNKNOWN PREFIX! 414141 16 bytes from ()
 
         u = self.senders[nick]
 
+        # First check for plain-text messages
         if msg.startswith("error: "):
             error_msg = msg[len("error: "):]
             log("*** Error: %s: %s" % (nick, error_msg))
@@ -1146,7 +1273,9 @@ DATA:UNKNOWN PREFIX! 414141 16 bytes from ()
             self.callback(u["nick"], "error", error_msg)
             return False
 
-        # Always base64'd
+        print "MSG: %s" % msg
+
+        # Always base64'd from here on
         try:
             raw = base64.decodestring(msg)
         except binascii.Error:
@@ -1494,6 +1623,11 @@ Tried to use a valid directory of %s but it couldn't be accessed.""")
         else:
             ip = self.myip
 
+        if u["control_proto"] == "fec":
+            u["redundancy"] = self.config.get("redundancy", 20.0)
+            u["fec_k"] = redundancy_to_k(u["redundancy"])
+            u["fec_group"] = {}
+
         msg = "sumi send " + pack_args({"f":file,
             #"o":offset,  # offset moved to sumi auth (know file size)
             "i":ip, "n":self.myport, "m":self.mss,
@@ -1502,7 +1636,8 @@ Tried to use a valid directory of %s but it couldn't be accessed.""")
             "w":self.rwinsz, 
             "c":u["control_proto"],
             "x":b64(data_key + data_iv),
-            "d":self.config["data_chan_type"]})
+            "d":self.config["data_chan_type"],
+            "r":u["redundancy"]})
         return msg
 
     def clear_server(self, u):
@@ -1580,7 +1715,8 @@ Tried to use a valid directory of %s but it couldn't be accessed.""")
         u["handshake_status"] = "Handshaking"
         u["control_proto"] = self.config["control_protocol"]
 
-        # If transport can receive messages, set it up
+        # If transport can receive messages, set it up. Useful to receive
+        # error messages back from server.
         if "recvmsg" in u:
             self.setup_recvmsg(u)
         else:
@@ -1754,7 +1890,7 @@ Tried to use a valid directory of %s but it couldn't be accessed.""")
         log("Cleaning up...")
 
         try:
-            savefile = open(config_file, "w")
+            savefile = file(config_file, "w")
 
             savefile.write("""# Client configuration file
 # Saved by $Id$
@@ -1784,7 +1920,7 @@ def on_sigusr1(signo, intsf):
     """SIGUSR1 is used on Unix for signalling multiple transfers."""
     global base_path
     log("Got SIGUSR1 (%s %s) calling" % (signo, intsf))
-    (transport, nick, filename) = open(base_path + "run", 
+    (transport, nick, filename) = file(base_path + "run", 
         "rb").readline().split("\t")
     log("-> %s %s %s " % (transport,nick,filename))
     #Client().main(transport, nick, filename)
@@ -1819,9 +1955,9 @@ def pre_main(invoke_req_handler):
         # TODO: file locking so will be unlocked if crashes
         # PID file exists, program (should) be running
         # So signal it, pass control onto - it does work, not us
-        master = open(base_path+"sumiget.pid","rb").read()
+        master = file(base_path+"sumiget.pid","rb").read()
         if len(master) != 0:   # If empty, be master
-            open(base_path + "run", "wb").write("\t".join(sys.argv[1:]))
+            file(base_path + "run", "wb").write("\t".join(sys.argv[1:]))
             my_master = int(master)
             log("Passing to: %s" % my_master)
             failed = 0 
@@ -1844,7 +1980,7 @@ def pre_main(invoke_req_handler):
             #sys.exit(-1)
         # File locking would be good; if locked then write cmdline, os.kill other
     # Moved to GUI
-    #pidf = open(base_path + "sumiget.pid", "wb")
+    #pidf = file(base_path + "sumiget.pid", "wb")
     #pidf.write(str(os.getpid()))
     #pidf.close() 
 

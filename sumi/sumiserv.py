@@ -40,6 +40,7 @@ import time
 import Queue
 import zlib
 import libsumi
+import math
 
 from libsumi import *
 
@@ -227,6 +228,7 @@ def handle_request(u, msg):
         dchantype= args["d"]
         data_key_and_iv = args["x"]        # Data encryption
         control_proto = args.get("c", "nak")
+        redundancy = float(args.get("r", 20.0))
     except KeyError:
         log("not enough fields/missing fields")
         return sendmsg_error(u, "not enough fields/missing fields")
@@ -279,6 +281,7 @@ def handle_request(u, msg):
     u["rwinsz"] = rwinsz 
     u["dchantype"] = dchantype
     u["control_proto"] = control_proto
+    u["redundancy"] = redundancy
 
     if data_key_and_iv:
         all = base64.decodestring(data_key_and_iv)
@@ -456,14 +459,17 @@ def handle_send(u, msg):
     # Make sure the filename/pack number is valid
     if not u["file"] in range(len(cfg["filedb"])):
         return sendmsg_error(u, "no such pack number")
-    
+
     # Build header -- this contains file information.
     # TODO: put more information about the file here. hash?
 
     # This is the size of the cleartext, not necessarily size on the wire
-    clear_size = os.path.getsize(cfg["filedb"][u["file"]]["fn"])
-    file_info = struct.pack("!I", clear_size)
-    u["clear_size"] = clear_size
+    disk_size = os.path.getsize(cfg["filedb"][u["file"]]["fn"])
+    file_info = struct.pack("!I", disk_size)
+    # disk_size = on-disk file size
+    # wire_size = transmitted size on the wire (may be overwritten later)
+    u["disk_size"] = disk_size
+    u["wire_size"] = disk_size
 
     # Note: concatenating like this is inefficient!
 
@@ -570,7 +576,7 @@ def handle_auth(u, msg):
 
     # Find size...
     u["fh"].seek(0, 2)   # SEEK_END
-    u["size"] = u["fh"].tell()
+    u["disk_size"] = u["fh"].tell()
     u["fh"].seek(0, 0)   # SEEK_SET
 
     log("Starting transfer to %s..." % u["nick"])
@@ -910,13 +916,16 @@ def xfer_thread_fec(u):
     u["fec_fh"].seek(0)
    
     u["seqno"] = 1
-    while True:
+    while u["seqno"] <= u["fec_last_seqno"]:
         datapkt(u, u["seqno"])
         u["seqno"] += 1
 
+    #sendmsg(u, "sumi done")
+
 def fec_encode_file(u):
     """Encode the file with Forward Error Correction by adding redundancy."""
-    redundancy = cfg.get("redundancy", 20.)
+    redundancy = u["redundancy"]
+    log("Beginning to encode with redundancy = %s%%" % redundancy)
 
     # Encode entire file first. While it is possible to encode on-the-fly,
     # doing so would require more memory to hold each group of N*MSS in memory
@@ -924,27 +933,46 @@ def fec_encode_file(u):
     # the server sends an ACK to confirm reception, which we're trying to avoid.
     # So save to filename + .fec, then read packets from there as normal.
     u["fh"].seek(0)
-    u["fec_fh"] = file(u["fn"] + ".fec", "wb")
-    n = 255
-    k = n * (1 - redundancy / 100.)
+    u["fec_fh"] = file(cfg["filedb"][u["file"]]["fn"] + ".fec", "wb+")
+    n = FEC_CODEWORD_COUNT
+    k = redundancy_to_k(redundancy)
     u["fec_n"] = n
     u["fec_k"] = k
+    u["fec_last_seqno"] = 0
+    u["wire_size"] = 0
     while True:
-        rs = reedsolomon.Codec(n, k)
-
         # Read K packets
         group = u["fh"].read(u["mss"] * k)
         if len(group) == 0:
             break
-        
-        pkts = struct.unpack(("%ss" % u["mss"]) * k, group)
+
+        if len(group) / u["mss"] != k:
+            # Last group, requires padding up to MSS
+            group += "\0" * (u["mss"] - len(group) % u["mss"])
+            assert len(group) % u["mss"] == 0, \
+                    "fec: failed to pad: %s %% %s != 0" % (len(group), u["mss"])
+            k = len(group) / u["mss"]
+
+        log("N=%s,K=%s" % (n,k))
+        rs = reedsolomon.Codec(n, k)
+
+        log("mss=%s, /=%s, s=%s" % (u["mss"], len(group)/u["mss"],len(group)))
+        pkts = struct.unpack(("%ss" % u["mss"]) * (len(group) / u["mss"]),
+                group)
         assert len(pkts) == k, "xfer_thread_fec: %s != %s" % (len(pkts), k)
 
         encoded = rs.encodechunks(pkts)
+
+        # Write N packets
         log("FEC encoded %s packets to %s codewords" % (len(pkts),len(encoded)))
 
-        u["fec_fh"].write("".join(encoded))
+        encoded_group = "".join(encoded)
+        u["fec_fh"].write(encoded_group)
+        u["wire_size"] += len(encoded_group)
+        u["fec_last_seqno"] += n
+
     log("FEC finished encoding file")
+    log("DISK SIZE: %s, WIRE SIZE: %s" % (u["disk_size"], u["wire_size"]))
 
 def xfer_thread_nak(u):
     """File transfer thread for windowed NAK control protocol.
@@ -1136,7 +1164,10 @@ def read_data_block(u, seqno):
     FEC is enabled, the FEC encoded codeword will be returned. Returns False
     if error."""
 
-    if u["mss"] * (seqno - 1) > u["size"]:
+    if seqno == u.get("fec_last_seqno",-1):
+        return ""
+
+    if u["mss"] * (seqno - 1) > u["wire_size"]:
         return sendmsg_error(u, "tried to seek past end-of-file")
 
     if u.has_key("fec_fh"):
@@ -1158,7 +1189,7 @@ def read_data_block(u, seqno):
 
 def datapkt(u, seqno, is_resend=False):
     """Send data packet number "seqno" to nick, for its associated file. 
-       Returns the length of the data sent.
+       Returns the length of the data sent, or False.
        
        Delegates actual sending to a send_packet_* function."""
 
@@ -1169,9 +1200,9 @@ def datapkt(u, seqno, is_resend=False):
         # lose packet (for testing purposes)
         return u["mss"]
 
-    log("Sending to %s #%s %s" % (u["nick"], seqno, u["mss"]))
-
     data = read_data_block(u, seqno)
+    
+    log("Sending to %s #%s %s (%s)" % (u["nick"], seqno, u["mss"], len(data)))
 
     if not data:
         log("Couldn't read_data_block for seqno %s" % seqno)
@@ -1193,7 +1224,7 @@ def datapkt(u, seqno, is_resend=False):
         else:
             pseudotext = u["aon"].digest_next(data, ctr, is_resend)
             print "PSEUDOTEXT:%s"%ctr
-            if file_pos > u["clear_size"] - u["mss"]: 
+            if file_pos > u["wire_size"] - u["mss"]: 
                 # Last packet, so include last block
                 log("(last data packet!)")
 
@@ -1785,7 +1816,7 @@ def sendmsg_error(u, msg):
         sendmsg(u, "error: %s" % msg)
 
     # leave around
-    #clear_client(u)
+    clear_client(u)
     return False
 
 
@@ -1841,9 +1872,9 @@ def make_thread(f, arg):
         f(arg)
     except (KeyboardInterrupt, SystemExit):
         on_exit()
-    except KeyError:
+    except KeyError, e:
         # Client finished while we were trying to help it, oh well
-        log("Lost client")
+        log("Lost client: %s" % e)
         pass
  
 def on_exit():
