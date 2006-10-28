@@ -49,7 +49,8 @@ def recvmsg_client(callback=default_cb):
                 us = x
 
             if len(msg) == 0:   # EOF, so remove connection
-                connections.pop(us)
+                if connections.has_key(us):
+                    connections.pop(us)
     
             #callback("tor-%d" % s.getsockname()[1], msg)
             callback(us, msg)
