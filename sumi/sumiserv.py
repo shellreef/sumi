@@ -887,14 +887,16 @@ def xfer_thread_ack(u):
         u["seqno"] = 1
 
     # Repeatedly send packets until client acks or end of file
-    while True:
-        ret = datapkt(u, u["seqno"]) 
+    while not u.get("acked_last", False):
+        if not u.get("sent_last", False):
+            ret = datapkt(u, u["seqno"]) 
+
+        if ret < u["mss"]:
+            u["sent_last"] = True
+
         print "%s,%s" % (ret, u["mss"])
 
         time.sleep(ACK_PKT_TIMEOUT)
-
-        if ret < u["mss"]:
-            break
 
 
 # TODO: The following conditions need to be programmed in:
@@ -1146,12 +1148,14 @@ def handle_ack(u, msg):
     # Usage: k#, where # is the NEXT packet to request. This implicitedly
     # acknowledges #-1.
     u["seqno"] = int(msg[1:])
-    #if u.get("sent_last", False):
-    #    # Last packet acknowledged; go to end
-    #    return
+    if u.get("sent_last", False):
+        # Last packet acknowledged; go to end
+        log("Already sent last so not sending next packet")
+        u["acked_last"] = True
+        return
 
-    ret = datapkt(u, u["seqno"])
-    print "%s,%s" % (ret, u["mss"])
+    if datapkt(u, u["seqno"]) < u["mss"]:
+        u["sent_last"] = True
 
 def transfer_control(u, msg):
     """Handle an in-transfer control message.
@@ -1178,7 +1182,9 @@ def read_data_block(u, seqno):
         return ""
 
     if u["mss"] * (seqno - 1) > u["wire_size"]:
+        log("SENT_LAST=%s\n" % u["sent_last"])
         return sendmsg_error(u, "tried to seek past end-of-file")
+        #: %s>%s (%s)" % ( u["mss"] * (seqno - 1), u["wire_size"], seqno))
 
     if u.has_key("fec_fh"):
         fh = u["fec_fh"]
