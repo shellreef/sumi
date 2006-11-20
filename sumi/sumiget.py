@@ -887,6 +887,11 @@ DATA:UNKNOWN PREFIX! 414141 16 bytes from ()
             return   # no-op
 
         while True:
+            # symtable gets clobbered in some cases
+            import time
+
+            if not ACK_PKT_TIMEOUT: ACK_PKT_TIMEOUT = 0.1
+
             time.sleep(ACK_PKT_TIMEOUT)
 
             for x in self.senders:
@@ -1285,7 +1290,8 @@ DATA:UNKNOWN PREFIX! 414141 16 bytes from ()
         # Server will send three things: pubkeys, nonce1/2, nonce2/2
         # in two messages (pubkeys+nonce1/2, nonce2/2). We can tell which
         # message we are receiving by what we received previously.
-        if not u.has_key("crypto_state"):  # pubkeys+nonce1/2
+        if not u.has_key("crypto_state") and u.has_key("sent_sec"):  
+            # pubkeys+nonce1/2
             g = time.time()                                 #  -> req1/2
             u["got_nonce1"] = g
             d1 = g - u["sent_sec"]
@@ -1623,12 +1629,7 @@ Tried to use a valid directory of %s but it couldn't be accessed.""")
         else:
             ip = self.myip
 
-        if u["control_proto"] == "fec":
-            u["redundancy"] = self.config.get("redundancy", 20.0)
-            u["fec_k"] = redundancy_to_k(u["redundancy"])
-            u["fec_group"] = {}
-
-        msg = "sumi send " + pack_args({"f":file,
+        args = {"f":file,
             #"o":offset,  # offset moved to sumi auth (know file size)
             "i":ip, "n":self.myport, "m":self.mss,
             "p":b64(prefix),
@@ -1636,8 +1637,16 @@ Tried to use a valid directory of %s but it couldn't be accessed.""")
             "w":self.rwinsz, 
             "c":u["control_proto"],
             "x":b64(data_key + data_iv),
-            "d":self.config["data_chan_type"],
-            "r":u["redundancy"]})
+            "d":self.config["data_chan_type"]}
+
+        if u["control_proto"] == "fec":
+            u["redundancy"] = self.config.get("redundancy", 20.0)
+            u["fec_k"] = redundancy_to_k(u["redundancy"])
+            u["fec_group"] = {}
+            args["r"] = u["redundancy"]
+
+        msg = "sumi send " + pack_args(args)
+
         return msg
 
     def clear_server(self, u):

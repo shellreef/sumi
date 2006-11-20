@@ -883,13 +883,18 @@ def xfer_thread_loop(u):
 
 def xfer_thread_ack(u):
     """Transfer thread for positive ACK control protocol (stop-and-wait)."""
-    # Send 1st data packet - client will ack and we'll send the next
-    # in handle_ack()
     if not u.has_key("seqno"):
         u["seqno"] = 1
-    datapkt(u, u["seqno"])
 
-    # TODO: Wait for timeouts, then resend
+    # Repeatedly send packets until client acks or end of file
+    while True:
+        ret = datapkt(u, u["seqno"]) 
+        print "%s,%s" % (ret, u["mss"])
+
+        time.sleep(ACK_PKT_TIMEOUT)
+
+        if ret < u["mss"]:
+            break
 
 
 # TODO: The following conditions need to be programmed in:
@@ -959,7 +964,7 @@ def fec_encode_file(u):
         log("mss=%s, /=%s, s=%s" % (u["mss"], len(group)/u["mss"],len(group)))
         pkts = struct.unpack(("%ss" % u["mss"]) * (len(group) / u["mss"]),
                 group)
-        assert len(pkts) == k, "xfer_thread_fec: %s != %s" % (len(pkts), k)
+        assert len(pkts) == k, "fec_encode_file: %s != %s" % (len(pkts), k)
 
         encoded = rs.encodechunks(pkts)
 
@@ -1141,7 +1146,12 @@ def handle_ack(u, msg):
     # Usage: k#, where # is the NEXT packet to request. This implicitedly
     # acknowledges #-1.
     u["seqno"] = int(msg[1:])
-    datapkt(u, u["seqno"])
+    #if u.get("sent_last", False):
+    #    # Last packet acknowledged; go to end
+    #    return
+
+    ret = datapkt(u, u["seqno"])
+    print "%s,%s" % (ret, u["mss"])
 
 def transfer_control(u, msg):
     """Handle an in-transfer control message.
@@ -1189,7 +1199,8 @@ def read_data_block(u, seqno):
 
 def datapkt(u, seqno, is_resend=False):
     """Send data packet number "seqno" to nick, for its associated file. 
-       Returns the length of the data sent, or False.
+       Returns the length of the data sent, or False. The length can be
+       compared to the MSS to determine if this is the last packet to be sent.
        
        Delegates actual sending to a send_packet_* function."""
 
@@ -1198,10 +1209,11 @@ def datapkt(u, seqno, is_resend=False):
 
     if cfg["noise"] and random.randint(0, int(cfg["noise"])) == 0:
         # lose packet (for testing purposes)
+        log("(losing random packet %s)" % seqno)
         return u["mss"]
 
     data = read_data_block(u, seqno)
-    
+
     log("Sending to %s #%s %s (%s)" % (u["nick"], seqno, u["mss"], len(data)))
 
     if not data:
