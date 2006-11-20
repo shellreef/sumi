@@ -39,7 +39,6 @@ SUMI_VER = "0.8.16-pre"
 SUMIHDRSZ = 11#bytes
 UDPHDRSZ = 8#bytes
 IPHDRSZ = 20#bytes
-SUMIAUTHHDRSZ = 4#bytes
 
 # Time to sleep between interlock protocol exchanges
 INTERLOCK_DELAY = 1#second

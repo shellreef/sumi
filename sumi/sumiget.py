@@ -300,7 +300,7 @@ True
         # Number of bytes received = (offset - lost packets) * segment size
         u["bytes"] = (u["at"] - len(u["lost"])) * self.mss
 
-        if u["bytes"] >= u["size"]:
+        if u["bytes"] >= u["disk_size"]:
             log("*** Loaded complete file")
             # will be called back in request() countdown loop
             return False
@@ -435,23 +435,26 @@ True
 
         # File length, new prefix, flags, filename
         i = SUMIHDRSZ
-        size_str, i = take(data, SUMIAUTHHDRSZ, i)
+        disk_size_str, i = take(data, 4, i)
+        wire_size_str, i = take(data, 4, i)
         new_prefix, i = take(data, 3, i)
         flags_str, i = take(data, 1, i)
 
-        u["size"], = struct.unpack("!I", size_str)
-        log("SIZE:%s" % u["size"])
+        u["disk_size"], = struct.unpack("!I", disk_size_str)
+        u["wire_size"], = struct.unpack("!I", wire_size_str)
+        log("SIZE:disk=%s, wire=%s" % (u["disk_size"], u["wire_size"]))
  
         if u["control_proto"] == "fec":
             # Calculate last K (# of data packets) for FEC encoded group
             log("FEC_K=%s" % u["fec_k"])
-            leftover = u["size"] % (u["fec_k"] * self.mss)
+            leftover = u["disk_size"] % (u["fec_k"] * self.mss)
             lastsize = leftover + (self.mss - leftover % self.mss)
             u["fec_last_k"] = lastsize / self.mss
             log("FEC_LAST_K:%s" % u["fec_last_k"])
 
             # This applies to the last group
-            u["fec_last_group"] = int(math.ceil(u["size"] / (u["fec_k"] * self.mss * 1.0)))
+            u["fec_last_group"] = int(math.ceil(u["disk_size"] / 
+                (u["fec_k"] * self.mss * 1.0)))
 
         assert len(new_prefix) == 3, "Missing new_prefix in auth packet!"
         flags = ord(flags_str)
@@ -486,7 +489,7 @@ True
             log("Switching to a new prefix!")
         u["prefix"] = new_prefix
 
-        self.callback(u["nick"], "info", u["size"], 
+        self.callback(u["nick"], "info", u["disk_size"], 
             b64(prefix), filename, 
             u["transport"], 
             self.config["data_chan_type"])
@@ -569,7 +572,7 @@ True
 
         # With crypto (AONT), last packet goes OVER the end of the file,
         # specifically, by one block--the last block, encoding K'.
-        if offset + payloadsz > u["size"]:
+        if offset + payloadsz > u["disk_size"]:
             u["got_last"] = True
 
         # Inner "crypto": ECB package mode, step 1 (gathering)
@@ -690,8 +693,8 @@ True
 
                 u["bytes"] += len("".join(decoded))
 
-                print "done yet? %s >=? %s" % (u["bytes"], u["size"])
-                if u["bytes"] >= u["size"]:
+                print "done yet? %s >=? %s" % (u["bytes"], u["wire_size"])
+                if u["bytes"] >= u["wire_size"]:
                     self.finish_xfer(u)
 
                 # TODO: check if previous group was recovered; if not, ARQ
@@ -704,7 +707,7 @@ True
 
         if not u.has_key("crypto_state"):
             # Without crypto (AONT), last packet is when completes file
-            if offset + payloadsz >= u["size"]:
+            if offset + payloadsz >= u["wire_size"]:
                 u["got_last"] = True
 
         if u["crypt_data"]:
@@ -736,7 +739,7 @@ True
             self.undigest_file(u)
 
         # Note: callback called every packet; might be too excessive
-        self.callback(u["nick"], "write", u["bytes"], u["size"], addr)
+        self.callback(u["nick"], "write", u["bytes"], u["disk_size"], addr)
 
         # Check previous packets, see if they were lost (unless first packet)
         if u["control_proto"] == "nak":
@@ -788,7 +791,7 @@ True
             if u.has_key("got_last"):
                 log("LAST PACKET: %d =? %d" % (len(data), self.mss))
                 # File size is now sent in auth packet so no need to calc it
-                #u["size"] = u["fh"].tell()
+                #u["disk_size"] = u["fh"].tell()
                 # We got to the end of the file, but with the NAK control
                 # protocol (which continously sends packets) may have left
                 # gaps in the file. Check it.
@@ -920,9 +923,9 @@ DATA:UNKNOWN PREFIX! 414141 16 bytes from ()
 
         # Should never have more bytes than are in the file, but this bug
         # isn't yet fixed. TODO: fix it. Something to do w/ resends.
-        #assert u["bytes"] <= u["size"], \
+        #assert u["bytes"] <= u["disk_size"], \
         #        "check_finished(%s), bytes=%s > size=%s" % (u["nick"], 
-        #                u["bytes"], u["size"])
+        #                u["bytes"], u["disk_size"])
 
         # Old way: EOF if nothing missing and got_last
         #if (len(u["lost"]) == 0 and 
@@ -930,7 +933,7 @@ DATA:UNKNOWN PREFIX! 414141 16 bytes from ()
         #    return self.finish_xfer(x) # there's nothing left, we're done!
         # New way: EOF if total bytes recv >= size and nothing missing
  
-        if u["bytes"] >= u["size"] and not u.get("lost"):
+        if u["bytes"] >= u["disk_size"] and not u.get("lost"):
             return self.finish_xfer(u)
 
 
@@ -960,7 +963,7 @@ DATA:UNKNOWN PREFIX! 414141 16 bytes from ()
                     # rate = delta_bytes / delta_time   (bytes arrived)
                     # eta = delta_bytes * rate          (bytes not arrived)
                     if rate != 0:
-                        eta = (u["size"] - u["bytes"]) / rate
+                        eta = (u["disk_size"] - u["bytes"]) / rate
                     else:
                         eta = 0
                     # Callback gets raw bits/sec and seconds remaining
@@ -1035,8 +1038,8 @@ DATA:UNKNOWN PREFIX! 414141 16 bytes from ()
 
         duration = time.time() - u.get("start", time.time())
         u["fh"].close()
-        self.callback(u["nick"], "xfer_fin", duration, u["size"], 
-              u["size"] / duration / 1024, 
+        self.callback(u["nick"], "xfer_fin", duration, u["disk_size"], 
+              u["disk_size"] / duration / 1024, 
               u.get("all_lost", []))
 
         self.callback(u["nick"], "hash_start")
@@ -1060,8 +1063,8 @@ DATA:UNKNOWN PREFIX! 414141 16 bytes from ()
 
         #print "Transfer complete in %.6f seconds" % (duration)
         #print "All lost packets: ", u["all_lost"]
-        #print str(u["size"]) + " at " + str(
-        #     u["size"] / duration / 1024) + " KB/s"
+        #print str(u["disk_size"]) + " at " + str(
+        #     u["disk_size"] / duration / 1024) + " KB/s"
         self.senders.pop(u["nick"])    # delete the server key
 
         # Don't raise SystemExit
@@ -1774,7 +1777,7 @@ Tried to use a valid directory of %s but it couldn't be accessed.""")
             if not u.has_key("handshake_status"):
                 # user was deleted, probably finished
                 return
-            if u.get("bytes", -1) >= u.get("size", 0):
+            if u.get("bytes", -1) >= u.get("disk_size", 0):
                 # file is complete (don't finish if no bytes or size)
                 self.finish_xfer(u)
                 #self.callback(u["nick"], "xfer_fin", 0, 0, 0, [])

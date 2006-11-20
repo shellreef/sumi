@@ -463,13 +463,27 @@ def handle_send(u, msg):
     # Build header -- this contains file information.
     # TODO: put more information about the file here. hash?
 
+    # Setup filehandle
+    u["fh"] = file(cfg["filedb"][u["file"]]["fn"], "rb")
+
+    # Find size...
+    u["fh"].seek(0, 2)   # SEEK_END
+    u["disk_size"] = u["fh"].tell()
+    u["fh"].seek(0, 0)   # SEEK_SET
+
     # This is the size of the cleartext, not necessarily size on the wire
     disk_size = os.path.getsize(cfg["filedb"][u["file"]]["fn"])
-    file_info = struct.pack("!I", disk_size)
+ 
+    # Setup FEC first if enabled so that we have the wire size
+    if u["control_proto"] == "fec":
+        fec_encode_file(u)
+    else:
+        u["wire_size"] = disk_size
+
+    file_info = struct.pack("!II", disk_size, u["wire_size"])
     # disk_size = on-disk file size
     # wire_size = transmitted size on the wire (may be overwritten later)
     u["disk_size"] = disk_size
-    u["wire_size"] = disk_size
 
     # Note: concatenating like this is inefficient!
 
@@ -572,12 +586,6 @@ def handle_auth(u, msg):
         return sendmsg_error(u, "hashcode: %s != %s" % 
                 (derived_hash, hashcode))
 
-    u["fh"] = file(cfg["filedb"][u["file"]]["fn"], "rb")
-
-    # Find size...
-    u["fh"].seek(0, 2)   # SEEK_END
-    u["disk_size"] = u["fh"].tell()
-    u["fh"].seek(0, 0)   # SEEK_SET
 
     log("Starting transfer to %s..." % u["nick"])
     log("Sending: %s" % cfg["filedb"][u["file"]]["fn"])
@@ -915,10 +923,9 @@ def xfer_thread(u):
   
 def xfer_thread_fec(u):
     """File transfer thread for Reed-Solomon Forward Error Correction
-    with ARQ control protocol."""
+    with ARQ control protocol (ARQ TODO)."""
     log("Starting FEC transfer")
 
-    fec_encode_file(u)
     # Send all packets...321 go
     u["fec_fh"].seek(0)
    
@@ -1222,7 +1229,7 @@ def datapkt(u, seqno, is_resend=False):
 
     log("Sending to %s #%s %s (%s)" % (u["nick"], seqno, u["mss"], len(data)))
 
-    if not data:
+    if data is False:
         log("Couldn't read_data_block for seqno %s" % seqno)
         return False
 
